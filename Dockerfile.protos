@@ -1,0 +1,7 @@
+FROM znly/protoc
+LABEL Salim Alami <celrenheit+github@gmail.com>
+
+
+WORKDIR /data
+
+COPY compile_protos.sh compile_protos.sh

@@ -1,0 +1,15 @@
+sudo: required
+
+services:
+  - docker
+
+before_script:
+  - docker-compose pull etcd
+  - docker-compose up -d etcd
+
+after_script:
+  - docker-compose down
+
+script:
+  - docker-compose build --pull --force-rm --no-cache test
+  - docker-compose run test

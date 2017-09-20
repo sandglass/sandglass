@@ -1,0 +1,220 @@
+syntax = "proto3";
+option go_package = "sgproto";
+package sandglass;
+
+import "google/api/annotations.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.equal_all) = true;
+option (gogoproto.goproto_stringer_all) = false;
+option (gogoproto.stringer_all) =  true;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+message Message {
+    string topic = 1;
+    string partition = 2;
+    bytes index = 3 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+    bytes offset = 4 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+    bytes key = 5;
+    bytes value = 6;
+}
+
+message DUIDReply {
+    bytes id = 1 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+}
+
+enum TopicKind {
+    TimerKind = 0;
+    CompactedKind = 1;
+}
+
+enum StorageDriver {
+    RocksDB = 0;
+    Badger = 1;
+}
+
+enum ConsistencyLevel {
+    ONE = 0;
+    QUORUM = 10;
+    ALL = 20;
+}
+
+message CreateTopicParams {
+    string name = 1;    
+    TopicKind kind = 2;  
+    int32 replicationFactor = 3;
+    int32 numPartitions = 4;  
+    StorageDriver storageDriver = 5;
+}
+
+message TopicReply {
+    bool success = 1;
+}
+
+
+message StoreLocallyReply {
+    bool success = 1;
+}
+
+message FetchFromRequest {
+    string topic = 1;
+    string partition = 2;
+    bytes from = 3 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+}
+
+message FetchRangeRequest {
+    string topic = 1;
+    string partition = 2;
+    bytes from = 3 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+    bytes to = 4 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+}
+
+message GetRequest {
+    string topic = 1;
+    string partition = 2;
+    bytes key = 3;
+}
+
+message ConsumeFromGroupRequest {
+    string topic = 1;
+    string partition = 2;
+    string consumerGroupName = 3;
+    string consumerName = 4;
+}
+
+message OffsetChangeRequest {
+    string topic = 1;
+    string partition = 2;
+    string consumerGroup = 3;
+    string consumerName = 4;
+    bytes offset = 5 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+}
+
+message OffsetChangeReply {
+    bool success = 1;
+}
+
+message LastOffsetReply {
+    bytes offset = 1 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+}
+
+message LastOffsetRequest {
+    string topic = 1;
+    string partition = 2;
+    string consumerGroup = 3;
+    string consumerName = 4;
+    
+    enum Kind {
+        Unknown = 0;
+        Consumed = 1;
+        Acknowledged = 2;
+        Commited = 3;
+    }
+
+    Kind kind = 5;
+}
+
+message FetchFromSyncRequest {
+    string topic = 1;
+    string partition = 2;
+    bytes from = 3;
+}
+
+service BrokerService {
+  rpc CreateTopic (CreateTopicParams) returns (TopicReply) {
+     option (google.api.http) = { 
+         post: "/topics" 
+         body: "*"
+     };
+  }
+  
+  rpc Publish (Message) returns (DUIDReply) {
+     option (google.api.http) = { 
+         post: "/topics/{topic}" 
+         additional_bindings {
+            post: "/topics/{topic}/{partition}"
+        }
+         body: "*"
+     };
+  }
+
+  rpc StoreMessageLocally (Message) returns (StoreLocallyReply) {
+     option (google.api.http) = { 
+        //  post: "/topics/{topic}/{offset}" 
+         body: "*"
+     };
+  }
+
+  rpc FetchFrom (FetchFromRequest) returns (stream Message) {}
+
+  rpc FetchRange (FetchRangeRequest) returns (stream Message) {}
+
+  rpc GetByKey (GetRequest) returns (Message) {}
+
+  rpc StoreMessagesStream (stream Message) returns (StoreLocallyReply) {
+  }
+
+  rpc ConsumeFromGroup (ConsumeFromGroupRequest) returns (stream Message) {
+       option (google.api.http) = { 
+            get: "/topics/{topic}/{partition}" 
+            additional_bindings {
+                get: "/topics/{topic}/{partition}/{consumerGroupName}/{consumerName}"
+            }
+        };
+  }
+
+
+  rpc Acknowledge (OffsetChangeRequest) returns (OffsetChangeReply) {
+        option (google.api.http) = { 
+            post: "/topics/ack/{topic}/{partition}" 
+            additional_bindings {
+                post: "/topics/ack/{topic}/{partition}/{consumerGroup}/{consumerName}"
+            }
+            body: "*"
+        };
+  }
+
+
+  rpc Commit (OffsetChangeRequest) returns (OffsetChangeReply) {
+      option (google.api.http) = { 
+            post: "/topics/commit/{topic}/{partition}" 
+            additional_bindings {
+                post: "/topics/commit/{topic}/{partition}/{consumerGroup}/{consumerName}"
+            }
+            body: "*"
+        };
+  }
+
+
+  rpc LastOffset (LastOffsetRequest) returns (LastOffsetReply) {
+  }
+
+
+  rpc FetchFromSync (FetchFromSyncRequest) returns (stream Message) {
+    //  option (google.api.http) = { 
+    //      get: "/topics/{topic}/{from}" 
+    //     //  body: "*"
+    //  };
+  }
+}
+
+
+// ---------------- Internal (not related to a service) -----------------
+
+message SyncRequest {
+    message SyncRequestTopic {
+        repeated string partitions = 1;
+    }
+
+    map<string, SyncRequestTopic> topics = 1;
+}
+
+message SyncResponse {
+    message SyncResponseTopic {
+        map<string, Message> partitions = 1;
+    }
+
+    map<string, SyncResponseTopic> topics = 1;
+}

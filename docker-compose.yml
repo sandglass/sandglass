@@ -1,0 +1,78 @@
+version: '2'
+
+services: 
+    etcd:
+        image: microbox/etcd
+        command: -name="etcd-service"
+        networks:
+        - my-net
+
+    sandglass:
+        build: .
+        volumes:
+        - ./:/gopath/src/github.com/celrenheit/sandglass
+        environment:
+        - GODEBUG=netdns=go
+        
+        networks:
+        - my-net
+
+    test:
+        links:
+            - etcd
+        depends_on: 
+            - etcd
+        entrypoint: ./wait-for-it.sh -t 60 etcd:4001 --
+        build: 
+            context: .
+            dockerfile: Dockerfile.test
+        command: go test -v ./...
+        networks:
+        - my-net
+
+    protos:
+        build: 
+            context: .
+            dockerfile: Dockerfile.protos
+        entrypoint: ash compile_protos.sh 
+        volumes:
+            - ./sgproto:/data/sgproto
+
+    node1:
+        extends: sandglass
+        links:
+            - etcd
+        depends_on: 
+            - etcd
+        ports:
+        - "2201:2201"
+        - "3301:3301"
+        environment:
+        - NAME=node1
+        - ADVERTISE_ADDR=node1:9901
+        - HTTP_ADDR=node1:2201
+        - GRPC_ADDR=node1:3301
+        - INITIAL_PEERS=node2:9902
+
+    node2:
+        extends: sandglass
+        links:
+            - etcd
+        depends_on: 
+            - etcd
+        ports:
+        - "2202:2202"
+        - "3302:3302"
+        environment:
+        - NAME=node2
+        - ADVERTISE_ADDR=node2:9902
+        - HTTP_ADDR=node2:2202
+        - GRPC_ADDR=node2:3302
+        - INITIAL_PEERS=node1:9901
+
+    integration_test:
+        extends: sandglass
+        command: go test -v ./integration/broker
+
+networks:
+  my-net:
