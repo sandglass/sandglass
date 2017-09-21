@@ -29,16 +29,20 @@ $ go get -u github.com/celrenheit/sandglass/cmd/sandglass
 
 ## Usage
 
+You need a running instance of [etcd](https://github.com/coreos/etcd).
+
+All data will be stored in /tmp/node1 and /tmp/node2 for the second.
+
 Open a first terminal window:
 
 ```shell
-$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node1.yml
+$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node1.yaml
 ```
 
 On a second terminal window:
 
 ```shell
-$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node2.yml
+$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node2.yaml
 ```
 
 ## TODO
