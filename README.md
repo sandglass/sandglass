@@ -71,7 +71,7 @@ See TODO section below for more information
 There is two kinds of topics:
 * Timer:
    * Fixed number of partitions (set up-front, could change)
-   * Time ordered using [sandflake IDs](https://https://github.com/celrenheit/sandflake)
+   * Time ordered using [sandflake IDs](https://github.com/celrenheit/sandflake)
    * Can produce messages in the future
 
 * Compacted (might change the name for this):
@@ -84,7 +84,7 @@ Data is written into a single partition. Either the destination partition is spe
 
 Each produced message to a partition writes a message to a Write Ahead Log (WAL) and to the message log.
 The WAL is used for the replication logic, it is sorted in the order each message was produced.
-The message log is used for message comsumption, it is mainly sorted by time (please refer to [sandflake ids](https://https://github.com/celrenheit/sandflake) for the exact composition)
+The message log is used for message comsumption, it is mainly sorted by time (please refer to [sandflake ids](https://github.com/celrenheit/sandflake) for the exact composition)
 
 The content of the message is stored in the message log and not in the WAL (only the keys are important). This way the message log is used for fast consumption avoiding random reads. 
 
