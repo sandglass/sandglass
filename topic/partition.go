@@ -14,6 +14,7 @@ import (
 	"github.com/celrenheit/sandglass/storage/rocksdb"
 	"github.com/celrenheit/sandglass/storage/scommons"
 	"github.com/gogo/protobuf/proto"
+	"github.com/willf/bloom"
 )
 
 var (
@@ -27,9 +28,11 @@ type Partition struct {
 	idgen    sandflake.Generator
 	basepath string
 	topic    *Topic
+	bf       *bloom.BloomFilter // TODO: persist bloom filter
 }
 
 func (t *Partition) InitStore(basePath string) error {
+	t.bf = bloom.NewWithEstimates(40e6, 1e-6)
 	msgdir := filepath.Join(basePath, t.Id)
 	if err := sgutils.MkdirIfNotExist(msgdir); err != nil {
 		return err
@@ -118,7 +121,37 @@ func (t *Partition) PutMessage(msg *sgproto.Message) error {
 		{Key: t.newWALKey(msg.Index, storagekey), Value: []byte("X")}, // wal
 	}
 
-	return t.db.BatchPut(entries)
+	err = t.db.BatchPut(entries)
+	if err != nil {
+		return err
+	}
+
+	t.bf.Add(msg.Key)
+
+	return nil
+}
+
+func (t *Partition) HasKey(key []byte) (bool, error) {
+	switch t.topic.Kind {
+	case sgproto.TopicKind_CompactedKind:
+	default:
+		panic("not compacted topic")
+	}
+
+	if !t.bf.Test(key) {
+		return false, nil
+	}
+
+	msg, err := t.GetMessage(sandflake.Nil, key, nil)
+	if err != nil {
+		return false, err
+	}
+
+	if msg == nil {
+		return false, nil
+	}
+
+	return msg.Offset != sandflake.Nil, nil
 }
 
 func (t *Partition) newWALKey(index sandflake.ID, key []byte) []byte {

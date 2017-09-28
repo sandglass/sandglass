@@ -97,6 +97,21 @@ func (s *service) GetByKey(ctx context.Context, req *sgproto.GetRequest) (*sgpro
 	return s.broker.Get(req.Topic, req.Partition, req.Key)
 }
 
+func (s *service) HasKey(ctx context.Context, req *sgproto.GetRequest) (*sgproto.HasResponse, error) {
+	if len(req.Key) == 0 {
+		return nil, fmt.Errorf("can only be used with a key")
+	}
+
+	exists, err := s.broker.HasKey(req.Topic, req.Partition, req.Key)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sgproto.HasResponse{
+		Exists: exists,
+	}, nil
+}
+
 func (s *service) Acknowledge(ctx context.Context, req *sgproto.OffsetChangeRequest) (*sgproto.OffsetChangeReply, error) {
 	ok, err := s.broker.Acknowledge(req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
 	return &sgproto.OffsetChangeReply{

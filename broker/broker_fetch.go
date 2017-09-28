@@ -106,6 +106,17 @@ func (b *Broker) Get(topicName string, partition string, key []byte) (*sgproto.M
 	return b.getFromPartition(topicName, p, key)
 }
 
+func (b *Broker) HasKey(topicName string, partition string, key []byte) (bool, error) {
+	t := b.getTopic(topicName)
+	var p *topic.Partition
+	if partition != "" {
+		p = t.GetPartition(partition)
+	} else {
+		p = t.ChoosePartitionForKey(key)
+	}
+	return b.hasKeyInPartition(topicName, p, key)
+}
+
 func (b *Broker) getFromPartition(topic string, p *topic.Partition, key []byte) (*sgproto.Message, error) {
 	leader := b.getPartitionLeader(topic, p.Id)
 	if leader == nil {
@@ -131,4 +142,27 @@ func (b *Broker) getFromPartition(topic string, p *topic.Partition, key []byte) 
 	}
 
 	return msg, nil
+}
+
+func (b *Broker) hasKeyInPartition(topic string, p *topic.Partition, key []byte) (bool, error) {
+	leader := b.getPartitionLeader(topic, p.Id)
+	if leader == nil {
+		return false, ErrNoLeaderFound
+	}
+
+	if leader.Name != b.Name() {
+		b.Debug("fetch key remotely '%v' from %v", string(key), leader.Name)
+		resp, err := leader.HasKey(context.TODO(), &sgproto.GetRequest{
+			Topic:     topic,
+			Partition: p.Id,
+			Key:       key,
+		})
+		if err != nil {
+			return false, err
+		}
+
+		return resp.Exists, nil
+	}
+
+	return p.HasKey(key)
 }

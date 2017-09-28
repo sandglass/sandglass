@@ -4,12 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"strings"
-
-	"google.golang.org/grpc/codes"
 
 	"github.com/celrenheit/sandflake"
-	"github.com/grpc/grpc-go/status"
 
 	"github.com/celrenheit/sandglass/sgproto"
 	"github.com/celrenheit/sandglass/topic"
@@ -123,16 +119,7 @@ func (b *Broker) isAcknoweldged(topicName, partition, consumerGroup string, offs
 	pk := partitionKey(topicName, partition, consumerGroup, "NOT SET")
 	p := topic.ChoosePartitionForKey(pk)
 	key := generateConsumerOffsetKey(topicName, partition, consumerGroup, "", offset, sgproto.LastOffsetRequest_Acknowledged)
-	msg, err := b.getFromPartition(ConsumerOffsetTopicName, p, key)
-	if err != nil {
-		status, ok := status.FromError(err)
-		if (ok && status.Code() == codes.NotFound) || strings.Contains(err.Error(), "not found") { // ugly error handling, FIX THIS!!!
-			return false, nil
-		}
-		return false, err
-	}
-
-	return msg.Offset != sandflake.Nil, nil
+	return b.hasKeyInPartition(ConsumerOffsetTopicName, p, key)
 }
 
 func partitionKey(topicName, partitionName, consumerGroup, consumerName string) []byte {
