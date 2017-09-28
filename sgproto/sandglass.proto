@@ -122,6 +122,10 @@ message FetchFromSyncRequest {
     bytes from = 3;
 }
 
+message HasResponse {
+    bool exists = 1;
+}
+
 service BrokerService {
   rpc CreateTopic (CreateTopicParams) returns (TopicReply) {
      option (google.api.http) = { 
@@ -152,6 +156,8 @@ service BrokerService {
   rpc FetchRange (FetchRangeRequest) returns (stream Message) {}
 
   rpc GetByKey (GetRequest) returns (Message) {}
+
+  rpc HasKey (GetRequest) returns (HasResponse) {}
 
   rpc StoreMessagesStream (stream Message) returns (StoreLocallyReply) {
   }

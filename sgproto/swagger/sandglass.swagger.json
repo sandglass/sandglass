@@ -378,6 +378,15 @@
         }
       }
     },
+    "sandglassHasResponse": {
+      "type": "object",
+      "properties": {
+        "exists": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      }
+    },
     "sandglassLastOffsetReply": {
       "type": "object",
       "properties": {
