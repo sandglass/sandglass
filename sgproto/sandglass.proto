@@ -108,9 +108,10 @@ message LastOffsetRequest {
     
     enum Kind {
         Unknown = 0;
-        Consumed = 1;
-        Acknowledged = 2;
-        Commited = 3;
+        Consumed = 10;
+        NotAcknowledged = 20;
+        Acknowledged = 30;
+        Commited = 40;
     }
 
     Kind kind = 5;
