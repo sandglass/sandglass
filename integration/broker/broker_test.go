@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/celrenheit/sandglass/sgutils"
+	"github.com/fortytw2/leaktest"
 
 	"github.com/celrenheit/sandglass/topic"
 
@@ -24,35 +25,31 @@ import (
 	"github.com/celrenheit/sandglass/logy"
 	"github.com/celrenheit/sandglass/server"
 	"github.com/celrenheit/sandglass/sgproto"
-	"github.com/docker/libkv"
-	"github.com/docker/libkv/store"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLeak(t *testing.T) {
-	// defer leaktest.CheckTimeout(t, 15*time.Second)()
+	defer leaktest.Check(t)()
 	n := 1
 	_, destroyFn := makeNBrokers(t, n)
+	time.Sleep(1 * time.Second)
 	destroyFn()
 }
 
 func TestSandglass(t *testing.T) {
-	store, err := libkv.NewStore(store.ETCD, []string{sgutils.TestETCDAddr()}, nil)
-	require.Nil(t, err)
-	defer store.Close()
-	cleanStore(t, store)
 	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
+	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err = brokers[0].CreateTopic(createTopicParams)
+	err := brokers[0].CreateTopic(createTopicParams)
 	require.Nil(t, err)
 
 	err = brokers[0].CreateTopic(createTopicParams)
@@ -85,14 +82,11 @@ func TestSandglass(t *testing.T) {
 }
 
 func TestCompactedTopic(t *testing.T) {
-	store, err := libkv.NewStore(store.ETCD, []string{sgutils.TestETCDAddr()}, nil)
-	require.Nil(t, err)
-	defer store.Close()
-	cleanStore(t, store)
 	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
+	time.Sleep(5000 * time.Millisecond)
 
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
@@ -100,7 +94,7 @@ func TestCompactedTopic(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err = brokers[0].CreateTopic(createTopicParams)
+	err := brokers[0].CreateTopic(createTopicParams)
 	require.Nil(t, err)
 
 	err = brokers[0].CreateTopic(createTopicParams)
@@ -139,22 +133,19 @@ func TestCompactedTopic(t *testing.T) {
 }
 
 func TestACK(t *testing.T) {
-	store, err := libkv.NewStore(store.ETCD, []string{sgutils.TestETCDAddr()}, nil)
-	require.Nil(t, err)
-	defer store.Close()
-	cleanStore(t, store)
 	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
+	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err = brokers[0].CreateTopic(createTopicParams)
+	err := brokers[0].CreateTopic(createTopicParams)
 	require.Nil(t, err)
 
 	err = brokers[0].CreateTopic(createTopicParams)
@@ -208,22 +199,19 @@ func TestACK(t *testing.T) {
 }
 
 func TestConsume(t *testing.T) {
-	store, err := libkv.NewStore(store.ETCD, []string{sgutils.TestETCDAddr()}, nil)
-	require.Nil(t, err)
-	defer store.Close()
-	cleanStore(t, store)
 	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
+	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err = brokers[0].CreateTopic(createTopicParams)
+	err := brokers[0].CreateTopic(createTopicParams)
 	require.Nil(t, err)
 
 	err = brokers[0].CreateTopic(createTopicParams)
@@ -309,22 +297,19 @@ func TestConsume(t *testing.T) {
 
 func TestSyncRequest(t *testing.T) {
 	broker.DefaultStateCheckInterval = 300 * time.Second
-	store, err := libkv.NewStore(store.ETCD, []string{sgutils.TestETCDAddr()}, nil)
-	require.Nil(t, err)
-	defer store.Close()
-	cleanStore(t, store)
 	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
+	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err = brokers[0].CreateTopic(createTopicParams)
+	err := brokers[0].CreateTopic(createTopicParams)
 	require.Nil(t, err)
 
 	err = brokers[0].CreateTopic(createTopicParams)
@@ -394,10 +379,6 @@ func getTopicFromBroker(b *broker.Broker, topic string) *topic.Topic {
 }
 
 func BenchmarkCompactedTopicGet(b *testing.B) {
-	store, err := libkv.NewStore(store.ETCD, []string{sgutils.TestETCDAddr()}, nil)
-	require.Nil(b, err)
-	defer store.Close()
-	cleanStore(b, store)
 	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(b, n)
@@ -409,7 +390,7 @@ func BenchmarkCompactedTopicGet(b *testing.B) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err = brokers[0].CreateTopic(createTopicParams)
+	err := brokers[0].CreateTopic(createTopicParams)
 	require.Nil(b, err)
 
 	err = brokers[0].CreateTopic(createTopicParams)
@@ -455,7 +436,8 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 		advertise_addr := RandomAddr()
 		grpc_addr := RandomAddr()
 		http_addr := RandomAddr()
-		brokers = append(brokers, newBroker(tb, i, dc.String(), advertise_addr, grpc_addr, http_addr, basepath))
+		raft_addr := RandomAddr()
+		brokers = append(brokers, newBroker(tb, i, dc.String(), advertise_addr, grpc_addr, http_addr, raft_addr, basepath))
 	}
 
 	for _, b := range brokers {
@@ -509,7 +491,7 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 
 var logger = log.New(os.Stdout, "", log.LstdFlags)
 
-func newBroker(tb testing.TB, i int, dc, adv_addr, grpc_addr, http_addr, basepath string) *broker.Broker {
+func newBroker(tb testing.TB, i int, dc, adv_addr, grpc_addr, http_addr, raft_addr, basepath string) *broker.Broker {
 	conf := &broker.Config{
 		Name:             "broker" + strconv.Itoa(i),
 		DCName:           dc,
@@ -519,6 +501,8 @@ func newBroker(tb testing.TB, i int, dc, adv_addr, grpc_addr, http_addr, basepat
 		DBPath:           basepath,
 		GRPCAddr:         grpc_addr,
 		HTTPAddr:         http_addr,
+		RaftAddr:         raft_addr,
+		BootstrapRaft:    i == 0,
 	}
 	fmt.Printf("conf: %+v\n", conf)
 	fmt.Printf("basepath: %+v\n", basepath)
@@ -530,15 +514,6 @@ func newBroker(tb testing.TB, i int, dc, adv_addr, grpc_addr, http_addr, basepat
 	require.Nil(tb, err)
 
 	return b
-}
-
-func cleanStore(tb testing.TB, s store.Store) {
-	err := s.DeleteTree(broker.ETCDBasePrefix)
-	if err != store.ErrKeyNotFound {
-		require.NoError(tb, err)
-	}
-
-	time.Sleep(200 * time.Millisecond)
 }
 
 func RandomAddr() string {

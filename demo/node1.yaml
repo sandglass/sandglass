@@ -6,5 +6,6 @@ discovery_addrs:
 db_path: /tmp/node1
 http_addr: :2108
 grpc_addr: :7170
+raft_addr: :9190
 initial_peers:
   - 0.0.0.0:9901

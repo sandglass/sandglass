@@ -13,6 +13,7 @@ type Node struct {
 	Name     string
 	IP       string
 	GRPCAddr string
+	RAFTAddr string
 	HTTPAddr string
 	Status   serf.MemberStatus
 	conn     *grpc.ClientConn

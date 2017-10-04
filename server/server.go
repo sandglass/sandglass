@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"sync"
 
 	"google.golang.org/grpc"
 
@@ -20,6 +21,8 @@ type Server struct {
 	httpServer         *http.Server
 	broker             *broker.Broker
 	cancel             func()
+	lis                net.Listener
+	wg                 sync.WaitGroup
 }
 
 func New(b *broker.Broker, grpcAddr, httpAddr string, logger logy.Logger) *Server {
@@ -31,8 +34,8 @@ func New(b *broker.Broker, grpcAddr, httpAddr string, logger logy.Logger) *Serve
 	}
 }
 
-func (s *Server) Start() error {
-	l, err := net.Listen("tcp", s.grpcAddr)
+func (s *Server) Start() (err error) {
+	s.lis, err = net.Listen("tcp", s.grpcAddr)
 	if err != nil {
 		return err
 	}
@@ -52,17 +55,30 @@ func (s *Server) Start() error {
 		Addr:    s.httpAddr,
 		Handler: mux,
 	}
-	go s.httpServer.ListenAndServe()
 
-	return s.server.Serve(l)
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.httpServer.ListenAndServe()
+	}()
+
+	return s.server.Serve(s.lis)
 }
 
-func (s *Server) Shutdown(ctx context.Context) error {
+func (s *Server) Shutdown(ctx context.Context) (err error) {
+	if s.cancel != nil {
+		s.cancel()
+	}
 	if s.httpServer != nil {
 		s.httpServer.Shutdown(ctx)
 	}
 	if s.server != nil {
 		s.server.GracefulStop()
 	}
-	return nil
+	if s.lis != nil {
+		s.lis.Close()
+	}
+
+	s.wg.Wait()
+	return
 }

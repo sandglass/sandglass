@@ -1,6 +1,7 @@
 package logy
 
 import "log"
+import "os"
 
 //go:generate stringer -type=Level
 type Level uint8
@@ -27,6 +28,10 @@ func NewWithLogger(l *log.Logger, level Level) Logger {
 		logger: l,
 		level:  level,
 	}
+}
+
+func NewStdoutLogger(level Level) Logger {
+	return NewWithLogger(log.New(os.Stdout, "", log.LstdFlags), level)
 }
 
 func (l *logger) log(level Level, format string, args ...interface{}) {

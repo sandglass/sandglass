@@ -53,7 +53,6 @@ var RootCmd = &cobra.Command{
 			GRPCAddr:         grpcAddr,
 			InitialPeers:     initialPeers,
 		}
-		fmt.Printf("conf: %+v\n", conf)
 		if cfgFile != "" {
 			fmt.Println("loading from config file:", cfgFile)
 			err := loadConfigFile(cfgFile, &conf)
@@ -75,7 +74,7 @@ var RootCmd = &cobra.Command{
 		}
 
 		logger := log.New(os.Stdout, conf.Name, log.LstdFlags)
-		server := server.New(b, grpcAddr, httpAddr, logy.NewWithLogger(logger, logy.INFO))
+		server := server.New(b, conf.GRPCAddr, conf.HTTPAddr, logy.NewWithLogger(logger, logy.INFO))
 		go func() {
 			err := server.Start()
 			if err != nil {

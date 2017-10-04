@@ -1,115 +1,27 @@
 package broker
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
-	"strings"
+	"github.com/celrenheit/sandglass/sgutils"
 
 	"github.com/celrenheit/sandglass"
-	"github.com/celrenheit/sandglass/sgproto"
-	"github.com/docker/leadership"
-	"github.com/docker/libkv/store"
 )
 
 var waitTime = 1 * time.Second
 
 func (b *Broker) hasController() bool {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	return b.controller != "" && b.getNode(b.controller) != nil
+	leader := b.raft.Leader()
+	return leader != "" && b.getNodeByRaftAddr(leader) != nil
 }
 
 func (b *Broker) IsController() bool {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	return b.controller == b.Name()
+	return b.raft.Leader() == b.conf.RaftAddr
 }
 
 func (b *Broker) GetController() *sandglass.Node {
-	return b.getNode(b.controller)
-}
-
-func (b *Broker) runForControllerElection() {
-	key := b.discPrefix + "/state/controller"
-	// TODO: increase this duration
-	candidate := leadership.NewCandidate(b.store, key, b.Name(), 2*time.Second)
-	b.wg.Add(1)
-	go func() {
-		defer b.wg.Done()
-		for {
-			b.run("controller", candidate)
-			select {
-			case <-b.ShutdownCh:
-				candidate.Stop()
-				return
-			case <-time.After(waitTime):
-				// retry
-			}
-		}
-	}()
-}
-
-func (b *Broker) followControllerElection() {
-	key := b.discPrefix + "/state/controller"
-	follower := leadership.NewFollower(b.store, key)
-
-	b.wg.Add(1)
-	go func() {
-		defer b.wg.Done()
-		for {
-			b.watchControllerElection(follower)
-			select {
-			case <-b.ShutdownCh:
-				follower.Stop()
-				return
-			case <-time.After(waitTime):
-				// retry
-			}
-		}
-	}()
-}
-func (b *Broker) watchControllerElection(follower *leadership.Follower) {
-	leaderCh, errCh := follower.FollowElection()
-
-	for {
-		select {
-		case <-b.ShutdownCh:
-			return
-		case leader := <-leaderCh:
-			b.mu.Lock()
-			b.controller = leader
-			b.Info("controller is: %+v\n", leader)
-			b.mu.Unlock()
-
-			if b.IsController() {
-				_, err := b.store.Get(b.discPrefix + "/topics/" + ConsumerOffsetTopicName)
-				if err == store.ErrKeyNotFound {
-					for i := 0; i < 10; i++ {
-						b.Debug("creating %s topic", ConsumerOffsetTopicName)
-						err := b.CreateTopic(&sgproto.CreateTopicParams{
-							Name:              ConsumerOffsetTopicName,
-							Kind:              sgproto.TopicKind_CompactedKind,
-							NumPartitions:     50,
-							ReplicationFactor: 3,
-						})
-						if err == nil {
-							break
-						}
-						b.Debug("error while creating %v topic err=%v", ConsumerOffsetTopicName, err)
-					}
-				}
-			}
-		case err := <-errCh:
-			b.Debug("[controller follower: '%s'] err=%v", b.Name(), err)
-			return
-		}
-	}
+	return b.getNodeByRaftAddr(b.raft.Leader())
 }
 
 func (b *Broker) rearrangePartitionsLeadership() error {
@@ -117,27 +29,17 @@ func (b *Broker) rearrangePartitionsLeadership() error {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	var group errgroup.Group
-	for _, t := range b.topics {
-		key := fmt.Sprintf(b.discPrefix+"/state/leader/topics/%s/partitions/", t.Name)
-		list, err := b.store.List(key)
-		if err != nil {
-			return err
-		}
-
-		for _, pair := range list {
-			pair := pair
-			partitionKey := pair.Key
-			oldLeader := string(pair.Value)
-			partitionId := strings.TrimPrefix(pair.Key, key)
+	var partitionBulkLeaderOp map[string]map[string]string
+	for _, t := range b.raft.GetTopics() {
+		for _, partition := range t.Partitions {
+			oldLeader, ok := b.raft.GetPartitionLeader(t.Name, partition.Id)
 
 			if _, ok := b.peers[oldLeader]; ok { // still alive, nothing to do
 				continue
 			}
 
-			partition := t.GetPartition(partitionId)
 			if partition == nil {
-				b.Debug("got unknown partition: %v", pair.Key)
+				b.Debug("got unknown partition: %v", partition)
 				continue
 			}
 			aliveReplicas := make([]string, 0, len(partition.Replicas))
@@ -152,14 +54,28 @@ func (b *Broker) rearrangePartitionsLeadership() error {
 				continue
 			}
 
+			if ok && sgutils.StringSliceHasString(aliveReplicas, oldLeader) {
+				b.Debug("old leader still alive %+v (t:%v p:%v)", oldLeader, t.Name, partition.Id)
+				continue
+			}
+
+			if partitionBulkLeaderOp == nil {
+				partitionBulkLeaderOp = map[string]map[string]string{}
+			}
+
+			if partitionBulkLeaderOp[t.Name] == nil {
+				partitionBulkLeaderOp[t.Name] = map[string]string{}
+			}
+
 			newLeader := aliveReplicas[rand.Intn(len(aliveReplicas))]
 			b.Debug("switch leader of topic:%v partition: %v (old=%v -> new=%v)", t.Name, partition.Id, oldLeader, newLeader)
-			group.Go(func() error {
-				_, _, err := b.store.AtomicPut(partitionKey, []byte(newLeader), pair, nil)
-				return err
-			})
+			partitionBulkLeaderOp[t.Name][partition.Id] = newLeader
 		}
 	}
 
-	return group.Wait()
+	if partitionBulkLeaderOp == nil {
+		return nil
+	}
+
+	return b.raft.SetPartitionLeaderBulkOp(partitionBulkLeaderOp)
 }

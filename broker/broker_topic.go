@@ -1,20 +1,14 @@
 package broker
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"math/rand"
-	"time"
-
-	"encoding/json"
 
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass/sgproto"
-	"github.com/celrenheit/sandglass/sgutils"
 	"github.com/celrenheit/sandglass/topic"
-	"github.com/docker/libkv/store"
 	"github.com/serialx/hashring"
-	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -29,62 +23,37 @@ var (
 )
 
 func (b *Broker) watchTopic() error {
-	pairCh, err := b.store.WatchTree(b.discPrefix+"/topics", b.ShutdownCh)
-	if err != nil {
-		return err
-	}
-
-	for pairs := range pairCh {
-		topics := make([]*topic.Topic, 0, len(pairs))
-		for _, pair := range pairs {
-			var topic topic.Topic
-			err := json.Unmarshal(pair.Value, &topic)
-			if err != nil {
-				b.Debug("[topic watcher] got error: %v", err)
-				return err
-			}
+	for {
+		select {
+		case <-b.ShutdownCh:
+			return nil
+		case topic := <-b.raft.NewTopicChan():
 			b.Info("[topic watcher] received new topic: %s", topic.Name)
-			exists := b.topicExists(topic.Name)
-			if !exists {
-				err := b.setupTopic(&topic)
-				if err != nil {
-					b.Debug("err in setupTopic: %v", err)
+			// exists := b.topicExists(topic.Name)
+			// if !exists {
+			// 	err := b.setupTopic(topic)
+			// 	if err != nil {
+			// 		b.Debug("err in setupTopic: %v", err)
+			// 	}
+			// }
+
+			// b.eventEmitter.Emit("topics:created:"+topic.Name, nil)
+
+			b.wg.Add(1)
+			go func() {
+				defer b.wg.Done()
+				if err := b.rearrangePartitionsLeadership(); err != nil {
+					b.Debug("error while rearrangeLeadership err=%v", err)
 				}
-				topics = append(topics, &topic)
-			}
+			}()
 		}
-
-		b.mu.Lock()
-		b.topics = append(b.topics, topics...)
-		b.mu.Unlock()
-
-		for _, t := range topics {
-			b.eventEmitter.Emit("topics:created:"+t.Name, nil)
-		}
-
-		b.wg.Add(1)
-		go func() {
-			defer b.wg.Done()
-			if err := b.rearrangePartitionsLeadership(); err != nil {
-				b.Debug("error while rearrangeLeadership err=%v", err)
-			}
-		}()
 	}
-
-	return nil
 }
 
 func (b *Broker) setupTopic(topic *topic.Topic) error {
 	err := topic.InitStore(b.conf.DBPath)
 	if err != nil {
 		return err
-	}
-
-	for _, p := range topic.Partitions {
-		if sgutils.StringSliceHasString(p.Replicas, b.Name()) {
-			go b.runForPartitionElection(topic.Name, p.Id)
-		}
-		go b.followControllerElectionForPartition(topic.Name, p.Id)
 	}
 
 	return nil
@@ -95,16 +64,17 @@ func (b *Broker) CreateTopic(params *sgproto.CreateTopicParams) error {
 		return ErrInvalidTopicName
 	}
 
-	if b.topicExists(params.Name) {
-		return ErrTopicAlreadyExist
+	if !b.IsController() {
+		leader := b.GetController()
+		if leader == nil {
+			return ErrNoLeaderFound
+		}
+		b.Debug("forward CreateTopic to %v", leader)
+		_, err := leader.CreateTopic(context.TODO(), params)
+		return err
 	}
 
-	key := b.discPrefix + "/topics/" + params.Name
-	pair, err := b.store.Get(key)
-	if err != nil && err != store.ErrKeyNotFound {
-		b.Debug("got error while get topic: %v %v", err, err == store.ErrKeyNotFound)
-		return err
-	} else if pair != nil {
+	if b.topicExists(params.Name) {
 		return ErrTopicAlreadyExist
 	}
 
@@ -138,39 +108,31 @@ func (b *Broker) CreateTopic(params *sgproto.CreateTopicParams) error {
 		t.Partitions = append(t.Partitions, p)
 	}
 
-	d, err := json.Marshal(t)
-	if err != nil {
+	// topicCreatedCh := b.eventEmitter.Once("topics:created:" + t.Name)
+
+	if err := b.raft.CreateTopic(t); err != nil {
 		return err
 	}
 
-	topicCreatedCh := b.eventEmitter.Once("topics:created:" + t.Name)
-	if _, _, err := b.store.AtomicPut(key, d, pair, nil); err != nil {
-		return err
+	partitionLeaders := map[string]map[string]string{
+		params.Name: map[string]string{},
 	}
 
-	var group errgroup.Group
-
-	// set a random replicas as leader
 	for _, p := range t.Partitions {
-		p := p
-		group.Go(func() error {
-			leader := p.Replicas[rand.Intn(len(p.Replicas))]
-			leaderkey := fmt.Sprintf(b.discPrefix+"/state/leader/topics/%s/partitions/%s", t.Name, p.Id)
-
-			return b.store.Put(leaderkey, []byte(leader), nil)
-		})
+		leader := p.Replicas[rand.Intn(len(p.Replicas))]
+		partitionLeaders[params.Name][p.Id] = leader
 	}
 
-	err = group.Wait()
+	err := b.raft.SetPartitionLeaderBulkOp(partitionLeaders)
 	if err != nil {
 		return err
 	}
 
-	select {
-	case <-topicCreatedCh:
-	case <-time.After(10 * time.Second):
-		return fmt.Errorf("timed out creating topic: %v", t.Name)
-	}
+	// select {
+	// case <-topicCreatedCh:
+	// case <-time.After(10 * time.Second):
+	// 	return fmt.Errorf("timed out creating topic: %v", t.Name)
+	// }
 
 	return nil
 }
@@ -178,13 +140,8 @@ func (b *Broker) CreateTopic(params *sgproto.CreateTopicParams) error {
 func (b *Broker) getTopic(name string) *topic.Topic {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	for _, topic := range b.topics {
-		if topic.Name == name {
-			return topic
-		}
-	}
 
-	return nil
+	return b.raft.GetTopic(name)
 }
 
 func (b *Broker) topicExists(name string) bool {

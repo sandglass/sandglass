@@ -16,8 +16,7 @@ import (
 
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass"
-	"github.com/docker/libkv"
-	"github.com/docker/libkv/store"
+	"github.com/celrenheit/sandglass/raft"
 	"github.com/hashicorp/serf/serf"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
@@ -25,12 +24,10 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	"github.com/celrenheit/libkv/store/etcd" // registering custom fork with fixes
 	"github.com/celrenheit/sandglass/logy"
 	"github.com/celrenheit/sandglass/sgproto"
 	"github.com/celrenheit/sandglass/topic"
 	"github.com/celrenheit/sandglass/watchy"
-	"github.com/docker/libkv/store/consul"
 )
 
 const (
@@ -41,8 +38,6 @@ const (
 var DefaultStateCheckInterval = 1 * time.Second
 
 func init() {
-	consul.Register()
-	etcd.Register()
 	// grpclog.SetLogger(log.New(ioutil.Discard, "", log.LstdFlags))
 	go func() {
 		log.Println(http.ListenAndServe(":6060", nil))
@@ -59,35 +54,31 @@ type Config struct {
 	DBPath           string   `yaml:"db_path,omitempty"`
 	HTTPAddr         string   `yaml:"http_addr,omitempty"`
 	GRPCAddr         string   `yaml:"grpc_addr,omitempty"`
+	RaftAddr         string   `yaml:"raft_addr,omitempty"`
 	InitialPeers     []string `yaml:"initial_peers,omitempty"`
+	BootstrapRaft    bool     `yaml:"bootstrap_raft,omitempty"`
 }
 
 type Broker struct {
 	logy.Logger
 	cluster    *serf.Serf
 	conf       *Config
-	store      store.Store
 	eventCh    chan serf.Event
 	ShutdownCh chan struct{}
 	doneCh     chan struct{}
 
 	nodes       map[string]string
-	topics      []*topic.Topic
 	mu          sync.RWMutex
 	peers       map[string]*sandglass.Node
 	currentNode *sandglass.Node
 
-	partitionsLeaders map[string]map[string]string
-
-	controller string
-	idgen      sandflake.Generator
-	consumers  map[string]*ConsumerGroup
+	idgen     sandflake.Generator
+	consumers map[string]*ConsumerGroup
 
 	eventEmitter   *watchy.EventEmitter
 	readyListeners []chan interface{}
 	wg             sync.WaitGroup
-
-	discPrefix string
+	raft           *raft.Store
 }
 
 func New(conf *Config) (*Broker, error) {
@@ -105,8 +96,15 @@ func New(conf *Config) (*Broker, error) {
 		}
 	}
 
-	store, err := libkv.NewStore(store.Backend(conf.DiscoveryBackend), conf.DiscoveryAddrs, nil)
-	if err != nil {
+	logger := logy.NewWithLogger(log.New(os.Stdout, fmt.Sprintf("[broker: %v] ", conf.Name), log.LstdFlags), logy.DEBUG)
+
+	raft := raft.New(raft.Config{
+		Name: conf.Name,
+		Addr: conf.RaftAddr,
+		Dir:  conf.DBPath,
+	}, logger)
+
+	if err := raft.Init(conf.BootstrapRaft); err != nil {
 		return nil, err
 	}
 
@@ -116,18 +114,15 @@ func New(conf *Config) (*Broker, error) {
 			HTTPAddr: conf.HTTPAddr,
 			GRPCAddr: conf.GRPCAddr,
 		},
-		conf:              conf,
-		ShutdownCh:        make(chan struct{}),
-		store:             store,
-		topics:            []*topic.Topic{},
-		doneCh:            make(chan struct{}),
-		Logger:            logy.NewWithLogger(log.New(os.Stdout, fmt.Sprintf("[broker: %v] ", conf.Name), log.LstdFlags), logy.DEBUG),
-		nodes:             make(map[string]string),
-		peers:             map[string]*sandglass.Node{},
-		partitionsLeaders: map[string]map[string]string{},
-		consumers:         map[string]*ConsumerGroup{},
-		eventEmitter:      watchy.New(),
-		discPrefix:        fmt.Sprintf("%s/%s", ETCDBasePrefix, conf.DCName),
+		conf:         conf,
+		ShutdownCh:   make(chan struct{}),
+		doneCh:       make(chan struct{}),
+		Logger:       logger,
+		nodes:        make(map[string]string),
+		peers:        map[string]*sandglass.Node{},
+		consumers:    map[string]*ConsumerGroup{},
+		eventEmitter: watchy.New(),
+		raft:         raft,
 	}
 	return b, nil
 }
@@ -153,7 +148,10 @@ func (b *Broker) Stop(ctx context.Context) error {
 		<-b.doneCh
 		b.wg.Wait()
 		// closing connection to etcd
-		b.store.Close()
+		err := b.raft.Stop()
+		if err != nil {
+			b.Debug("error while stopping raft: %v", err)
+		}
 		close(gracefulCh)
 	}()
 
@@ -169,11 +167,9 @@ func (b *Broker) Stop(ctx context.Context) error {
 
 	b.Info("closing topics dbs...")
 	// closing topics
-	for _, t := range b.topics {
-		for _, p := range t.ListPartitions() {
-			if err := p.Close(); err != nil {
-				return err
-			}
+	for _, t := range b.raft.GetTopics() {
+		if err := t.Close(); err != nil {
+			return err
 		}
 	}
 
@@ -211,6 +207,8 @@ func (b *Broker) LaunchWatchers() error {
 			b.Debug("error in watchTopic: %v", err)
 		}
 	})
+
+	group.Go(b.monitorLeadership)
 	return group.Wait()
 }
 
@@ -221,11 +219,24 @@ func (b *Broker) getNode(name string) *sandglass.Node {
 	return b.peers[name]
 }
 
+func (b *Broker) getNodeByRaftAddr(addr string) *sandglass.Node {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	for _, p := range b.peers {
+		if p.RAFTAddr == addr {
+			return p
+		}
+	}
+
+	return nil
+}
+
 func (b *Broker) Bootstrap() error {
 	b.Info("Bootstrapping...")
-	b.readyListeners = append(b.readyListeners,
-		b.eventEmitter.Once("topics:created:"+ConsumerOffsetTopicName),
-	)
+	b.Info("config: %+v", b.Conf())
+	b.readyListeners = append(b.readyListeners)
+
 	b.wg.Add(1)
 	go func() {
 		defer b.wg.Done()
@@ -253,8 +264,9 @@ func (b *Broker) Bootstrap() error {
 	conf.MemberlistConfig.BindPort = port
 	conf.NodeName = b.Name()
 	conf.Tags["id"] = b.currentNode.ID
-	conf.Tags["http_addr"] = b.currentNode.HTTPAddr
-	conf.Tags["grpc_addr"] = b.currentNode.GRPCAddr
+	conf.Tags["http_addr"] = b.conf.HTTPAddr
+	conf.Tags["grpc_addr"] = b.conf.GRPCAddr
+	conf.Tags["raft_addr"] = b.conf.RaftAddr
 
 	b.eventCh = make(chan serf.Event, 64)
 	conf.EventCh = b.eventCh
@@ -272,15 +284,13 @@ func (b *Broker) Bootstrap() error {
 		b.eventLoop()
 	}()
 
-	b.runForControllerElection()
-	b.followControllerElection()
-
 	b.syncWatcher()
 
 	return nil
 }
 
 func (b *Broker) WaitForIt() error {
+	// return nil
 	readyCh := make(chan struct{})
 
 	var wg sync.WaitGroup
@@ -400,7 +410,7 @@ func (b *Broker) TriggerSyncRequest() error {
 				continue
 			}
 
-			b.Debug("syncing with %v for (t:%s p:%s) last=%v", leader.Name, t.Name, p.Id, last)
+			// b.Debug("syncing with %v for (t:%s p:%s) last=%v", leader.Name, t.Name, p.Id, last)
 
 			group.Go(func() error {
 				stream, err := leader.FetchFromSync(ctx, &sgproto.FetchFromSyncRequest{
@@ -446,14 +456,20 @@ func (b *Broker) addPeer(ev serf.MemberEvent) error {
 		if err != nil {
 			return err
 		}
-
+		b.Debug("adding peer: %v", peer.Name)
 		if m.Name != b.Name() {
 			if err := peer.Dial(); err != nil {
 				b.Debug("addPeer error while dialing peer '%s' err=%v", peer.Name, err)
 			}
+
+		}
+		if b.IsController() {
+			err = b.raft.AddNode(peer)
+			if err != nil {
+				b.Debug("error while adding node '%v' to raft: %v", peer.Name, err)
+			}
 		}
 		b.peers[peer.Name] = peer
-
 	}
 	return nil
 }
@@ -466,6 +482,12 @@ func (b *Broker) removePeer(ev serf.MemberEvent) error {
 		if peer, ok := b.peers[m.Name]; ok {
 			if err := peer.Close(); err != nil {
 				b.Debug("error while closing peer '%s' err=%v", peer.Name, err)
+			}
+			if b.IsController() {
+				err := b.raft.RemoveNode(peer)
+				if err != nil {
+					b.Debug("error removing node '%v' to raft: %v", peer.Name, err)
+				}
 			}
 			delete(b.peers, peer.Name)
 			b.Debug("removed peer: %v", m.Name)
@@ -483,6 +505,7 @@ func extractPeer(m serf.Member) (*sandglass.Node, error) {
 		Name:     m.Name,
 		GRPCAddr: m.Tags["grpc_addr"],
 		HTTPAddr: m.Tags["http_addr"],
+		RAFTAddr: m.Tags["raft_addr"],
 		Status:   m.Status,
 	}
 
@@ -492,5 +515,5 @@ func extractPeer(m serf.Member) (*sandglass.Node, error) {
 func (b *Broker) Topics() []*topic.Topic {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return b.topics
+	return b.raft.GetTopics()
 }
