@@ -1,9 +1,6 @@
 sudo: required
 services:
 - docker
-before_script:
-- docker-compose pull etcd
-- docker-compose up -d etcd
 after_script:
 - docker-compose down
 script:

@@ -448,8 +448,6 @@ func (b *Broker) TriggerSyncRequest() error {
 }
 
 func (b *Broker) addPeer(ev serf.MemberEvent) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
 
 	for _, m := range ev.Members {
 		peer, err := extractPeer(m)
@@ -469,17 +467,20 @@ func (b *Broker) addPeer(ev serf.MemberEvent) error {
 				b.Debug("error while adding node '%v' to raft: %v", peer.Name, err)
 			}
 		}
+		b.mu.Lock()
 		b.peers[peer.Name] = peer
+		b.mu.Unlock()
 	}
 	return nil
 }
 
 func (b *Broker) removePeer(ev serf.MemberEvent) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
 
 	for _, m := range ev.Members {
-		if peer, ok := b.peers[m.Name]; ok {
+		b.mu.RLock()
+		peer, ok := b.peers[m.Name]
+		b.mu.RUnlock()
+		if ok {
 			if err := peer.Close(); err != nil {
 				b.Debug("error while closing peer '%s' err=%v", peer.Name, err)
 			}
@@ -489,7 +490,9 @@ func (b *Broker) removePeer(ev serf.MemberEvent) error {
 					b.Debug("error removing node '%v' to raft: %v", peer.Name, err)
 				}
 			}
+			b.mu.Lock()
 			delete(b.peers, peer.Name)
+			b.mu.Unlock()
 			b.Debug("removed peer: %v", m.Name)
 		}
 
