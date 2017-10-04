@@ -1,12 +1,6 @@
 version: '2'
 
 services: 
-    etcd:
-        image: microbox/etcd
-        command: -name="etcd-service"
-        networks:
-        - my-net
-
     sandglass:
         build: .
         volumes:
@@ -18,11 +12,6 @@ services:
         - my-net
 
     test:
-        links:
-            - etcd
-        depends_on: 
-            - etcd
-        entrypoint: ./wait-for-it.sh -t 60 etcd:4001 --
         build: 
             context: .
             dockerfile: Dockerfile.test
@@ -40,10 +29,6 @@ services:
 
     node1:
         extends: sandglass
-        links:
-            - etcd
-        depends_on: 
-            - etcd
         ports:
         - "2201:2201"
         - "3301:3301"
@@ -56,10 +41,6 @@ services:
 
     node2:
         extends: sandglass
-        links:
-            - etcd
-        depends_on: 
-            - etcd
         ports:
         - "2202:2202"
         - "3302:3302"
