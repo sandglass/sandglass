@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/celrenheit/sandglass/sgutils"
-	"github.com/fortytw2/leaktest"
 
 	"github.com/celrenheit/sandglass/topic"
 
@@ -28,13 +27,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLeak(t *testing.T) {
-	defer leaktest.Check(t)()
-	n := 1
-	_, destroyFn := makeNBrokers(t, n)
-	time.Sleep(1 * time.Second)
-	destroyFn()
-}
+// func TestLeak(t *testing.T) {
+// 	defer leaktest.Check(t)()
+// 	n := 1
+// 	_, destroyFn := makeNBrokers(t, n)
+// 	time.Sleep(1 * time.Second)
+// 	destroyFn()
+// }
 
 func TestSandglass(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
