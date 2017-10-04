@@ -27,7 +27,7 @@ func TestRaft(t *testing.T) {
 		// StartAsLeader: true,
 	}, logger)
 
-	err := s.Init()
+	err := s.Init(true)
 	require.NoError(t, err)
 
 	s2 := New(Config{
@@ -35,7 +35,7 @@ func TestRaft(t *testing.T) {
 		Dir:  tmpDir2,
 	}, logger)
 
-	err = s2.Init()
+	err = s2.Init(false)
 	require.NoError(t, err)
 
 	time.Sleep(3 * time.Second)
@@ -44,7 +44,8 @@ func TestRaft(t *testing.T) {
 	require.NoError(t, future.Error())
 
 	err = s.CreateTopic(&topic.Topic{
-		Name: "hello",
+		Name:          "hello",
+		NumPartitions: 3,
 	})
 	require.NoError(t, err)
 
@@ -61,10 +62,4 @@ func TestRaft(t *testing.T) {
 	}
 	err = s.SetPartitionLeaderBulkOp(state)
 	require.NoError(t, err)
-
-	// time.Sleep(500 * time.Millisecond)
-
-	// value, err = s.Get("foo")
-	// require.NoError(t, err)
-	// require.Equal(t, "", value)
 }
