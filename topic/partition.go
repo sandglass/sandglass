@@ -32,7 +32,7 @@ type Partition struct {
 }
 
 func (t *Partition) InitStore(basePath string) error {
-	t.bf = bloom.NewWithEstimates(40e6, 1e-6)
+	t.bf = bloom.NewWithEstimates(10e6, 1e-2)
 	msgdir := filepath.Join(basePath, t.Id)
 	if err := sgutils.MkdirIfNotExist(msgdir); err != nil {
 		return err
