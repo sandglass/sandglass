@@ -138,9 +138,6 @@ func (b *Broker) CreateTopic(params *sgproto.CreateTopicParams) error {
 }
 
 func (b *Broker) getTopic(name string) *topic.Topic {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
 	return b.raft.GetTopic(name)
 }
 

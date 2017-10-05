@@ -516,7 +516,5 @@ func extractPeer(m serf.Member) (*sandglass.Node, error) {
 }
 
 func (b *Broker) Topics() []*topic.Topic {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
 	return b.raft.GetTopics()
 }

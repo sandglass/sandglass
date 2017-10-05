@@ -234,8 +234,8 @@ func (f *fsm) applySetTopic(b []byte) error {
 }
 
 func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 
 	state := newState()
 	for _, topic := range f.state.topics {
