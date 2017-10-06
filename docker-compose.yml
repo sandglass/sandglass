@@ -7,6 +7,7 @@ services:
         - ./:/gopath/src/github.com/celrenheit/sandglass
         environment:
         - GODEBUG=netdns=go
+        image: celrenheit/sandglass
         
         networks:
         - my-net
