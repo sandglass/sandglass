@@ -492,16 +492,14 @@ var logger = log.New(os.Stdout, "", log.LstdFlags)
 
 func newBroker(tb testing.TB, i int, dc, adv_addr, grpc_addr, http_addr, raft_addr, basepath string) *broker.Broker {
 	conf := &broker.Config{
-		Name:             "broker" + strconv.Itoa(i),
-		DCName:           dc,
-		DiscoveryBackend: "etcd",
-		DiscoveryAddrs:   []string{sgutils.TestETCDAddr()},
-		AdvertiseAddr:    adv_addr,
-		DBPath:           basepath,
-		GRPCAddr:         grpc_addr,
-		HTTPAddr:         http_addr,
-		RaftAddr:         raft_addr,
-		BootstrapRaft:    i == 0,
+		Name:          "broker" + strconv.Itoa(i),
+		DCName:        dc,
+		AdvertiseAddr: adv_addr,
+		DBPath:        basepath,
+		GRPCAddr:      grpc_addr,
+		HTTPAddr:      http_addr,
+		RaftAddr:      raft_addr,
+		BootstrapRaft: i == 0,
 	}
 	fmt.Printf("conf: %+v\n", conf)
 	fmt.Printf("basepath: %+v\n", basepath)
