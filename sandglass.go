@@ -18,6 +18,7 @@ type Node struct {
 	Status   serf.MemberStatus
 	conn     *grpc.ClientConn
 	sgproto.BrokerServiceClient
+	sgproto.InternalServiceClient
 }
 
 func (n *Node) Dial() (err error) {
@@ -27,6 +28,7 @@ func (n *Node) Dial() (err error) {
 	}
 	fmt.Println("dialing", n.Name)
 	n.BrokerServiceClient = sgproto.NewBrokerServiceClient(n.conn)
+	n.InternalServiceClient = sgproto.NewInternalServiceClient(n.conn)
 
 	return nil
 }

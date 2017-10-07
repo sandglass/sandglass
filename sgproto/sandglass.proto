@@ -145,23 +145,12 @@ service BrokerService {
      };
   }
 
-  rpc StoreMessageLocally (Message) returns (StoreLocallyReply) {
-     option (google.api.http) = { 
-        //  post: "/topics/{topic}/{offset}" 
-         body: "*"
-     };
-  }
 
   rpc FetchFrom (FetchFromRequest) returns (stream Message) {}
 
   rpc FetchRange (FetchRangeRequest) returns (stream Message) {}
 
-  rpc GetByKey (GetRequest) returns (Message) {}
-
-  rpc HasKey (GetRequest) returns (HasResponse) {}
-
-  rpc StoreMessagesStream (stream Message) returns (StoreLocallyReply) {
-  }
+  rpc StoreMessagesStream (stream Message) returns (StoreLocallyReply) {}
 
   rpc ConsumeFromGroup (ConsumeFromGroupRequest) returns (stream Message) {
        option (google.api.http) = { 
@@ -193,20 +182,25 @@ service BrokerService {
             body: "*"
         };
   }
-
-
-  rpc LastOffset (LastOffsetRequest) returns (LastOffsetReply) {
-  }
-
-
-  rpc FetchFromSync (FetchFromSyncRequest) returns (stream Message) {
-    //  option (google.api.http) = { 
-    //      get: "/topics/{topic}/{from}" 
-    //     //  body: "*"
-    //  };
-  }
 }
 
+
+service InternalService {
+    rpc StoreMessageLocally (Message) returns (StoreLocallyReply) {
+        option (google.api.http) = { 
+        //  post: "/topics/{topic}/{offset}" 
+            body: "*"
+        };
+    }
+
+    rpc GetByKey (GetRequest) returns (Message) {}
+
+    rpc HasKey (GetRequest) returns (HasResponse) {}
+ 
+    rpc FetchFromSync (FetchFromSyncRequest) returns (stream Message) {}
+
+    rpc LastOffset (LastOffsetRequest) returns (LastOffsetReply) {}
+}
 
 // ---------------- Internal (not related to a service) -----------------
 

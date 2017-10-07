@@ -133,7 +133,7 @@ func (s *service) LastOffset(ctx context.Context, req *sgproto.LastOffsetRequest
 	}, err
 }
 
-func (s *service) FetchFromSync(req *sgproto.FetchFromSyncRequest, stream sgproto.BrokerService_FetchFromSyncServer) error {
+func (s *service) FetchFromSync(req *sgproto.FetchFromSyncRequest, stream sgproto.InternalService_FetchFromSyncServer) error {
 	return s.broker.FetchFromSync(req.Topic, req.Partition, req.From, func(msg *sgproto.Message) error {
 		// if msg == nil {
 		// 	return fmt.Errorf("kikou")
@@ -144,3 +144,4 @@ func (s *service) FetchFromSync(req *sgproto.FetchFromSyncRequest, stream sgprot
 }
 
 var _ sgproto.BrokerServiceServer = (*service)(nil)
+var _ sgproto.InternalServiceServer = (*service)(nil)

@@ -42,6 +42,7 @@ func (s *Server) Start() (err error) {
 	s.server = grpc.NewServer()
 	svc := newService(s.broker)
 	sgproto.RegisterBrokerServiceServer(s.server, svc)
+	sgproto.RegisterInternalServiceServer(s.server, svc)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
