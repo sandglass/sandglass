@@ -44,14 +44,12 @@ var RootCmd = &cobra.Command{
 	Long:  `Launch the server`,
 	Run: func(cmd *cobra.Command, args []string) {
 		conf := broker.Config{
-			Name:             name,
-			AdvertiseAddr:    advertiseAddr,
-			DiscoveryBackend: discoveryBackend,
-			DiscoveryAddrs:   discoveryAddrs,
-			DBPath:           dbpath,
-			HTTPAddr:         httpAddr,
-			GRPCAddr:         grpcAddr,
-			InitialPeers:     initialPeers,
+			Name:          name,
+			AdvertiseAddr: advertiseAddr,
+			DBPath:        dbpath,
+			HTTPAddr:      httpAddr,
+			GRPCAddr:      grpcAddr,
+			InitialPeers:  initialPeers,
 		}
 		if cfgFile != "" {
 			fmt.Println("loading from config file:", cfgFile)
@@ -113,14 +111,12 @@ func Execute() {
 }
 
 var (
-	name             string
-	httpAddr         string
-	grpcAddr         string
-	advertiseAddr    string
-	discoveryBackend string
-	dbpath           string
-	discoveryAddrs   []string
-	initialPeers     []string
+	name          string
+	httpAddr      string
+	grpcAddr      string
+	advertiseAddr string
+	dbpath        string
+	initialPeers  []string
 )
 
 func init() {
@@ -131,9 +127,7 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&httpAddr, "http-addr", ":2108", "http addr")
 	RootCmd.PersistentFlags().StringVar(&grpcAddr, "grpc-addr", ":7170", "grpc addr")
 	RootCmd.PersistentFlags().StringVar(&advertiseAddr, "advertise-addr", ":9900", "advertise addr")
-	RootCmd.PersistentFlags().StringVar(&discoveryBackend, "discovery-backend", "etcd", "discovery backend (etcd, consul)")
 	RootCmd.PersistentFlags().StringVar(&dbpath, "dbpath", "/tmp/sandglassdb", "base directory for data storage")
-	RootCmd.PersistentFlags().StringArrayVarP(&discoveryAddrs, "discovery-addrs", "d", nil, "Discovery addresses")
 	RootCmd.PersistentFlags().StringArrayVarP(&initialPeers, "initial-peers", "p", nil, "Inital peers")
 
 	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")

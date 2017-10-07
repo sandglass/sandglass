@@ -46,17 +46,15 @@ func init() {
 }
 
 type Config struct {
-	Name             string   `yaml:"name,omitempty"`
-	DCName           string   `yaml:"dc_name,omitempty"`
-	AdvertiseAddr    string   `yaml:"advertise_addr,omitempty"`
-	DiscoveryBackend string   `yaml:"discovery_backend,omitempty"`
-	DiscoveryAddrs   []string `yaml:"discovery_addrs,omitempty"`
-	DBPath           string   `yaml:"db_path,omitempty"`
-	HTTPAddr         string   `yaml:"http_addr,omitempty"`
-	GRPCAddr         string   `yaml:"grpc_addr,omitempty"`
-	RaftAddr         string   `yaml:"raft_addr,omitempty"`
-	InitialPeers     []string `yaml:"initial_peers,omitempty"`
-	BootstrapRaft    bool     `yaml:"bootstrap_raft,omitempty"`
+	Name          string   `yaml:"name,omitempty"`
+	DCName        string   `yaml:"dc_name,omitempty"`
+	AdvertiseAddr string   `yaml:"advertise_addr,omitempty"`
+	DBPath        string   `yaml:"db_path,omitempty"`
+	HTTPAddr      string   `yaml:"http_addr,omitempty"`
+	GRPCAddr      string   `yaml:"grpc_addr,omitempty"`
+	RaftAddr      string   `yaml:"raft_addr,omitempty"`
+	InitialPeers  []string `yaml:"initial_peers,omitempty"`
+	BootstrapRaft bool     `yaml:"bootstrap_raft,omitempty"`
 }
 
 type Broker struct {
