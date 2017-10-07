@@ -133,11 +133,12 @@ func (s *Store) Init(bootstrap bool) error {
 }
 
 func (s *Store) AddNode(n *sandglass.Node) error {
-	s.logger.Info("adding node: %v", n)
+	s.logger.Info("adding node: %+v", n)
 	return s.raft.AddVoter(raft.ServerID(n.Name), raft.ServerAddress(n.RAFTAddr), 0, raftTimeout).Error()
 }
 
 func (s *Store) RemoveNode(n *sandglass.Node) error {
+	s.logger.Info("removing node: %+v", n)
 	return s.raft.RemoveServer(raft.ServerID(n.Name), 0, raftTimeout).Error()
 }
 
@@ -205,7 +206,6 @@ func (f *fsm) Apply(l *raft.Log) (value interface{}) {
 		return val
 	}
 
-	// return f.raft.Barrier(raftTimeout).Error()
 	return nil
 }
 
@@ -225,10 +225,6 @@ func (f *fsm) applySetTopic(b []byte) error {
 		f.state.topics[t.Name] = &t
 		f.mu.Unlock()
 	}
-	// select {
-	// case f.newTopicChan <- &t:
-	// default:
-	// }
 
 	return nil
 }
