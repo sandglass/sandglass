@@ -399,7 +399,7 @@ func (b *Broker) TriggerSyncRequest() error {
 
 			leader := b.getPartitionLeader(t.Name, p.Id)
 			if leader == nil {
-				b.Debug("sync no leader (t:%s p:%s): %v", t.Name, p.Id)
+				// b.Debug("sync no leader (t:%s p:%s)", t.Name, p.Id)
 				continue
 			}
 

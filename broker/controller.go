@@ -30,6 +30,18 @@ func (b *Broker) rearrangePartitionsLeadership() error {
 	defer b.mu.RUnlock()
 
 	var partitionBulkLeaderOp map[string]map[string]string
+
+	setNewLeader := func(topic, partition, newLeader string) {
+		if partitionBulkLeaderOp == nil {
+			partitionBulkLeaderOp = map[string]map[string]string{}
+		}
+
+		if partitionBulkLeaderOp[topic] == nil {
+			partitionBulkLeaderOp[topic] = map[string]string{}
+		}
+		partitionBulkLeaderOp[topic][partition] = newLeader
+	}
+
 	for _, t := range b.raft.GetTopics() {
 		for _, partition := range t.Partitions {
 			oldLeader, ok := b.raft.GetPartitionLeader(t.Name, partition.Id)
@@ -51,6 +63,7 @@ func (b *Broker) rearrangePartitionsLeadership() error {
 
 			if len(aliveReplicas) == 0 {
 				b.Debug("NO leader available for %+v (%v)", partition, partitionKey)
+				setNewLeader(t.Name, partition.Id, "")
 				continue
 			}
 
@@ -59,17 +72,9 @@ func (b *Broker) rearrangePartitionsLeadership() error {
 				continue
 			}
 
-			if partitionBulkLeaderOp == nil {
-				partitionBulkLeaderOp = map[string]map[string]string{}
-			}
-
-			if partitionBulkLeaderOp[t.Name] == nil {
-				partitionBulkLeaderOp[t.Name] = map[string]string{}
-			}
-
 			newLeader := aliveReplicas[rand.Intn(len(aliveReplicas))]
 			b.Debug("switch leader of topic:%v partition: %v (old=%v -> new=%v)", t.Name, partition.Id, oldLeader, newLeader)
-			partitionBulkLeaderOp[t.Name][partition.Id] = newLeader
+			setNewLeader(t.Name, partition.Id, newLeader)
 		}
 	}
 
