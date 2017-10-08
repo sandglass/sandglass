@@ -355,12 +355,12 @@
 			"revisionTime": "2017-09-02T04:25:43Z"
 		},
 		{
-			"checksumSHA1": "blUOurifhARvATyqCKra7SzMHKQ=",
+			"checksumSHA1": "JjJtGJi1ywWhVhs/PvTXxe4TeD8=",
 			"path": "github.com/hashicorp/raft",
-			"revision": "1bdba7017656b9a145dd9687230ce8566f49e278",
-			"revisionTime": "2017-09-29T17:46:14Z",
-			"version": "master_mergelibrary-v2-stage-one",
-			"versionExact": "master_mergelibrary-v2-stage-one"
+			"revision": "6d14f0c70869faabd9e60ba7ed88a6cbbd6a661f",
+			"revisionTime": "2017-10-03T22:09:13Z",
+			"version": "master",
+			"versionExact": "master"
 		},
 		{
 			"checksumSHA1": "tsf03GV/Re212ELKEYmSHACe6eU=",
