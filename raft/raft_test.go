@@ -9,6 +9,7 @@ import (
 	"github.com/celrenheit/sandglass/logy"
 	"github.com/celrenheit/sandglass/topic"
 	"github.com/hashicorp/raft"
+	"github.com/hashicorp/serf/serf"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +28,7 @@ func TestRaft(t *testing.T) {
 		// StartAsLeader: true,
 	}, logger)
 
-	err := s.Init(true)
+	err := s.Init(true, &serf.Serf{}, nil)
 	require.NoError(t, err)
 
 	s2 := New(Config{
@@ -35,7 +36,7 @@ func TestRaft(t *testing.T) {
 		Dir:  tmpDir2,
 	}, logger)
 
-	err = s2.Init(false)
+	err = s2.Init(false, &serf.Serf{}, nil)
 	require.NoError(t, err)
 
 	time.Sleep(3 * time.Second)

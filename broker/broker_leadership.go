@@ -1,8 +1,6 @@
 package broker
 
 import (
-	"sync"
-
 	"github.com/celrenheit/sandglass/sgproto"
 	"github.com/celrenheit/sandglass/sgutils"
 
@@ -10,23 +8,15 @@ import (
 )
 
 func (b *Broker) monitorLeadership() error {
-	var once sync.Once
 	for {
+		if b.raft == nil {
+			continue
+		}
 		select {
 		case <-b.ShutdownCh:
 			return nil
 		case isElected := <-b.raft.LeaderCh():
 			if isElected {
-				once.Do(func() {
-					b.mu.RLock()
-					defer b.mu.RUnlock()
-					for _, n := range b.peers {
-						err := b.raft.AddNode(n)
-						if err != nil {
-							b.Debug("error while adding node: %v", err)
-						}
-					}
-				})
 				// Do something
 				b.Info("elected as controller %v\n", b.Name())
 				exists := b.topicExists(ConsumerOffsetTopicName)

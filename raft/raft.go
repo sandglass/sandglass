@@ -12,23 +12,26 @@ import (
 	"time"
 
 	"github.com/celrenheit/sandglass"
-
 	"github.com/celrenheit/sandglass/logy"
 	"github.com/celrenheit/sandglass/topic"
 
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
+	"github.com/hashicorp/serf/serf"
 )
 
 const (
 	retainSnapshotCount = 2
 	raftTimeout         = 1 * time.Second
+	barrierWriteTimeout = 2 * time.Minute
 )
 
 const (
 	CreateTopicOp            = "CreateTopicOp"
 	SetPartitionLeaderOp     = "SetPartitionLeader"
 	SetPartitionLeaderBulkOp = "SetPartitionLeaderBulkOp"
+	AddNode                  = "AddNode"
+	DeleteNode               = "DeleteNode"
 )
 
 type Config struct {
@@ -48,31 +51,44 @@ type Store struct {
 	leaderChangeChan chan bool
 	newTopicChan     chan *topic.Topic
 
-	wg sync.WaitGroup
+	notifyCh   chan bool
+	shutdownCh chan struct{}
+	wg         sync.WaitGroup
+
+	serf        *serf.Serf
+	reconcileCh chan serf.Member
+
+	transport *raft.NetworkTransport
 }
 
 type state struct {
-	topics           map[string]*topic.Topic
-	partitionLeaders map[string]map[string]string
+	Members          map[string]struct{}
+	Topics           map[string]*topic.Topic
+	PartitionLeaders map[string]map[string]string
 }
 
 func newState() *state {
 	return &state{
-		topics:           map[string]*topic.Topic{},
-		partitionLeaders: map[string]map[string]string{},
+		Members:          map[string]struct{}{},
+		Topics:           map[string]*topic.Topic{},
+		PartitionLeaders: map[string]map[string]string{},
 	}
 }
 
 func New(conf Config, logger logy.Logger) *Store {
 	return &Store{
-		conf:         conf,
-		logger:       logger,
-		state:        newState(),
-		newTopicChan: make(chan *topic.Topic),
+		conf:             conf,
+		logger:           logger,
+		state:            newState(),
+		newTopicChan:     make(chan *topic.Topic),
+		leaderChangeChan: make(chan bool, 10),
+		shutdownCh:       make(chan struct{}),
 	}
 }
 
-func (s *Store) Init(bootstrap bool) error {
+func (s *Store) Init(bootstrap bool, serf *serf.Serf, reconcileCh chan serf.Member) error {
+	s.serf = serf
+	s.reconcileCh = reconcileCh
 	config := raft.DefaultConfig()
 
 	address := s.conf.Addr
@@ -83,6 +99,10 @@ func (s *Store) Init(bootstrap bool) error {
 	config.Logger = log.New(os.Stdout, "raft["+serverId+"] ", log.LstdFlags)
 	config.LocalID = raft.ServerID(serverId)
 	config.StartAsLeader = s.conf.StartAsLeader
+	config.ShutdownOnRemove = false
+	config.SnapshotInterval = 5 * time.Second
+	s.notifyCh = make(chan bool, 1)
+	config.NotifyCh = s.notifyCh
 
 	addr, err := net.ResolveTCPAddr("tcp", s.conf.Addr)
 	if err != nil {
@@ -93,6 +113,7 @@ func (s *Store) Init(bootstrap bool) error {
 	if err != nil {
 		return err
 	}
+	s.transport = transport
 
 	snapshots, err := raft.NewFileSnapshotStore(s.conf.Dir, retainSnapshotCount, os.Stderr)
 	if err != nil {
@@ -104,23 +125,28 @@ func (s *Store) Init(bootstrap bool) error {
 		return err
 	}
 
-	if bootstrap {
-		hasState, err := raft.HasExistingState(logStore, logStore, snapshots)
-		if err != nil {
-			return err
-		}
+	configuration := raft.Configuration{}
+	configuration.Servers = append(configuration.Servers, raft.Server{
+		Suffrage: raft.Voter,
+		ID:       raft.ServerID(serverId),
+		Address:  raft.ServerAddress(address),
+	})
 
+	hasState, err := raft.HasExistingState(logStore, logStore, snapshots)
+	if err != nil {
+		return err
+	}
+	if bootstrap {
 		if !hasState {
-			configuration := raft.Configuration{}
-			configuration.Servers = append(configuration.Servers, raft.Server{
-				Suffrage: raft.Voter,
-				ID:       raft.ServerID(serverId),
-				Address:  raft.ServerAddress(address),
-			})
 			err := raft.BootstrapCluster(config, logStore, logStore, snapshots, transport, configuration)
 			if err != nil {
 				return err
 			}
+		}
+	} else if hasState {
+		err := raft.RecoverCluster(config, (*fsm)(s), logStore, logStore, snapshots, transport, configuration)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -129,29 +155,212 @@ func (s *Store) Init(bootstrap bool) error {
 		return fmt.Errorf("new raft: %s", err)
 	}
 	s.raft = ra
+
+	go s.monitorLeadership()
+
+	return nil
+}
+
+func (s *Store) monitorLeadership() {
+	raftNotifyCh := s.notifyCh
+
+	var weAreLeaderCh chan struct{}
+	var leaderLoop sync.WaitGroup
+	for {
+		select {
+		case isLeader := <-raftNotifyCh:
+			switch {
+			case isLeader:
+				if weAreLeaderCh != nil {
+					continue
+				}
+
+				weAreLeaderCh = make(chan struct{})
+				leaderLoop.Add(1)
+				go func(ch chan struct{}) {
+					defer leaderLoop.Done()
+					s.leaderLoop(ch)
+				}(weAreLeaderCh)
+			default:
+				if weAreLeaderCh == nil {
+					continue
+				}
+
+				close(weAreLeaderCh)
+				leaderLoop.Wait()
+				weAreLeaderCh = nil
+			}
+
+			s.leaderChangeChan <- isLeader
+
+		case <-s.shutdownCh:
+			return
+		}
+	}
+}
+
+func (s *Store) leaderLoop(stopCh chan struct{}) {
+	var reconcileCh chan serf.Member
+	establishedLeader := false
+
+	// reassert := func() error {
+	// 	if !establishedLeader {
+	// 		return fmt.Errorf("leadership has not been established")
+	// 	}
+	// 	if err := s.revokeLeadership(); err != nil {
+	// 		return err
+	// 	}
+	// 	if err := s.establishLeadership(); err != nil {
+	// 		return err
+	// 	}
+	// 	return nil
+	// }
+
+RECONCILE:
+	// Setup a reconciliation timer
+	reconcileCh = nil
+	interval := time.After(5 * time.Second)
+
+	// Apply a raft barrier to ensure our FSM is caught up
+	barrier := s.raft.Barrier(barrierWriteTimeout)
+	if err := barrier.Error(); err != nil {
+		s.logger.Debug("failed to wait for barrier: %v", err)
+		goto WAIT
+	}
+
+	// Check if we need to handle initial leadership actions
+	if !establishedLeader {
+		if err := s.establishLeadership(); err != nil {
+			s.logger.Debug("failed to establish leadership: %v", err)
+			goto WAIT
+		}
+		establishedLeader = true
+		defer func() {
+			if err := s.revokeLeadership(); err != nil {
+				s.logger.Debug("failed to revoke leadership: %v", err)
+			}
+		}()
+	}
+
+	// Reconcile any missing data
+	if err := s.reconcile(); err != nil {
+		s.logger.Debug("failed to reconcile: %v", err)
+		goto WAIT
+	}
+
+	reconcileCh = s.reconcileCh
+
+WAIT:
+	select {
+	case <-stopCh:
+		return
+	default:
+	}
+
+	for {
+		select {
+		case <-stopCh:
+			return
+		case <-s.shutdownCh:
+			return
+		case <-interval:
+			goto RECONCILE
+		case member := <-reconcileCh:
+			s.reconcileMember(member)
+		}
+	}
+}
+
+func (s *Store) reconcileMember(member serf.Member) error {
+	var err error
+	switch member.Status {
+	case serf.StatusAlive:
+		err = s.AddVoter(member.Name, member.Tags["raft_addr"], 0)
+	case serf.StatusFailed, serf.StatusLeft:
+		err = s.RemoveServer(member.Name, 0)
+	}
+	if err != nil {
+		s.logger.Debug("failed to reconcile member: %v: %v",
+			member, err)
+	}
+	return nil
+}
+
+func (s *Store) AddVoter(id, address string, prevIndex uint64) error {
+	err := s.raft.AddVoter(raft.ServerID(id), raft.ServerAddress(address), 0, raftTimeout).Error()
+	if err != nil {
+		return err
+	}
+
+	return s.raftApplyCommand(AddNode, id)
+}
+
+func (s *Store) RemoveServer(id string, prevIndex uint64) error {
+	if s.conf.Name == id {
+		return nil
+	}
+
+	err := s.raft.RemoveServer(raft.ServerID(id), 0, raftTimeout).Error()
+	if err != nil {
+		return err
+	}
+
+	return s.raftApplyCommand(DeleteNode, id)
+}
+
+func (s *Store) revokeLeadership() error {
+	return nil
+}
+
+func (s *Store) reconcile() error {
+	members := s.serf.Members()
+	knownMembers := make(map[string]struct{})
+	for _, member := range members {
+		if err := s.reconcileMember(member); err != nil {
+			return err
+		}
+
+		if member.Status == serf.StatusAlive {
+			knownMembers[member.Name] = struct{}{}
+		}
+	}
+
+	return nil
+}
+
+func (s *Store) establishLeadership() error {
 	return nil
 }
 
 func (s *Store) AddNode(n *sandglass.Node) error {
 	s.logger.Info("adding node: %+v", n)
-	return s.raft.AddVoter(raft.ServerID(n.Name), raft.ServerAddress(n.RAFTAddr), 0, raftTimeout).Error()
+	return s.AddVoter(n.Name, n.RAFTAddr, 0)
 }
 
 func (s *Store) RemoveNode(n *sandglass.Node) error {
 	s.logger.Info("removing node: %+v", n)
-	return s.raft.RemoveServer(raft.ServerID(n.Name), 0, raftTimeout).Error()
+	return s.RemoveServer(n.Name, 0)
 }
 
 func (s *Store) Stop() error {
-	return s.raft.Shutdown().Error()
+	close(s.shutdownCh)
+	if err := s.raft.Shutdown().Error(); err != nil {
+		return err
+	}
+
+	return s.transport.Close()
 }
 
 func (s *Store) Leader() string {
 	return string(s.raft.Leader())
 }
 
+func (s *Store) IsLeader() bool {
+	return string(s.raft.Leader()) == s.conf.Addr
+}
+
 func (s *Store) LeaderCh() <-chan bool {
-	return s.raft.LeaderCh()
+	return s.leaderChangeChan
 }
 
 func (s *Store) NewTopicChan() chan *topic.Topic {
@@ -162,8 +371,8 @@ func (s *Store) GetTopics() []*topic.Topic {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	out := make([]*topic.Topic, 0, len(s.state.topics))
-	for _, t := range s.state.topics {
+	out := make([]*topic.Topic, 0, len(s.state.Topics))
+	for _, t := range s.state.Topics {
 		out = append(out, t)
 	}
 
@@ -174,7 +383,7 @@ func (s *fsm) HasTopic(name string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	for _, t := range s.state.topics {
+	for _, t := range s.state.Topics {
 		if t.Name == name {
 			return true
 		}
@@ -197,6 +406,10 @@ func (f *fsm) Apply(l *raft.Log) (value interface{}) {
 		val = f.applySetTopic(c.Payload)
 	case SetPartitionLeaderBulkOp:
 		val = f.applySetPartitionLeaderBulk(c.Payload)
+	case AddNode:
+		val = f.applyAddOrDeleteNode(true, c.Payload)
+	case DeleteNode:
+		val = f.applyAddOrDeleteNode(false, c.Payload)
 	default:
 		panic(fmt.Sprintf("unrecognized command op: %s", c.Op))
 	}
@@ -204,6 +417,22 @@ func (f *fsm) Apply(l *raft.Log) (value interface{}) {
 	if val != nil {
 		f.logger.Debug("Apply err: %v", val)
 		return val
+	}
+
+	return nil
+}
+
+func (f *fsm) applyAddOrDeleteNode(add bool, payload []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.state.Members == nil {
+		f.state.Members = map[string]struct{}{}
+	}
+	if add {
+		f.state.Members[string(payload)] = struct{}{}
+	} else {
+		delete(f.state.Members, string(payload))
 	}
 
 	return nil
@@ -222,7 +451,7 @@ func (f *fsm) applySetTopic(b []byte) error {
 			return err
 		}
 		f.mu.Lock()
-		f.state.topics[t.Name] = &t
+		f.state.Topics[t.Name] = &t
 		f.mu.Unlock()
 	}
 
@@ -234,15 +463,19 @@ func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
 	defer f.mu.RUnlock()
 
 	state := newState()
-	for _, topic := range f.state.topics {
-		state.topics[topic.Name] = topic
+	for _, topic := range f.state.Topics {
+		state.Topics[topic.Name] = topic
 	}
 
-	for topic, partitions := range f.state.partitionLeaders {
-		state.partitionLeaders[topic] = make(map[string]string)
+	for topic, partitions := range f.state.PartitionLeaders {
+		state.PartitionLeaders[topic] = make(map[string]string)
 		for part, leader := range partitions {
-			state.partitionLeaders[topic][part] = leader
+			state.PartitionLeaders[topic][part] = leader
 		}
+	}
+
+	for k, v := range f.state.Members {
+		state.Members[k] = v
 	}
 
 	return &fsmSnapshot{state}, nil
@@ -250,12 +483,28 @@ func (f *fsm) Snapshot() (raft.FSMSnapshot, error) {
 
 // Restore stores the key-value store to a previous state.
 func (f *fsm) Restore(rc io.ReadCloser) error {
-	var restoredState state
-	if err := json.NewDecoder(rc).Decode(&f); err != nil {
+	restoredState := newState()
+
+	if err := json.NewDecoder(rc).Decode(restoredState); err != nil {
 		return err
 	}
+	defer rc.Close()
 
-	*f.state = restoredState
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	for _, t := range f.state.Topics {
+		if err := t.Close(); err != nil {
+			return err
+		}
+	}
+
+	f.state = restoredState
+	for _, t := range f.state.Topics {
+		if err := t.InitStore(f.conf.Dir); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -269,12 +518,12 @@ func (f *fsm) applySetPartitionLeaderBulk(d []byte) interface{} {
 	}
 
 	for topic, partitions := range p.State {
-		if f.state.partitionLeaders[topic] == nil {
-			f.state.partitionLeaders[topic] = map[string]string{}
+		if f.state.PartitionLeaders[topic] == nil {
+			f.state.PartitionLeaders[topic] = map[string]string{}
 		}
 
 		for part, leader := range partitions {
-			f.state.partitionLeaders[topic][part] = leader
+			f.state.PartitionLeaders[topic][part] = leader
 		}
 	}
 
@@ -300,7 +549,7 @@ func (s *Store) GetTopic(name string) *topic.Topic {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.state.topics[name]
+	return s.state.Topics[name]
 }
 
 type setPartitionLeaderBulk struct {
@@ -316,7 +565,7 @@ func (s *Store) SetPartitionLeaderBulkOp(v map[string]map[string]string) error {
 func (s *Store) GetPartitionLeader(topic, partition string) (string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	partitions, ok := s.state.partitionLeaders[topic]
+	partitions, ok := s.state.PartitionLeaders[topic]
 	if !ok {
 		return "", false
 	}

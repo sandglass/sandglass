@@ -77,6 +77,8 @@ type Broker struct {
 	readyListeners []chan interface{}
 	wg             sync.WaitGroup
 	raft           *raft.Store
+
+	reconcileCh chan serf.Member
 }
 
 func New(conf *Config) (*Broker, error) {
@@ -96,16 +98,6 @@ func New(conf *Config) (*Broker, error) {
 
 	logger := logy.NewWithLogger(log.New(os.Stdout, fmt.Sprintf("[broker: %v] ", conf.Name), log.LstdFlags), logy.DEBUG)
 
-	raft := raft.New(raft.Config{
-		Name: conf.Name,
-		Addr: conf.RaftAddr,
-		Dir:  conf.DBPath,
-	}, logger)
-
-	if err := raft.Init(conf.BootstrapRaft); err != nil {
-		return nil, err
-	}
-
 	b := &Broker{
 		currentNode: &sandglass.Node{
 			Name:     conf.Name,
@@ -120,7 +112,7 @@ func New(conf *Config) (*Broker, error) {
 		peers:        map[string]*sandglass.Node{},
 		consumers:    map[string]*ConsumerGroup{},
 		eventEmitter: watchy.New(),
-		raft:         raft,
+		reconcileCh:  make(chan serf.Member, 64),
 	}
 	return b, nil
 }
@@ -133,6 +125,7 @@ func (b *Broker) Stop(ctx context.Context) error {
 
 	go func() {
 		close(b.ShutdownCh)
+
 		if err := b.cluster.Leave(); err != nil {
 			gracefulCh <- errors.Wrap(err, "error while leaving cluster")
 			return
@@ -143,13 +136,14 @@ func (b *Broker) Stop(ctx context.Context) error {
 			return
 		}
 
-		<-b.doneCh
-		b.wg.Wait()
 		// closing connection to etcd
 		err := b.raft.Stop()
 		if err != nil {
 			b.Debug("error while stopping raft: %v", err)
 		}
+
+		<-b.doneCh
+		b.wg.Wait()
 		close(gracefulCh)
 	}()
 
@@ -235,16 +229,6 @@ func (b *Broker) Bootstrap() error {
 	b.Info("config: %+v", b.Conf())
 	b.readyListeners = append(b.readyListeners)
 
-	b.wg.Add(1)
-	go func() {
-		defer b.wg.Done()
-		err := b.LaunchWatchers()
-		if err != nil {
-			b.Fatal("error launch watchers: %v", err)
-		}
-		b.Debug("Stopped watchers")
-	}()
-
 	conf := serf.DefaultConfig()
 	conf.Init()
 
@@ -275,6 +259,26 @@ func (b *Broker) Bootstrap() error {
 	}
 
 	b.cluster = cluster
+
+	b.raft = raft.New(raft.Config{
+		Name: b.conf.Name,
+		Addr: b.conf.RaftAddr,
+		Dir:  b.conf.DBPath,
+	}, b.Logger)
+
+	if err := b.raft.Init(b.conf.BootstrapRaft, cluster, b.reconcileCh); err != nil {
+		return err
+	}
+
+	b.wg.Add(1)
+	go func() {
+		defer b.wg.Done()
+		err := b.LaunchWatchers()
+		if err != nil {
+			b.Fatal("error launch watchers: %v", err)
+		}
+		b.Debug("Stopped watchers")
+	}()
 
 	b.wg.Add(1)
 	go func() {
@@ -339,13 +343,20 @@ loop:
 		case <-shutdownCh:
 			break loop
 		case e := <-b.eventCh:
+			fmt.Printf("event: %+v\n", e)
 			switch e.EventType() {
 			case serf.EventMemberJoin:
 				ev := e.(serf.MemberEvent)
 				b.addPeer(ev)
+				for _, member := range ev.Members {
+					b.reconcileCh <- member
+				}
 			case serf.EventMemberLeave, serf.EventMemberFailed:
 				ev := e.(serf.MemberEvent)
 				b.removePeer(ev)
+				for _, member := range ev.Members {
+					b.reconcileCh <- member
+				}
 				if b.IsController() {
 					b.wg.Add(1)
 					go func() {
@@ -459,12 +470,7 @@ func (b *Broker) addPeer(ev serf.MemberEvent) error {
 			}
 
 		}
-		if b.IsController() {
-			err = b.raft.AddNode(peer)
-			if err != nil {
-				b.Debug("error while adding node '%v' to raft: %v", peer.Name, err)
-			}
-		}
+
 		b.mu.Lock()
 		b.peers[peer.Name] = peer
 		b.mu.Unlock()
@@ -482,12 +488,7 @@ func (b *Broker) removePeer(ev serf.MemberEvent) error {
 			if err := peer.Close(); err != nil {
 				b.Debug("error while closing peer '%s' err=%v", peer.Name, err)
 			}
-			if b.IsController() {
-				err := b.raft.RemoveNode(peer)
-				if err != nil {
-					b.Debug("error removing node '%v' to raft: %v", peer.Name, err)
-				}
-			}
+
 			b.mu.Lock()
 			delete(b.peers, peer.Name)
 			b.mu.Unlock()
