@@ -17,7 +17,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -32,7 +31,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/tj/go-gracefully"
-	yaml "gopkg.in/yaml.v2"
 )
 
 var cfgFile string
@@ -44,20 +42,16 @@ var RootCmd = &cobra.Command{
 	Long:  `Launch the server`,
 	Run: func(cmd *cobra.Command, args []string) {
 		conf := broker.Config{
-			Name:          name,
-			AdvertiseAddr: advertiseAddr,
-			DBPath:        dbpath,
-			HTTPAddr:      httpAddr,
-			GRPCAddr:      grpcAddr,
-			InitialPeers:  initialPeers,
+			Name:          viper.GetString("name"),
+			AdvertiseAddr: viper.GetString("advertise_addr"),
+			DBPath:        viper.GetString("db_path"),
+			HTTPAddr:      viper.GetString("http_addr"),
+			GRPCAddr:      viper.GetString("grpc_addr"),
+			RaftAddr:      viper.GetString("raft_addr"),
+			InitialPeers:  viper.GetStringSlice("initial_peers"),
+			BootstrapRaft: viper.GetBool("bootstrap_raft"),
 		}
-		if cfgFile != "" {
-			fmt.Println("loading from config file:", cfgFile)
-			err := loadConfigFile(cfgFile, &conf)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
+
 		b, err := broker.New(&conf)
 		if err != nil {
 			log.Fatal(errors.Cause(err))
@@ -110,25 +104,25 @@ func Execute() {
 	}
 }
 
-var (
-	name          string
-	httpAddr      string
-	grpcAddr      string
-	advertiseAddr string
-	dbpath        string
-	initialPeers  []string
-)
-
 func init() {
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.sandglass.yaml)")
-	RootCmd.PersistentFlags().StringVar(&name, "name", "", "name")
-	RootCmd.PersistentFlags().StringVar(&httpAddr, "http-addr", ":2108", "http addr")
-	RootCmd.PersistentFlags().StringVar(&grpcAddr, "grpc-addr", ":7170", "grpc addr")
-	RootCmd.PersistentFlags().StringVar(&advertiseAddr, "advertise-addr", ":9900", "advertise addr")
-	RootCmd.PersistentFlags().StringVar(&dbpath, "dbpath", "/tmp/sandglassdb", "base directory for data storage")
-	RootCmd.PersistentFlags().StringArrayVarP(&initialPeers, "initial-peers", "p", nil, "Inital peers")
+	viper.BindPFlag("config", RootCmd.PersistentFlags().Lookup("config"))
+	RootCmd.PersistentFlags().String("name", "", "name")
+	viper.BindPFlag("name", RootCmd.PersistentFlags().Lookup("name"))
+	RootCmd.PersistentFlags().String("http_addr", ":2108", "http addr")
+	viper.BindPFlag("http_addr", RootCmd.PersistentFlags().Lookup("http_addr"))
+	RootCmd.PersistentFlags().String("grpc_addr", ":7170", "grpc addr")
+	viper.BindPFlag("grpc_addr", RootCmd.PersistentFlags().Lookup("grpc_addr"))
+	RootCmd.PersistentFlags().String("advertise_addr", ":9900", "advertise addr")
+	viper.BindPFlag("advertise_addr", RootCmd.PersistentFlags().Lookup("advertise_addr"))
+	RootCmd.PersistentFlags().String("db_path", "/tmp/sandglassdb", "base directory for data storage")
+	viper.BindPFlag("db_path", RootCmd.PersistentFlags().Lookup("db_path"))
+	RootCmd.PersistentFlags().StringArrayP("initial_peers", "p", nil, "Inital peers")
+	viper.BindPFlag("initial_peers", RootCmd.PersistentFlags().Lookup("initial_peers"))
+	RootCmd.PersistentFlags().Bool("bootstrap_raft", false, "Bootstrap raft")
+	viper.BindPFlag("bootstrap_raft", RootCmd.PersistentFlags().Lookup("bootstrap_raft"))
 
 	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
@@ -140,34 +134,30 @@ func initConfig() {
 	} else {
 		viper.SetConfigName(".sandglass") // name of config file (without extension)
 		viper.AddConfigPath("$HOME")      // adding home directory as first search path
-		viper.AutomaticEnv()              // read in environment variables that match
 	}
 
+	viper.AutomaticEnv() // read in environment variables that match
+
 	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	if isURL(cfgFile) {
+		resp, err := http.Get(cfgFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if err := viper.ReadConfig(resp.Body); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		if err := viper.ReadInConfig(); err == nil {
+			fmt.Println("Using config file:", viper.ConfigFileUsed())
+		} else {
+			fmt.Println("err", err)
+		}
 	}
 }
 
-func loadConfigFile(cfgFile string, dest interface{}) (err error) {
-	var data []byte
-	_, err = url.ParseRequestURI(cfgFile)
-	if err == nil {
-		resp, err := http.Get(cfgFile)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-		data, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-	} else {
-		data, err = ioutil.ReadFile(cfgFile)
-		if err != nil {
-			return err
-		}
-	}
-
-	return yaml.Unmarshal(data, dest)
+func isURL(u string) bool {
+	_, err := url.ParseRequestURI(u)
+	return err == nil
 }
