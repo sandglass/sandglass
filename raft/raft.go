@@ -272,6 +272,10 @@ WAIT:
 }
 
 func (s *Store) reconcileMember(member serf.Member) error {
+	if member.Name == s.conf.Name {
+		return nil
+	}
+
 	var err error
 	switch member.Status {
 	case serf.StatusAlive:
@@ -356,7 +360,7 @@ func (s *Store) Leader() string {
 }
 
 func (s *Store) IsLeader() bool {
-	return string(s.raft.Leader()) == s.conf.Addr
+	return s.raft.State() == raft.Leader
 }
 
 func (s *Store) LeaderCh() <-chan bool {
