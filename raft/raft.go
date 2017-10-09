@@ -156,12 +156,14 @@ func (s *Store) Init(bootstrap bool, serf *serf.Serf, reconcileCh chan serf.Memb
 	}
 	s.raft = ra
 
+	s.wg.Add(1)
 	go s.monitorLeadership()
 
 	return nil
 }
 
 func (s *Store) monitorLeadership() {
+	defer s.wg.Done()
 	raftNotifyCh := s.notifyCh
 
 	var weAreLeaderCh chan struct{}
@@ -194,6 +196,7 @@ func (s *Store) monitorLeadership() {
 			s.leaderChangeChan <- isLeader
 
 		case <-s.shutdownCh:
+			leaderLoop.Wait()
 			return
 		}
 	}
@@ -348,6 +351,7 @@ func (s *Store) RemoveNode(n *sandglass.Node) error {
 
 func (s *Store) Stop() error {
 	close(s.shutdownCh)
+	s.wg.Wait()
 	if err := s.raft.Shutdown().Error(); err != nil {
 		return err
 	}
