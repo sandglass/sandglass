@@ -20,6 +20,41 @@ Sandglass is a distributed, horizontally scalable, persistent, delayed message q
 See TODO section below for more information
 
 
+## Installation
+
+As of now there is no binaries available, you can only install from source using:
+
+```shell
+$ go get -u github.com/celrenheit/sandglass/cmd/sandglass
+```
+
+## Usage
+
+All data will be stored in /tmp/node1 for the first and /tmp/node2 for the second.
+
+Open a first terminal window:
+
+```shell
+$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node1.yaml
+```
+
+On a second terminal window:
+
+```shell
+$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node2.yaml
+```
+
+Now you can create a topic using:
+```shell
+$ curl -XPOST http://localhost:2108/topics -d '{"name": "payments", "kind": 0, "replicationFactor": 2, "numPartitions": 6 }'
+```
+
+...and public a message:
+
+```shell
+$ curl -XPOST http://localhost:2108/topics/payments -d '{"value": "eyJoZWxsbyI6ICJ3b3JsZCIgfQo="}' -H 'Content-Type: application/json'
+```
+
 ## Architecture
 
 ### General
@@ -55,14 +90,7 @@ See TODO section below for more information
                           |   +------------------+   |
                           |                          |
                           |                          |
-                          +------+----------^--------+
-                                 |          |
-                                 |          |
-                  +--------------v----------+-----------------+
-                  |                                           |
-                  |          etcd, zookeeper, consul          |
-                  |                                           |
-                  +-------------------------------------------+
+                          +--------------------------+
 ```
 
 
@@ -103,32 +131,6 @@ A message is composed of the following fields:
 
         value   <- your payload
 
-
-## Installation
-
-As of now there is no binaries available, you can only install from source using:
-
-```shell
-$ go get -u github.com/celrenheit/sandglass/cmd/sandglass
-```
-
-## Usage
-
-You need a running instance of [etcd](https://github.com/coreos/etcd).
-
-All data will be stored in /tmp/node1 and /tmp/node2 for the second.
-
-Open a first terminal window:
-
-```shell
-$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node1.yaml
-```
-
-On a second terminal window:
-
-```shell
-$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node2.yaml
-```
 
 ## TODO
 
