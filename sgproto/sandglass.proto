@@ -49,6 +49,16 @@ message CreateTopicParams {
     StorageDriver storageDriver = 5;
 }
 
+
+message GetTopicParams {
+    string name = 1;
+}
+
+message GetTopicReply {
+    string name = 1;
+    repeated string partitions = 2;
+}
+
 message TopicReply {
     bool success = 1;
 }
@@ -134,6 +144,12 @@ service BrokerService {
          body: "*"
      };
   }
+
+  rpc GetTopic (GetTopicParams) returns (GetTopicReply) {
+    option (google.api.http) = { 
+        get: "/topics/{name}"
+    };
+ }
   
   rpc Publish (Message) returns (DUIDReply) {
      option (google.api.http) = { 

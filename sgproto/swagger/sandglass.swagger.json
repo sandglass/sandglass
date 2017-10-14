@@ -201,6 +201,30 @@
         ]
       }
     },
+    "/topics/{name}": {
+      "get": {
+        "operationId": "GetTopic",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/sandglassGetTopicReply"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "BrokerService"
+        ]
+      }
+    },
     "/topics/{topic}": {
       "post": {
         "operationId": "Publish",
@@ -375,6 +399,20 @@
         "id": {
           "type": "string",
           "format": "byte"
+        }
+      }
+    },
+    "sandglassGetTopicReply": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "partitions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

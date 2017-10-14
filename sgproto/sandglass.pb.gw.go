@@ -41,6 +41,33 @@ func request_BrokerService_CreateTopic_0(ctx context.Context, marshaler runtime.
 
 }
 
+func request_BrokerService_GetTopic_0(ctx context.Context, marshaler runtime.Marshaler, client BrokerServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq GetTopicParams
+	var metadata runtime.ServerMetadata
+
+	var (
+		val string
+		ok  bool
+		err error
+		_   = err
+	)
+
+	val, ok = pathParams["name"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "name")
+	}
+
+	protoReq.Name, err = runtime.String(val)
+
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "name", err)
+	}
+
+	msg, err := client.GetTopic(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
 func request_BrokerService_Publish_0(ctx context.Context, marshaler runtime.Marshaler, client BrokerServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq Message
 	var metadata runtime.ServerMetadata
@@ -519,6 +546,35 @@ func RegisterBrokerServiceHandler(ctx context.Context, mux *runtime.ServeMux, co
 
 	})
 
+	mux.Handle("GET", pattern_BrokerService_GetTopic_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		if cn, ok := w.(http.CloseNotifier); ok {
+			go func(done <-chan struct{}, closed <-chan bool) {
+				select {
+				case <-done:
+				case <-closed:
+					cancel()
+				}
+			}(ctx.Done(), cn.CloseNotify())
+		}
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_BrokerService_GetTopic_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_BrokerService_GetTopic_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("POST", pattern_BrokerService_Publish_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -757,6 +813,8 @@ func RegisterBrokerServiceHandler(ctx context.Context, mux *runtime.ServeMux, co
 var (
 	pattern_BrokerService_CreateTopic_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"topics"}, ""))
 
+	pattern_BrokerService_GetTopic_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"topics", "name"}, ""))
+
 	pattern_BrokerService_Publish_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"topics", "topic"}, ""))
 
 	pattern_BrokerService_Publish_1 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1, 1, 0, 4, 1, 5, 2}, []string{"topics", "topic", "partition"}, ""))
@@ -776,6 +834,8 @@ var (
 
 var (
 	forward_BrokerService_CreateTopic_0 = runtime.ForwardResponseMessage
+
+	forward_BrokerService_GetTopic_0 = runtime.ForwardResponseMessage
 
 	forward_BrokerService_Publish_0 = runtime.ForwardResponseMessage
 
