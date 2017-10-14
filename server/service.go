@@ -5,6 +5,8 @@ import (
 	"io"
 
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass/broker"
@@ -26,6 +28,23 @@ func (s *service) CreateTopic(ctx context.Context, params *sgproto.CreateTopicPa
 	}
 
 	return &sgproto.TopicReply{Success: true}, nil
+}
+
+func (s *service) GetTopic(ctx context.Context, req *sgproto.GetTopicParams) (*sgproto.GetTopicReply, error) {
+	t := s.broker.GetTopic(req.Name)
+	if t == nil {
+		return nil, status.Errorf(codes.NotFound, "topic '%s' not found")
+	}
+	partitions := t.ListPartitions()
+	res := make([]string, len(partitions))
+	for i, p := range partitions {
+		res[i] = p.Id
+	}
+
+	return &sgproto.GetTopicReply{
+		Name:       t.Name,
+		Partitions: res,
+	}, nil
 }
 
 func (s *service) Publish(ctx context.Context, msg *sgproto.Message) (*sgproto.DUIDReply, error) {

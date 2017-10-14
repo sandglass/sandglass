@@ -517,3 +517,7 @@ func extractPeer(m serf.Member) (*sandglass.Node, error) {
 func (b *Broker) Topics() []*topic.Topic {
 	return b.raft.GetTopics()
 }
+
+func (b *Broker) GetTopic(name string) *topic.Topic {
+	return b.raft.GetTopic(name)
+}
