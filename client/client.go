@@ -66,6 +66,33 @@ func (c *Client) ProduceMessage(ctx context.Context, msg *sgproto.Message) error
 	return err
 }
 
+func (c *Client) ProduceMessageCh(ctx context.Context) (chan<- *sgproto.Message, <-chan error) {
+	errCh := make(chan error, 1)
+	stream, err := c.client.PublishMessagesStream(ctx)
+	if err != nil {
+		errCh <- err
+		return nil, errCh
+	}
+
+	msgCh := make(chan *sgproto.Message)
+
+	go func() {
+		for msg := range msgCh {
+			err := stream.Send(msg)
+			if err != nil {
+				errCh <- err
+				return
+			}
+		}
+		err := stream.CloseSend()
+		if err != nil {
+			errCh <- err
+		}
+	}()
+
+	return msgCh, errCh
+}
+
 func (c *Client) NewConsumer(topic, partition, group, name string) *Consumer {
 	return &Consumer{
 		client:    c,

@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"time"
 
-	"github.com/celrenheit/sandglass/sgproto"
-
+	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass/client"
+	"github.com/celrenheit/sandglass/sgproto"
 )
 
 func main() {
@@ -30,46 +31,65 @@ func main() {
 		panic(err)
 	}
 
+	start := time.Now()
 	partition := partitions[0]
-	// var gen sandflake.Generator
-	// start := time.Now()
-	// err = c.ProduceMessage(context.Background(), &sgproto.Message{
-	// 	Topic:     topic,
-	// 	Partition: partition,
-	// 	Offset:    gen.Next(),
-	// 	Value:     []byte("hello"),
-	// })
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Println("took", time.Since(start))
+	var gen sandflake.Generator
+
+	msgCh, errCh := c.ProduceMessageCh(context.Background())
+	for i := 0; i < 100000; i++ {
+		msg := &sgproto.Message{
+			Topic:     topic,
+			Partition: partition,
+			Offset:    gen.Next(),
+			Value:     []byte("hello"), // randomBytes(1e3)
+		}
+
+		select {
+		case msgCh <- msg:
+		case err := <-errCh:
+			panic(err)
+		}
+	}
+	close(msgCh)
+	fmt.Println("took", time.Since(start))
+	start = time.Now()
 
 	fmt.Println("consuming...")
 	ctx := context.Background()
 	consumer := c.NewConsumer(topic, partition, "group", "consumer1")
-	for {
-		msgCh, err := consumer.Consume(ctx)
+
+	consumeCh, err := consumer.Consume(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	n := 0
+	var msg *sgproto.Message
+	for msg = range consumeCh {
+		m := msg
+		err := consumer.Acknowledge(ctx, m)
 		if err != nil {
 			panic(err)
 		}
-
-		var msg *sgproto.Message
-		for msg = range msgCh {
-			fmt.Println(msg.Offset, "->", string(msg.Value))
-			err := consumer.Acknowledge(ctx, msg)
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		if msg != nil {
-			fmt.Println("committing", msg.Offset)
-			err := consumer.Commit(ctx, msg)
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		time.Sleep(50 * time.Millisecond)
+		n++
 	}
+
+	if msg != nil {
+		fmt.Println("committing", msg.Offset)
+		err := consumer.Commit(ctx, msg)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	fmt.Println("took", time.Since(start), "for", n)
+	if n > 0 {
+		fmt.Println("each took", time.Duration(time.Since(start).Nanoseconds()/int64(n)))
+	}
+}
+
+func randomBytes(n int) []byte {
+	data := make([]byte, n)
+	rand.Read(data)
+	return data
 }

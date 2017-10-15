@@ -33,7 +33,7 @@ func (c *Consumer) Consume(ctx context.Context) (chan *sgproto.Message, error) {
 			if err == io.EOF {
 				return
 			} else if err != nil {
-				// TODO: handle this error more precisely
+				// TODO: handle this error more appropriately
 				log.Printf("got err while consuming: %v", err)
 				return
 			}
