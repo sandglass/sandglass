@@ -58,6 +58,30 @@ func (s *service) Publish(ctx context.Context, msg *sgproto.Message) (*sgproto.D
 	}, nil
 }
 
+func (s *service) PublishMessagesStream(stream sgproto.BrokerService_PublishMessagesStreamServer) error {
+	const n = 10000
+	messages := make([]*sgproto.Message, 0)
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		messages = append(messages, msg)
+		if len(messages) >= n {
+			if err := s.broker.PublishMessages(messages); err != nil {
+				return err
+			}
+			messages = messages[:0]
+		}
+	}
+
+	return s.broker.PublishMessages(messages)
+}
+
 func (s *service) StoreMessageLocally(ctx context.Context, msg *sgproto.Message) (*sgproto.StoreLocallyReply, error) {
 	err := s.broker.StoreMessageLocally(msg)
 	if err != nil {

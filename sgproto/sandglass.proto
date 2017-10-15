@@ -144,6 +144,8 @@ service BrokerService {
          body: "*"
      };
   }
+  
+  rpc PublishMessagesStream (stream Message) returns (StoreLocallyReply) {}
 
   rpc GetTopic (GetTopicParams) returns (GetTopicReply) {
     option (google.api.http) = { 
