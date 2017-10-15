@@ -102,6 +102,14 @@ message OffsetChangeRequest {
     bytes offset = 5 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
 }
 
+message MultiOffsetChangeRequest {
+    string topic = 1;
+    string partition = 2;
+    string consumerGroup = 3;
+    string consumerName = 4;
+    repeated bytes offsets = 5 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+}
+
 message OffsetChangeReply {
     bool success = 1;
 }
@@ -144,7 +152,7 @@ service BrokerService {
          body: "*"
      };
   }
-  
+
   rpc PublishMessagesStream (stream Message) returns (StoreLocallyReply) {}
 
   rpc GetTopic (GetTopicParams) returns (GetTopicReply) {
@@ -190,6 +198,7 @@ service BrokerService {
         };
   }
 
+  rpc AcknowledgeMessages (MultiOffsetChangeRequest) returns (OffsetChangeReply) {}
 
   rpc Commit (OffsetChangeRequest) returns (OffsetChangeReply) {
       option (google.api.http) = { 

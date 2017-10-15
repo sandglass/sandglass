@@ -15,6 +15,46 @@ func (b *Broker) Acknowledge(topicName, partitionName, consumerGroup, consumerNa
 	return b.mark(topicName, partitionName, consumerGroup, consumerName, offset, sgproto.LastOffsetRequest_Acknowledged)
 }
 
+func (b *Broker) AcknowledgeMessages(topicName, partitionName, consumerGroup, consumerName string, offsets []sandflake.ID) error {
+	topic := b.getTopic(ConsumerOffsetTopicName)
+	p := topic.ChoosePartitionForKey(partitionKey(topicName, partitionName, consumerGroup, consumerName))
+
+	n := b.getPartitionLeader(ConsumerOffsetTopicName, p.Id)
+	if n == nil {
+		return ErrNoLeaderFound
+	}
+
+	if n.Name != b.Name() {
+		change := &sgproto.MultiOffsetChangeRequest{
+			Topic:         topicName,
+			Partition:     partitionName,
+			ConsumerGroup: consumerGroup,
+			ConsumerName:  consumerName,
+		}
+
+		_, err := n.AcknowledgeMessages(context.TODO(), change)
+
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	msgs := []*sgproto.Message{}
+	for _, offset := range offsets {
+		msgs = append(msgs, &sgproto.Message{
+			Topic:     ConsumerOffsetTopicName,
+			Partition: p.Id,
+			Offset:    offset,
+			Key:       generateConsumerOffsetKey(topicName, partitionName, consumerGroup, consumerName, offset, sgproto.LastOffsetRequest_Acknowledged),
+			Value:     []byte{byte(sgproto.LastOffsetRequest_Acknowledged)},
+		})
+	}
+
+	return b.PublishMessages(msgs)
+}
+
 func (b *Broker) Commit(topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
 	return b.mark(topicName, partitionName, consumerGroup, consumerName, offset, sgproto.LastOffsetRequest_Commited)
 }
