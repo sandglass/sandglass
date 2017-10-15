@@ -522,6 +522,12 @@
 			"revisionTime": "2014-12-27T06:10:38Z"
 		},
 		{
+			"checksumSHA1": "ZuMufVhR47xEeEVKJHaezLAyvTk=",
+			"path": "github.com/tylertreat/BoomFilters",
+			"revision": "24de6833b0ed97c3cea8b65a7a68062f0854a865",
+			"revisionTime": "2017-10-05T14:41:30Z"
+		},
+		{
 			"checksumSHA1": "UvAa7W6azFmHKgYtl2+zuucsrDY=",
 			"path": "github.com/ugorji/go/codec",
 			"revision": "54210f4e076c57f351166f0ed60e67d3fca57a36",
