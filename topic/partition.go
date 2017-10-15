@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/tylertreat/BoomFilters"
+
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass/sgproto"
 	"github.com/celrenheit/sandglass/sgutils"
@@ -28,11 +30,14 @@ type Partition struct {
 	idgen    sandflake.Generator
 	basepath string
 	topic    *Topic
-	bf       *bloom.BloomFilter // TODO: persist bloom filter
+
+	bf  *bloom.BloomFilter // TODO: persist bloom filter
+	ibf boom.Filter
 }
 
 func (t *Partition) InitStore(basePath string) error {
 	t.bf = bloom.NewWithEstimates(10e6, 1e-2)
+	t.ibf = boom.NewInverseBloomFilter(10e3)
 	msgdir := filepath.Join(basePath, t.Id)
 	if err := sgutils.MkdirIfNotExist(msgdir); err != nil {
 		return err
@@ -127,6 +132,7 @@ func (t *Partition) PutMessage(msg *sgproto.Message) error {
 	}
 
 	t.bf.Add(msg.Key)
+	t.ibf.Add(msg.Key)
 
 	return nil
 }
@@ -136,6 +142,10 @@ func (t *Partition) HasKey(key []byte) (bool, error) {
 	case sgproto.TopicKind_CompactedKind:
 	default:
 		panic("not compacted topic")
+	}
+
+	if t.ibf.Test(key) {
+		return true, nil
 	}
 
 	if !t.bf.Test(key) {
@@ -172,6 +182,8 @@ func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
 		if err != nil {
 			return err
 		}
+		t.bf.Add(msg.Key)
+		t.ibf.Add(msg.Key)
 		entries[i] = &storage.Entry{
 			Key:   storagekey,
 			Value: val,
