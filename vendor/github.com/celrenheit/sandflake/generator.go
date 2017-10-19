@@ -71,6 +71,44 @@ func (g *Generator) Next() ID {
 	return NewID(now, wid, seq, randomBytes)
 }
 
+type FixedTimeGenerator struct {
+	mu       sync.Mutex
+	workerID WorkerID
+	time     time.Time
+	sequence uint32
+	once     sync.Once
+	reader   io.Reader
+}
+
+func NewFixedTimeGenerator(t time.Time) *FixedTimeGenerator {
+	return &FixedTimeGenerator{
+		time:     t,
+		workerID: newWorkerID(),
+		reader:   unsaferandom.New(unsaferandom.NewSource(time.Now().UnixNano())),
+	}
+}
+
+// Next returns the next id.
+// It returns an error if New() fails.
+// It is safe for concurrent use.
+func (g *FixedTimeGenerator) Next() ID {
+	g.mu.Lock()
+	g.sequence++
+
+	if g.sequence > maxSequence {
+		// reset sequence
+		g.sequence = 0
+	}
+
+	wid := g.workerID
+	seq := g.sequence
+	g.mu.Unlock()
+
+	randomBytes := generateRandomBytes(g.reader)
+
+	return NewID(g.time, wid, seq, randomBytes)
+}
+
 type clock interface {
 	Now() time.Time
 }
