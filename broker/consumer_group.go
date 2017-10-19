@@ -79,7 +79,7 @@ func (c *ConsumerGroup) consumeLoop() {
 				continue
 			}
 
-			now := sandflake.NewID(time.Now().UTC(), sandflake.WorkerID{}, 0, []byte{})
+			now := sandflake.NewID(time.Now().UTC(), sandflake.MaxID.WorkerID(), sandflake.MaxID.Sequence(), sandflake.MaxID.RandomBytes())
 			if m.Offset.After(now) {
 				break
 			}
