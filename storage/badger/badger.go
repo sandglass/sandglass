@@ -7,7 +7,7 @@ import (
 )
 
 type Storage struct {
-	db *badger.KV
+	db *badger.DB
 	scommons.StorageCommons
 }
 
@@ -16,7 +16,7 @@ func NewStorage(path string) (*Storage, error) {
 	opt.Dir = path
 	opt.ValueDir = path
 	opt.SyncWrites = true
-	db, err := badger.NewKV(&opt)
+	db, err := badger.Open(opt)
 	if err != nil {
 		return nil, err
 	}
@@ -31,45 +31,52 @@ func NewStorage(path string) (*Storage, error) {
 }
 
 func (s *Storage) Get(key []byte) ([]byte, error) {
-	var item badger.KVItem
-	err := s.db.Get(key, &item)
-	if err != nil {
-		return nil, err
-	}
 	var val []byte
-	err = item.Value(func(v []byte) error {
-		val = v
-		return nil
+	err := s.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get(key)
+		if err == badger.ErrKeyNotFound {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		val, err = item.Value()
+		return err
 	})
 	return val, err
 }
 
 func (s *Storage) Put(key, val []byte) error {
-	return s.db.Set(key, val, 0)
+	return s.BatchPut([]*storage.Entry{{Key: key, Value: val}})
 }
 
 func (s *Storage) BatchPut(entries []*storage.Entry) error {
-	badgerEntries := make([]*badger.Entry, 0, len(entries))
-	for _, e := range entries {
-		badgerEntries = append(badgerEntries, &badger.Entry{
-			Key:   e.Key,
-			Value: e.Value,
-		})
-	}
-	return s.db.BatchSet(badgerEntries)
+	return s.db.Update(func(txn *badger.Txn) error {
+		for _, e := range entries {
+			if err := txn.Set(e.Key, e.Value, 0); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }
 
 func (s *Storage) Iter(opts *storage.IterOptions) storage.Iterator {
 	opt := badger.DefaultIteratorOptions
 	opt.PrefetchValues = opts.FetchValues
 	opt.Reverse = opts.Reverse
-	return &iterator{iter: s.db.NewIterator(opt)}
+	txn := s.db.NewTransaction(false)
+
+	return &iterator{iter: txn.NewIterator(opt), txn: txn}
 }
 
 func (s *Storage) IterReverse() storage.Iterator {
 	opt := badger.DefaultIteratorOptions
 	opt.Reverse = true
-	return &iterator{iter: s.db.NewIterator(opt)}
+
+	txn := s.db.NewTransaction(false)
+	return &iterator{iter: txn.NewIterator(opt), txn: txn}
 }
 
 func (s *Storage) Close() error {

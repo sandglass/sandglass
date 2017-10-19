@@ -8,6 +8,7 @@ import (
 
 type iterator struct {
 	iter *badger.Iterator
+	txn  *badger.Txn
 }
 
 func (i *iterator) Rewind() {
@@ -37,11 +38,12 @@ func (i *iterator) Item() *storage.Entry {
 	}
 
 	key := sgutils.CopyBytes(item.Key())
-	var val []byte
-	err := item.Value(func(v []byte) error {
-		val = sgutils.CopyBytes(v)
-		return nil
-	})
+	v, err := item.Value()
+	if err != nil {
+		panic(err)
+	}
+
+	val := sgutils.CopyBytes(v)
 	if err != nil {
 		panic(err)
 	}
@@ -54,6 +56,7 @@ func (i *iterator) Item() *storage.Entry {
 
 func (i *iterator) Close() error {
 	i.iter.Close()
+	i.txn.Discard()
 	return nil
 }
 
