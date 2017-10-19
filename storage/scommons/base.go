@@ -22,6 +22,8 @@ func (s *StorageCommons) LastKeyForPrefix(prefix []byte) []byte {
 		Reverse:     true,
 		FetchValues: false,
 	})
+	defer it.Close()
+
 	if prefix == nil || len(prefix) == 0 {
 		it.Rewind()
 	} else {
@@ -40,6 +42,7 @@ func (s *StorageCommons) LastKVForPrefix(prefix, suffix []byte) []byte {
 		Reverse:     true,
 		FetchValues: true,
 	})
+	defer it.Close()
 
 	// FIXME: use maxid instead of '~'
 	if prefix == nil || len(prefix) == 0 {
