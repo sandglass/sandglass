@@ -5,6 +5,8 @@ import (
 	"io"
 	"log"
 
+	"github.com/celrenheit/sandflake"
+
 	"github.com/celrenheit/sandglass/sgproto"
 )
 
@@ -52,6 +54,17 @@ func (c *Consumer) Acknowledge(ctx context.Context, msg *sgproto.Message) error 
 		ConsumerGroup: c.group,
 		ConsumerName:  c.name,
 		Offset:        msg.Offset,
+	})
+	return err
+}
+
+func (c *Consumer) AcknowledgeMessages(ctx context.Context, offsets []sandflake.ID) error {
+	_, err := c.client.client.AcknowledgeMessages(ctx, &sgproto.MultiOffsetChangeRequest{
+		Topic:         c.topic,
+		Partition:     c.partition,
+		ConsumerGroup: c.group,
+		ConsumerName:  c.name,
+		Offsets:       offsets,
 	})
 	return err
 }

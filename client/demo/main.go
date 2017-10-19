@@ -36,12 +36,12 @@ func main() {
 	var gen sandflake.Generator
 
 	msgCh, errCh := c.ProduceMessageCh(context.Background())
-	for i := 0; i < 100000; i++ {
+	for i := 0; i < 1e3; i++ {
 		msg := &sgproto.Message{
 			Topic:     topic,
 			Partition: partition,
 			Offset:    gen.Next(),
-			Value:     []byte("hello"), // randomBytes(1e3)
+			Value:     randomBytes(1e4),
 		}
 
 		select {
@@ -65,13 +65,23 @@ func main() {
 
 	n := 0
 	var msg *sgproto.Message
+	offsets := []sandflake.ID{}
 	for msg = range consumeCh {
-		m := msg
-		err := consumer.Acknowledge(ctx, m)
-		if err != nil {
-			panic(err)
-		}
+		offsets = append(offsets, msg.Offset)
 		n++
+		if len(offsets) == 1000 {
+			err = consumer.AcknowledgeMessages(context.Background(), offsets)
+			if err != nil {
+				panic(err)
+			}
+
+			offsets = offsets[:0]
+		}
+	}
+
+	err = consumer.AcknowledgeMessages(context.Background(), offsets)
+	if err != nil {
+		panic(err)
 	}
 
 	if msg != nil {

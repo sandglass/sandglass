@@ -50,6 +50,11 @@ func New(opts ...optionFn) (c *Client, err error) {
 	return c, nil
 }
 
+func (c *Client) CreateTopic(ctx context.Context, params *sgproto.CreateTopicParams) error {
+	_, err := c.client.CreateTopic(ctx, params)
+	return err
+}
+
 func (c *Client) ListPartitions(ctx context.Context, topic string) ([]string, error) {
 	res, err := c.client.GetTopic(ctx, &sgproto.GetTopicParams{
 		Name: topic,

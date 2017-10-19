@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"io"
+	"time"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
@@ -72,9 +73,11 @@ func (s *service) PublishMessagesStream(stream sgproto.BrokerService_PublishMess
 
 		messages = append(messages, msg)
 		if len(messages) >= n {
+			start := time.Now()
 			if err := s.broker.PublishMessages(messages); err != nil {
 				return err
 			}
+			fmt.Println("Publish Messages took:", time.Since(start))
 			messages = messages[:0]
 		}
 	}

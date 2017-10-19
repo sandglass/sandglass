@@ -30,6 +30,7 @@ func (b *Broker) AcknowledgeMessages(topicName, partitionName, consumerGroup, co
 			Partition:     partitionName,
 			ConsumerGroup: consumerGroup,
 			ConsumerName:  consumerName,
+			Offsets:       offsets,
 		}
 
 		_, err := n.AcknowledgeMessages(context.TODO(), change)

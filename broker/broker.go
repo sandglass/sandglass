@@ -431,6 +431,11 @@ func (b *Broker) TriggerSyncRequest() error {
 					return err
 				}
 
+				var (
+					n    int
+					msgs = []*sgproto.Message{}
+				)
+
 				for {
 					msg, err := stream.Recv()
 					if err == io.EOF {
@@ -441,11 +446,24 @@ func (b *Broker) TriggerSyncRequest() error {
 						return err
 					}
 
-					b.Debug("sync received (t:%s p:%s): %v", t.Name, p.Id, msg.Index)
+					msgs = append(msgs, msg)
+					if len(msgs) == 1000 {
+						n += len(msgs)
+						if err := p.BatchPutMessages(msgs); err != nil {
+							return err
+						}
+					}
+				}
 
-					if err := b.StoreMessageLocally(msg); err != nil {
+				if len(msgs) > 0 {
+					n += len(msgs)
+					if err := p.BatchPutMessages(msgs); err != nil {
 						return err
 					}
+				}
+
+				if n > 0 {
+					b.Debug("synced %d messages (t:%s p:%s)", n, t.Name, p.Id)
 				}
 
 				return nil
