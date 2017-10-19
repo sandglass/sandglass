@@ -2,6 +2,9 @@ package broker
 
 import (
 	"sync"
+	"time"
+
+	"github.com/celrenheit/sandflake"
 
 	"github.com/celrenheit/sandglass/topic"
 
@@ -73,6 +76,11 @@ func (c *ConsumerGroup) consumeLoop() {
 			// skip the first if it is the same as the starting point
 			if from == m.Offset {
 				continue
+			}
+
+			now := sandflake.NewID(time.Now().UTC(), sandflake.WorkerID{}, 0, []byte{})
+			if m.Offset.After(now) {
+				break
 			}
 
 			msgCh <- m
