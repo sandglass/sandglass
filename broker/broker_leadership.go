@@ -1,6 +1,8 @@
 package broker
 
 import (
+	"context"
+
 	"github.com/celrenheit/sandglass/sgproto"
 	"github.com/celrenheit/sandglass/sgutils"
 
@@ -23,7 +25,7 @@ func (b *Broker) monitorLeadership() error {
 				if !exists {
 					for i := 0; i < 10; i++ {
 						b.Debug("creating %s topic", ConsumerOffsetTopicName)
-						err := b.CreateTopic(&sgproto.CreateTopicParams{
+						err := b.CreateTopic(context.TODO(), &sgproto.CreateTopicParams{
 							Name:              ConsumerOffsetTopicName,
 							Kind:              sgproto.TopicKind_CompactedKind,
 							NumPartitions:     50,

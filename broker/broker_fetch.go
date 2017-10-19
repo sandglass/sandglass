@@ -14,7 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (b *Broker) FetchRange(topicName, partition string, from, to sandflake.ID, fn func(msg *sgproto.Message) error) error {
+func (b *Broker) FetchRange(ctx context.Context, topicName, partition string, from, to sandflake.ID, fn func(msg *sgproto.Message) error) error {
 	topic := b.getTopic(topicName)
 	if topic == nil {
 		return ErrTopicNotFound
@@ -49,7 +49,7 @@ func (b *Broker) FetchRange(topicName, partition string, from, to sandflake.ID, 
 
 		b.Debug("fetching remotely %v from %v", n.Name, p.Id)
 		group.Go(func() error {
-			stream, err := n.FetchRange(context.TODO(), &sgproto.FetchRangeRequest{
+			stream, err := n.FetchRange(ctx, &sgproto.FetchRangeRequest{
 				Topic:     topicName,
 				Partition: p.Id,
 				From:      from,
@@ -95,7 +95,7 @@ func (b *Broker) FetchFromSync(topicName, partition string, from []byte, fn func
 	return p.RangeFromWAL(from, fn)
 }
 
-func (b *Broker) Get(topicName string, partition string, key []byte) (*sgproto.Message, error) {
+func (b *Broker) Get(ctx context.Context, topicName string, partition string, key []byte) (*sgproto.Message, error) {
 	t := b.getTopic(topicName)
 	var p *topic.Partition
 	if partition != "" {
@@ -103,10 +103,10 @@ func (b *Broker) Get(topicName string, partition string, key []byte) (*sgproto.M
 	} else {
 		p = t.ChoosePartitionForKey(key)
 	}
-	return b.getFromPartition(topicName, p, key)
+	return b.getFromPartition(ctx, topicName, p, key)
 }
 
-func (b *Broker) HasKey(topicName string, partition string, key []byte) (bool, error) {
+func (b *Broker) HasKey(ctx context.Context, topicName string, partition string, key []byte) (bool, error) {
 	t := b.getTopic(topicName)
 	var p *topic.Partition
 	if partition != "" {
@@ -114,10 +114,10 @@ func (b *Broker) HasKey(topicName string, partition string, key []byte) (bool, e
 	} else {
 		p = t.ChoosePartitionForKey(key)
 	}
-	return b.hasKeyInPartition(topicName, p, key)
+	return b.hasKeyInPartition(ctx, topicName, p, key)
 }
 
-func (b *Broker) getFromPartition(topic string, p *topic.Partition, key []byte) (*sgproto.Message, error) {
+func (b *Broker) getFromPartition(ctx context.Context, topic string, p *topic.Partition, key []byte) (*sgproto.Message, error) {
 	leader := b.getPartitionLeader(topic, p.Id)
 	if leader == nil {
 		return nil, ErrNoLeaderFound
@@ -125,7 +125,7 @@ func (b *Broker) getFromPartition(topic string, p *topic.Partition, key []byte) 
 
 	if leader.Name != b.Name() {
 		b.Debug("fetch key remotely '%v' from %v", string(key), leader.Name)
-		return leader.GetByKey(context.TODO(), &sgproto.GetRequest{
+		return leader.GetByKey(ctx, &sgproto.GetRequest{
 			Topic:     topic,
 			Partition: p.Id,
 			Key:       key,
@@ -144,7 +144,7 @@ func (b *Broker) getFromPartition(topic string, p *topic.Partition, key []byte) 
 	return msg, nil
 }
 
-func (b *Broker) hasKeyInPartition(topic string, p *topic.Partition, key []byte) (bool, error) {
+func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.Partition, key []byte) (bool, error) {
 	leader := b.getPartitionLeader(topic, p.Id)
 	if leader == nil {
 		return false, ErrNoLeaderFound
@@ -152,7 +152,7 @@ func (b *Broker) hasKeyInPartition(topic string, p *topic.Partition, key []byte)
 
 	if leader.Name != b.Name() {
 		b.Debug("fetch key remotely '%v' from %v", string(key), leader.Name)
-		resp, err := leader.HasKey(context.TODO(), &sgproto.GetRequest{
+		resp, err := leader.HasKey(ctx, &sgproto.GetRequest{
 			Topic:     topic,
 			Partition: p.Id,
 			Key:       key,

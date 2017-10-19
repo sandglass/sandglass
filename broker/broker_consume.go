@@ -10,7 +10,7 @@ import (
 	"github.com/celrenheit/sandglass/sgproto"
 )
 
-func (b *Broker) Consume(topicName, partition, consumerGroup, consumerName string, fn func(msg *sgproto.Message) error) error {
+func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGroup, consumerName string, fn func(msg *sgproto.Message) error) error {
 	topic := b.getTopic(topicName)
 	if topic == nil {
 		return ErrTopicNotFound
@@ -23,7 +23,7 @@ func (b *Broker) Consume(topicName, partition, consumerGroup, consumerName strin
 
 	if leader.Name != b.Name() {
 		b.Debug("consuming from remote: ", leader.Name)
-		stream, err := leader.ConsumeFromGroup(context.TODO(), &sgproto.ConsumeFromGroupRequest{
+		stream, err := leader.ConsumeFromGroup(ctx, &sgproto.ConsumeFromGroupRequest{
 			Topic:             topicName,
 			Partition:         partition,
 			ConsumerGroupName: consumerGroup,

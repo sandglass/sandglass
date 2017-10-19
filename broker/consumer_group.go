@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -60,7 +61,7 @@ func (c *ConsumerGroup) register(consumerName string) *receiver {
 }
 
 func (c *ConsumerGroup) consumeLoop() {
-	from, err := c.broker.LastOffset(c.topic, c.partition.Id, c.name, "", sgproto.LastOffsetRequest_Commited)
+	from, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition.Id, c.name, "", sgproto.LastOffsetRequest_Commited)
 	if err != nil {
 		c.broker.Debug("got error when fetching last committed offset: %v ", err)
 		return
@@ -97,7 +98,7 @@ func (c *ConsumerGroup) consumeLoop() {
 	var i int
 loop:
 	for m := range msgCh {
-		isAcknowledged, err := c.broker.isAcknoweldged(c.topic, c.partition.Id, c.name, m.Offset)
+		isAcknowledged, err := c.broker.isAcknoweldged(context.TODO(), c.topic, c.partition.Id, c.name, m.Offset)
 		if err != nil {
 			c.broker.Debug("STOPPING CONSUMPTION got err: %v", err)
 			break

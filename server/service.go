@@ -23,7 +23,7 @@ func newService(b *broker.Broker) *service {
 }
 
 func (s *service) CreateTopic(ctx context.Context, params *sgproto.CreateTopicParams) (*sgproto.TopicReply, error) {
-	err := s.broker.CreateTopic(params)
+	err := s.broker.CreateTopic(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (s *service) GetTopic(ctx context.Context, req *sgproto.GetTopicParams) (*s
 }
 
 func (s *service) Publish(ctx context.Context, msg *sgproto.Message) (*sgproto.DUIDReply, error) {
-	id, err := s.broker.PublishMessage(msg)
+	id, err := s.broker.PublishMessage(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +62,7 @@ func (s *service) Publish(ctx context.Context, msg *sgproto.Message) (*sgproto.D
 func (s *service) PublishMessagesStream(stream sgproto.BrokerService_PublishMessagesStreamServer) error {
 	const n = 10000
 	messages := make([]*sgproto.Message, 0)
+	ctx := stream.Context()
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {
@@ -74,7 +75,7 @@ func (s *service) PublishMessagesStream(stream sgproto.BrokerService_PublishMess
 		messages = append(messages, msg)
 		if len(messages) >= n {
 			start := time.Now()
-			if err := s.broker.PublishMessages(messages); err != nil {
+			if err := s.broker.PublishMessages(ctx, messages); err != nil {
 				return err
 			}
 			fmt.Println("Publish Messages took:", time.Since(start))
@@ -82,7 +83,7 @@ func (s *service) PublishMessagesStream(stream sgproto.BrokerService_PublishMess
 		}
 	}
 
-	return s.broker.PublishMessages(messages)
+	return s.broker.PublishMessages(ctx, messages)
 }
 
 func (s *service) StoreMessageLocally(ctx context.Context, msg *sgproto.Message) (*sgproto.StoreLocallyReply, error) {
@@ -118,19 +119,19 @@ func (s *service) StoreMessagesStream(stream sgproto.BrokerService_StoreMessages
 }
 
 func (s *service) FetchFrom(req *sgproto.FetchFromRequest, stream sgproto.BrokerService_FetchFromServer) error {
-	return s.broker.FetchRange(req.Topic, req.Partition, req.From, sandflake.MaxID, func(msg *sgproto.Message) error {
+	return s.broker.FetchRange(stream.Context(), req.Topic, req.Partition, req.From, sandflake.MaxID, func(msg *sgproto.Message) error {
 		return stream.Send(msg)
 	})
 }
 
 func (s *service) FetchRange(req *sgproto.FetchRangeRequest, stream sgproto.BrokerService_FetchRangeServer) error {
-	return s.broker.FetchRange(req.Topic, req.Partition, req.From, req.To, func(msg *sgproto.Message) error {
+	return s.broker.FetchRange(stream.Context(), req.Topic, req.Partition, req.From, req.To, func(msg *sgproto.Message) error {
 		return stream.Send(msg)
 	})
 }
 
 func (s *service) ConsumeFromGroup(req *sgproto.ConsumeFromGroupRequest, stream sgproto.BrokerService_ConsumeFromGroupServer) error {
-	return s.broker.Consume(req.Topic, req.Partition, req.ConsumerGroupName, req.ConsumerName, func(msg *sgproto.Message) error {
+	return s.broker.Consume(stream.Context(), req.Topic, req.Partition, req.ConsumerGroupName, req.ConsumerName, func(msg *sgproto.Message) error {
 		return stream.Send(msg)
 	})
 }
@@ -140,7 +141,7 @@ func (s *service) GetByKey(ctx context.Context, req *sgproto.GetRequest) (*sgpro
 		return nil, fmt.Errorf("can only be used with a key")
 	}
 
-	return s.broker.Get(req.Topic, req.Partition, req.Key)
+	return s.broker.Get(ctx, req.Topic, req.Partition, req.Key)
 }
 
 func (s *service) HasKey(ctx context.Context, req *sgproto.GetRequest) (*sgproto.HasResponse, error) {
@@ -148,7 +149,7 @@ func (s *service) HasKey(ctx context.Context, req *sgproto.GetRequest) (*sgproto
 		return nil, fmt.Errorf("can only be used with a key")
 	}
 
-	exists, err := s.broker.HasKey(req.Topic, req.Partition, req.Key)
+	exists, err := s.broker.HasKey(ctx, req.Topic, req.Partition, req.Key)
 	if err != nil {
 		return nil, err
 	}
@@ -159,14 +160,14 @@ func (s *service) HasKey(ctx context.Context, req *sgproto.GetRequest) (*sgproto
 }
 
 func (s *service) Acknowledge(ctx context.Context, req *sgproto.OffsetChangeRequest) (*sgproto.OffsetChangeReply, error) {
-	ok, err := s.broker.Acknowledge(req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
+	ok, err := s.broker.Acknowledge(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
 	return &sgproto.OffsetChangeReply{
 		Success: ok,
 	}, err
 }
 
 func (s *service) AcknowledgeMessages(ctx context.Context, req *sgproto.MultiOffsetChangeRequest) (*sgproto.OffsetChangeReply, error) {
-	err := s.broker.AcknowledgeMessages(req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offsets)
+	err := s.broker.AcknowledgeMessages(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offsets)
 	if err != nil {
 		return nil, err
 	}
@@ -177,14 +178,14 @@ func (s *service) AcknowledgeMessages(ctx context.Context, req *sgproto.MultiOff
 }
 
 func (s *service) Commit(ctx context.Context, req *sgproto.OffsetChangeRequest) (*sgproto.OffsetChangeReply, error) {
-	ok, err := s.broker.Commit(req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
+	ok, err := s.broker.Commit(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
 	return &sgproto.OffsetChangeReply{
 		Success: ok,
 	}, err
 }
 
 func (s *service) LastOffset(ctx context.Context, req *sgproto.LastOffsetRequest) (*sgproto.LastOffsetReply, error) {
-	offset, err := s.broker.LastOffset(req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Kind)
+	offset, err := s.broker.LastOffset(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Kind)
 	return &sgproto.LastOffsetReply{
 		Offset: offset,
 	}, err

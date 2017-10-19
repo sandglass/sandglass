@@ -59,7 +59,7 @@ func (b *Broker) setupTopic(topic *topic.Topic) error {
 	return nil
 }
 
-func (b *Broker) CreateTopic(params *sgproto.CreateTopicParams) error {
+func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicParams) error {
 	if params.Name == "" {
 		return ErrInvalidTopicName
 	}
@@ -70,7 +70,7 @@ func (b *Broker) CreateTopic(params *sgproto.CreateTopicParams) error {
 			return ErrNoLeaderFound
 		}
 		b.Debug("forward CreateTopic to %v", leader)
-		_, err := leader.CreateTopic(context.TODO(), params)
+		_, err := leader.CreateTopic(ctx, params)
 		return err
 	}
 

@@ -35,6 +35,8 @@ import (
 // 	destroyFn()
 // }
 
+var ctx = context.TODO()
+
 func TestSandglass(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	n := 3
@@ -48,10 +50,10 @@ func TestSandglass(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err := brokers[0].CreateTopic(createTopicParams)
+	err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(t, err)
 
-	err = brokers[0].CreateTopic(createTopicParams)
+	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
 	// waiting for goroutine to receive topic
@@ -63,7 +65,7 @@ func TestSandglass(t *testing.T) {
 
 	time.Sleep(2000 * time.Millisecond)
 	for i := 0; i < 1000; i++ {
-		_, err := brokers[0].PublishMessage(&sgproto.Message{
+		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic: "payments",
 			Value: []byte(strconv.Itoa(i)),
 		})
@@ -71,7 +73,7 @@ func TestSandglass(t *testing.T) {
 	}
 
 	var count int
-	err = brokers[0].FetchRange("payments", "", sandflake.Nil, sandflake.MaxID, func(keymsg *sgproto.Message) error {
+	err = brokers[0].FetchRange(ctx, "payments", "", sandflake.Nil, sandflake.MaxID, func(keymsg *sgproto.Message) error {
 		count++
 		return nil
 	})
@@ -93,10 +95,10 @@ func TestCompactedTopic(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err := brokers[0].CreateTopic(createTopicParams)
+	err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(t, err)
 
-	err = brokers[0].CreateTopic(createTopicParams)
+	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
 	// waiting for goroutine to receive topic
@@ -108,7 +110,7 @@ func TestCompactedTopic(t *testing.T) {
 
 	// time.Sleep(2000 * time.Millisecond)
 	for i := 0; i < 1000; i++ {
-		_, err := brokers[0].PublishMessage(&sgproto.Message{
+		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic: "payments",
 			Key:   []byte("my_key"),
 			Value: []byte(strconv.Itoa(i)),
@@ -117,7 +119,7 @@ func TestCompactedTopic(t *testing.T) {
 	}
 
 	var count int
-	err = brokers[0].FetchRange("payments", "", sandflake.Nil, sandflake.MaxID, func(msg *sgproto.Message) error {
+	err = brokers[0].FetchRange(ctx, "payments", "", sandflake.Nil, sandflake.MaxID, func(msg *sgproto.Message) error {
 		require.Equal(t, "my_key", string(msg.Key))
 		count++
 		return nil
@@ -126,7 +128,7 @@ func TestCompactedTopic(t *testing.T) {
 
 	require.Equal(t, 1, count)
 
-	msg, err := brokers[0].Get("payments", "", []byte("my_key"))
+	msg, err := brokers[0].Get(ctx, "payments", "", []byte("my_key"))
 	require.NoError(t, err)
 	require.Equal(t, "999", string(msg.Value))
 }
@@ -144,10 +146,10 @@ func TestACK(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err := brokers[0].CreateTopic(createTopicParams)
+	err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(t, err)
 
-	err = brokers[0].CreateTopic(createTopicParams)
+	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
 	// waiting for goroutine to receive topic
@@ -167,31 +169,31 @@ func TestACK(t *testing.T) {
 
 	var g sandflake.Generator
 	offset := g.Next()
-	ok, err := b.Acknowledge(topic.Name, topic.Partitions[0].Id, "group1", "cons1", offset)
+	ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", offset)
 	require.Nil(t, err)
 	require.True(t, ok)
 
-	got, err := b.LastOffset(topic.Name, topic.Partitions[0].Id, "group1", "cons1",
+	got, err := b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
 		sgproto.LastOffsetRequest_Commited)
 	require.Nil(t, err)
 	require.Equal(t, sandflake.Nil, got)
 
-	got, err = b.LastOffset(topic.Name, topic.Partitions[0].Id, "group1", "cons1",
+	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
 		sgproto.LastOffsetRequest_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
 
 	offset2 := g.Next()
-	ok, err = b.Commit(topic.Name, topic.Partitions[0].Id, "group1", "cons1", offset2)
+	ok, err = b.Commit(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", offset2)
 	require.Nil(t, err)
 	require.True(t, ok)
 
-	got, err = b.LastOffset(topic.Name, topic.Partitions[0].Id, "group1", "cons1",
+	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
 		sgproto.LastOffsetRequest_Commited)
 	require.Nil(t, err)
 	require.Equal(t, offset2, got)
 
-	got, err = b.LastOffset(topic.Name, topic.Partitions[0].Id, "group1", "cons1",
+	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
 		sgproto.LastOffsetRequest_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
@@ -210,10 +212,10 @@ func TestConsume(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err := brokers[0].CreateTopic(createTopicParams)
+	err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(t, err)
 
-	err = brokers[0].CreateTopic(createTopicParams)
+	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
 	// waiting for goroutine to receive topic
@@ -236,7 +238,7 @@ func TestConsume(t *testing.T) {
 	var ids []sandflake.ID
 	for i := 0; i < 30; i++ {
 		want = gen.Next()
-		_, err := brokers[0].PublishMessage(&sgproto.Message{
+		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic:     "payments",
 			Offset:    want,
 			Partition: topic.Partitions[0].Id,
@@ -249,9 +251,9 @@ func TestConsume(t *testing.T) {
 	fmt.Println("-----------------------------")
 	var count int
 	var got sandflake.ID
-	err = b.Consume("payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
 		count++
-		ok, err := b.Acknowledge(topic.Name, topic.Partitions[0].Id, "group1", "cons1", msg.Offset)
+		ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", msg.Offset)
 		require.True(t, ok)
 		got = msg.Offset
 		return err
@@ -261,7 +263,7 @@ func TestConsume(t *testing.T) {
 	require.Equal(t, want, got)
 
 	for i := 0; i < 20; i++ {
-		res, err := brokers[0].PublishMessage(&sgproto.Message{
+		res, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic:     "payments",
 			Partition: topic.Partitions[0].Id,
 			Value:     []byte(strconv.Itoa(i)),
@@ -272,7 +274,7 @@ func TestConsume(t *testing.T) {
 
 	fmt.Println("-----------------------------")
 	count = 0
-	err = b.Consume("payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
 		count++
 		got = msg.Offset
 		return nil
@@ -281,12 +283,12 @@ func TestConsume(t *testing.T) {
 	require.Equal(t, 20, count)
 	require.Equal(t, want, got)
 
-	ok, err := b.Commit(topic.Name, topic.Partitions[0].Id, "group1", "cons1", got)
+	ok, err := b.Commit(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", got)
 	require.True(t, ok)
 	require.Nil(t, err)
 
 	count = 0
-	err = b.Consume("payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
 		count++
 		return nil
 	})
@@ -308,10 +310,10 @@ func TestSyncRequest(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err := brokers[0].CreateTopic(createTopicParams)
+	err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(t, err)
 
-	err = brokers[0].CreateTopic(createTopicParams)
+	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
 	// waiting for goroutine to receive topic
@@ -329,7 +331,7 @@ func TestSyncRequest(t *testing.T) {
 	var lastPublishedID sandflake.ID
 	for i := 0; i < 5; i++ {
 		lastPublishedID = gen.Next()
-		_, err := brokers[0].PublishMessage(&sgproto.Message{
+		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic:     "payments",
 			Partition: part.Id,
 			Offset:    lastPublishedID,
@@ -389,10 +391,10 @@ func BenchmarkCompactedTopicGet(b *testing.B) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err := brokers[0].CreateTopic(createTopicParams)
+	err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(b, err)
 
-	err = brokers[0].CreateTopic(createTopicParams)
+	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(b, err)
 
 	// waiting for goroutine to receive topic
@@ -404,7 +406,7 @@ func BenchmarkCompactedTopicGet(b *testing.B) {
 
 	// time.Sleep(2000 * time.Millisecond)
 	for i := 0; i < 30; i++ {
-		_, err := brokers[0].PublishMessage(&sgproto.Message{
+		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic: "payments",
 			Key:   []byte("my_key"),
 			Value: []byte(strconv.Itoa(i)),
@@ -417,7 +419,7 @@ func BenchmarkCompactedTopicGet(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			msg, err := brokers[0].Get("payments", "", []byte("my_key"))
+			msg, err := brokers[0].Get(ctx, "payments", "", []byte("my_key"))
 			require.NoError(b, err)
 			require.Equal(b, "29", string(msg.Value))
 		}

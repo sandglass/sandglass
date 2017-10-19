@@ -396,7 +396,7 @@ func (b *Broker) syncWatcher() {
 }
 
 func (b *Broker) TriggerSyncRequest() error {
-	ctx := context.Background()
+	ctx := context.TODO()
 	var group errgroup.Group
 	for _, t := range b.Topics() {
 		t := t

@@ -17,7 +17,7 @@ var (
 	ErrNoKeySet = errors.New("ErrNoKeySet")
 )
 
-func (b *Broker) PublishMessage(msg *sgproto.Message) (*sandflake.ID, error) {
+func (b *Broker) PublishMessage(ctx context.Context, msg *sgproto.Message) (*sandflake.ID, error) {
 	b.Debug("PublishMessage: %+v\n", msg)
 	t := b.getTopic(msg.Topic)
 	if t == nil {
@@ -40,7 +40,7 @@ func (b *Broker) PublishMessage(msg *sgproto.Message) (*sandflake.ID, error) {
 	}
 
 	if leader.Name != b.Name() {
-		return b.forwardMessage(leader, msg)
+		return b.forwardMessage(ctx, leader, msg)
 	}
 
 	err := p.PutMessage(msg)
@@ -51,7 +51,7 @@ func (b *Broker) PublishMessage(msg *sgproto.Message) (*sandflake.ID, error) {
 	return &msg.Offset, nil
 }
 
-func (b *Broker) PublishMessages(msgs []*sgproto.Message) error {
+func (b *Broker) PublishMessages(ctx context.Context, msgs []*sgproto.Message) error {
 	b.Debug("PublishMessages: %+v\n", len(msgs))
 	partitionMessages := map[*topic.Partition][]*sgproto.Message{}
 	for _, msg := range msgs {
@@ -87,7 +87,7 @@ func (b *Broker) PublishMessages(msgs []*sgproto.Message) error {
 			}
 
 			if leader.Name != b.Name() {
-				return b.forwardMessages(leader, msgs)
+				return b.forwardMessages(ctx, leader, msgs)
 			}
 
 			err := p.BatchPutMessages(msgs)
@@ -134,9 +134,9 @@ func (b *Broker) StoreMessages(msgs []*sgproto.Message) error {
 	return nil
 }
 
-func (b *Broker) forwardMessage(leader *sandglass.Node, msg *sgproto.Message) (*sandflake.ID, error) {
+func (b *Broker) forwardMessage(ctx context.Context, leader *sandglass.Node, msg *sgproto.Message) (*sandflake.ID, error) {
 	b.Debug("forwarding message '%v' to %v\n", msg.Offset, leader.Name)
-	resp, err := leader.Publish(context.Background(), msg)
+	resp, err := leader.Publish(ctx, msg)
 
 	if err != nil {
 		return nil, err
@@ -145,8 +145,8 @@ func (b *Broker) forwardMessage(leader *sandglass.Node, msg *sgproto.Message) (*
 	return &resp.Id, nil
 }
 
-func (b *Broker) forwardMessages(leader *sandglass.Node, msgs []*sgproto.Message) error {
-	stream, err := leader.StoreMessagesStream(context.TODO())
+func (b *Broker) forwardMessages(ctx context.Context, leader *sandglass.Node, msgs []*sgproto.Message) error {
+	stream, err := leader.StoreMessagesStream(ctx)
 	if err != nil {
 		return err
 	}
