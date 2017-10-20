@@ -82,6 +82,7 @@ func (c *Client) ProduceMessageCh(ctx context.Context) (chan<- *sgproto.Message,
 	msgCh := make(chan *sgproto.Message)
 
 	go func() {
+		defer close(errCh)
 		for msg := range msgCh {
 			err := stream.Send(msg)
 			if err != nil {
