@@ -226,7 +226,7 @@ func (p *Partition) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Message
 		})
 		defer it.Close()
 		for m := it.Rewind(); it.Valid(); m = it.Next() {
-			if lastKey == nil || bytes.Compare(m.Key, lastKey) != 0 {
+			if lastKey == nil || !bytes.Equal(m.Key, lastKey) {
 				err := fn(m)
 				if err != nil {
 					return err

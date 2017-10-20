@@ -24,7 +24,7 @@ func (s *StorageCommons) LastKeyForPrefix(prefix []byte) []byte {
 	})
 	defer it.Close()
 
-	if prefix == nil || len(prefix) == 0 {
+	if len(prefix) == 0 {
 		it.Rewind()
 	} else {
 		it.Seek(append(prefix, 0xFF, 0xFF, 0xFF))
@@ -45,7 +45,7 @@ func (s *StorageCommons) LastKVForPrefix(prefix, suffix []byte) []byte {
 	defer it.Close()
 
 	// FIXME: use maxid instead of '~'
-	if prefix == nil || len(prefix) == 0 {
+	if len(prefix) == 0 {
 		it.Rewind()
 	} else {
 		it.Seek(append(prefix, bytes.Repeat([]byte{0xFF}, 3)...))

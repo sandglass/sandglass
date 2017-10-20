@@ -32,13 +32,11 @@ import (
 
 const (
 	ConsumerOffsetTopicName = "consumer_offsets"
-	ETCDBasePrefix          = "/sandglass"
 )
 
 var DefaultStateCheckInterval = 1 * time.Second
 
 func init() {
-	// grpclog.SetLogger(log.New(ioutil.Discard, "", log.LstdFlags))
 	go func() {
 		log.Println(http.ListenAndServe(":6060", nil))
 	}()
@@ -91,7 +89,7 @@ func New(conf *Config) (*Broker, error) {
 	}
 
 	if _, err := os.Stat(conf.DBPath); os.IsNotExist(err) {
-		if os.Mkdir(conf.DBPath, 0755); err != nil && !os.IsNotExist(err) {
+		if err := os.Mkdir(conf.DBPath, 0755); err != nil && !os.IsNotExist(err) {
 			return nil, err
 		}
 	}

@@ -2,14 +2,11 @@ package broker
 
 import (
 	"math/rand"
-	"time"
 
 	"github.com/celrenheit/sandglass/sgutils"
 
 	"github.com/celrenheit/sandglass"
 )
-
-var waitTime = 1 * time.Second
 
 func (b *Broker) hasController() bool {
 	leader := b.raft.Leader()
