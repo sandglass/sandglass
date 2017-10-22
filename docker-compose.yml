@@ -33,24 +33,14 @@ services:
         ports:
         - "2201:2201"
         - "3301:3301"
-        environment:
-        - NAME=node1
-        - ADVERTISE_ADDR=node1:9901
-        - HTTP_ADDR=node1:2201
-        - GRPC_ADDR=node1:3301
-        - INITIAL_PEERS=node2:9902
+        command: --config node1.yaml
 
     node2:
         extends: sandglass
         ports:
         - "2202:2202"
         - "3302:3302"
-        environment:
-        - NAME=node2
-        - ADVERTISE_ADDR=node2:9902
-        - HTTP_ADDR=node2:2202
-        - GRPC_ADDR=node2:3302
-        - INITIAL_PEERS=node1:9901
+        command: --config node2.yaml
 
     integration_test:
         extends: sandglass
