@@ -37,7 +37,8 @@ import (
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/resolver"
-	_ "google.golang.org/grpc/resolver/dns" // To register dns resolver.
+	_ "google.golang.org/grpc/resolver/dns"         // To register dns resolver.
+	_ "google.golang.org/grpc/resolver/passthrough" // To register passthrough resolver.
 	"google.golang.org/grpc/stats"
 	"google.golang.org/grpc/transport"
 )
@@ -382,7 +383,7 @@ func DialContext(ctx context.Context, target string, opts ...DialOption) (conn *
 	if cc.dopts.copts.Dialer == nil {
 		cc.dopts.copts.Dialer = newProxyDialer(
 			func(ctx context.Context, addr string) (net.Conn, error) {
-				return (&net.Dialer{}).DialContext(ctx, "tcp", addr)
+				return dialContext(ctx, "tcp", addr)
 			},
 		)
 	}
@@ -1115,8 +1116,8 @@ func (ac *addrConn) getReadyTransport() (transport.ClientTransport, bool) {
 func (ac *addrConn) tearDown(err error) {
 	ac.cancel()
 	ac.mu.Lock()
-	ac.curAddr = resolver.Address{}
 	defer ac.mu.Unlock()
+	ac.curAddr = resolver.Address{}
 	if err == errConnDrain && ac.transport != nil {
 		// GracefulClose(...) may be executed multiple times when
 		// i) receiving multiple GoAway frames from the server; or

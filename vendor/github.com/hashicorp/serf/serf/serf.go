@@ -314,7 +314,6 @@ func Create(conf *Config) (*Serf, error) {
 			conf.RejoinAfterLeave,
 			serf.logger,
 			&serf.clock,
-			serf.coordClient,
 			conf.EventCh,
 			serf.shutdownCh)
 		if err != nil {
@@ -1654,6 +1653,8 @@ func (s *Serf) Stats() map[string]string {
 	toString := func(v uint64) string {
 		return strconv.FormatUint(v, 10)
 	}
+	s.memberLock.RLock()
+	defer s.memberLock.RUnlock()
 	stats := map[string]string{
 		"members":      toString(uint64(len(s.members))),
 		"failed":       toString(uint64(len(s.failedMembers))),
