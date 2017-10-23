@@ -14,7 +14,7 @@ func (b *Broker) hasController() bool {
 }
 
 func (b *Broker) IsController() bool {
-	return b.raft.Leader() == b.conf.RaftAddr
+	return b.raft.Leader() == b.currentNode.RAFTAddr
 }
 
 func (b *Broker) GetController() *sandglass.Node {

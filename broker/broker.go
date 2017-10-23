@@ -46,11 +46,13 @@ func init() {
 type Config struct {
 	Name          string   `yaml:"name,omitempty"`
 	DCName        string   `yaml:"dc_name,omitempty"`
+	BindAddr      string   `yaml:"bind_addr,omitempty"`
 	AdvertiseAddr string   `yaml:"advertise_addr,omitempty"`
 	DBPath        string   `yaml:"db_path,omitempty"`
-	HTTPAddr      string   `yaml:"http_addr,omitempty"`
-	GRPCAddr      string   `yaml:"grpc_addr,omitempty"`
-	RaftAddr      string   `yaml:"raft_addr,omitempty"`
+	GossipPort    string   `yaml:"gossip_port,omitempty"`
+	HTTPPort      string   `yaml:"http_port,omitempty"`
+	GRPCPort      string   `yaml:"grpc_port,omitempty"`
+	RaftPort      string   `yaml:"raft_port,omitempty"`
 	InitialPeers  []string `yaml:"initial_peers,omitempty"`
 	BootstrapRaft bool     `yaml:"bootstrap_raft,omitempty"`
 }
@@ -99,8 +101,9 @@ func New(conf *Config) (*Broker, error) {
 	b := &Broker{
 		currentNode: &sandglass.Node{
 			Name:     conf.Name,
-			HTTPAddr: conf.HTTPAddr,
-			GRPCAddr: conf.GRPCAddr,
+			HTTPAddr: net.JoinHostPort(conf.AdvertiseAddr, conf.HTTPPort),
+			GRPCAddr: net.JoinHostPort(conf.AdvertiseAddr, conf.GRPCPort),
+			RAFTAddr: net.JoinHostPort(conf.AdvertiseAddr, conf.RaftPort),
 		},
 		conf:         conf,
 		ShutdownCh:   make(chan struct{}),
@@ -230,23 +233,20 @@ func (b *Broker) Bootstrap() error {
 	conf := serf.DefaultConfig()
 	conf.Init()
 
-	host, portStr, err := net.SplitHostPort(b.conf.AdvertiseAddr)
+	port, err := strconv.Atoi(b.conf.GossipPort)
 	if err != nil {
 		return err
 	}
 
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		return err
-	}
-
-	conf.MemberlistConfig.BindAddr = host
+	conf.MemberlistConfig.BindAddr = b.conf.BindAddr
 	conf.MemberlistConfig.BindPort = port
+	conf.MemberlistConfig.AdvertiseAddr = b.conf.AdvertiseAddr
+	conf.MemberlistConfig.AdvertisePort = port
 	conf.NodeName = b.Name()
 	conf.Tags["id"] = b.currentNode.ID
-	conf.Tags["http_addr"] = b.conf.HTTPAddr
-	conf.Tags["grpc_addr"] = b.conf.GRPCAddr
-	conf.Tags["raft_addr"] = b.conf.RaftAddr
+	conf.Tags["http_addr"] = net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.HTTPPort)
+	conf.Tags["grpc_addr"] = net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.GRPCPort)
+	conf.Tags["raft_addr"] = net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.RaftPort)
 
 	b.eventCh = make(chan serf.Event, 64)
 	conf.EventCh = b.eventCh
@@ -259,9 +259,10 @@ func (b *Broker) Bootstrap() error {
 	b.cluster = cluster
 
 	b.raft = raft.New(raft.Config{
-		Name: b.conf.Name,
-		Addr: b.conf.RaftAddr,
-		Dir:  b.conf.DBPath,
+		Name:     b.conf.Name,
+		BindAddr: net.JoinHostPort(b.conf.BindAddr, b.conf.RaftPort),
+		AdvAddr:  net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.RaftPort),
+		Dir:      b.conf.DBPath,
 	}, b.Logger)
 
 	if err := b.raft.Init(b.conf.BootstrapRaft, cluster, b.reconcileCh); err != nil {

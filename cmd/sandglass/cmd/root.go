@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -43,11 +44,13 @@ var RootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		conf := broker.Config{
 			Name:          viper.GetString("name"),
+			BindAddr:      viper.GetString("bind_addr"),
 			AdvertiseAddr: viper.GetString("advertise_addr"),
 			DBPath:        viper.GetString("db_path"),
-			HTTPAddr:      viper.GetString("http_addr"),
-			GRPCAddr:      viper.GetString("grpc_addr"),
-			RaftAddr:      viper.GetString("raft_addr"),
+			GossipPort:    viper.GetString("gossip_port"),
+			HTTPPort:      viper.GetString("http_port"),
+			GRPCPort:      viper.GetString("grpc_port"),
+			RaftPort:      viper.GetString("raft_port"),
 			InitialPeers:  viper.GetStringSlice("initial_peers"),
 			BootstrapRaft: viper.GetBool("bootstrap_raft"),
 		}
@@ -66,7 +69,7 @@ var RootCmd = &cobra.Command{
 		}
 
 		logger := log.New(os.Stdout, conf.Name, log.LstdFlags)
-		server := server.New(b, conf.GRPCAddr, conf.HTTPAddr, logy.NewWithLogger(logger, logy.INFO))
+		server := server.New(b, net.JoinHostPort(conf.BindAddr, conf.GRPCPort), net.JoinHostPort(conf.BindAddr, conf.HTTPPort), logy.NewWithLogger(logger, logy.INFO))
 		go func() {
 			err := server.Start()
 			if err != nil {
@@ -111,12 +114,16 @@ func init() {
 	viper.BindPFlag("config", RootCmd.PersistentFlags().Lookup("config"))
 	RootCmd.PersistentFlags().String("name", "", "name")
 	viper.BindPFlag("name", RootCmd.PersistentFlags().Lookup("name"))
-	RootCmd.PersistentFlags().String("http_addr", ":2108", "http addr")
-	viper.BindPFlag("http_addr", RootCmd.PersistentFlags().Lookup("http_addr"))
-	RootCmd.PersistentFlags().String("grpc_addr", ":7170", "grpc addr")
-	viper.BindPFlag("grpc_addr", RootCmd.PersistentFlags().Lookup("grpc_addr"))
-	RootCmd.PersistentFlags().String("advertise_addr", ":9900", "advertise addr")
+	RootCmd.PersistentFlags().String("http_port", ":2108", "http addr")
+	viper.BindPFlag("http_port", RootCmd.PersistentFlags().Lookup("http_port"))
+	RootCmd.PersistentFlags().String("grpc_port", ":7170", "grpc addr")
+	viper.BindPFlag("grpc_port", RootCmd.PersistentFlags().Lookup("grpc_port"))
+	RootCmd.PersistentFlags().String("gossip_port", ":9900", "gossip addr")
+	viper.BindPFlag("gossip_port", RootCmd.PersistentFlags().Lookup("gossip_port"))
+	RootCmd.PersistentFlags().String("advertise_addr", "", "advertise addr")
 	viper.BindPFlag("advertise_addr", RootCmd.PersistentFlags().Lookup("advertise_addr"))
+	RootCmd.PersistentFlags().String("bind_addr", "", "bind addr")
+	viper.BindPFlag("bind_addr", RootCmd.PersistentFlags().Lookup("bind_addr"))
 	RootCmd.PersistentFlags().String("db_path", "/tmp/sandglassdb", "base directory for data storage")
 	viper.BindPFlag("db_path", RootCmd.PersistentFlags().Lookup("db_path"))
 	RootCmd.PersistentFlags().StringArrayP("initial_peers", "p", nil, "Inital peers")

@@ -36,7 +36,8 @@ const (
 
 type Config struct {
 	Name          string
-	Addr          string
+	BindAddr      string
+	AdvAddr       string
 	Dir           string
 	StartAsLeader bool
 }
@@ -91,7 +92,7 @@ func (s *Store) Init(bootstrap bool, serf *serf.Serf, reconcileCh chan serf.Memb
 	s.reconcileCh = reconcileCh
 	config := raft.DefaultConfig()
 
-	address := s.conf.Addr
+	address := s.conf.AdvAddr
 	serverId := s.conf.Name
 	if serverId == "" {
 		serverId = address
@@ -104,12 +105,12 @@ func (s *Store) Init(bootstrap bool, serf *serf.Serf, reconcileCh chan serf.Memb
 	s.notifyCh = make(chan bool, 1)
 	config.NotifyCh = s.notifyCh
 
-	addr, err := net.ResolveTCPAddr("tcp", s.conf.Addr)
+	addr, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
 		return err
 	}
 
-	transport, err := raft.NewTCPTransport(s.conf.Addr, addr, 3, 10*time.Second, os.Stderr)
+	transport, err := raft.NewTCPTransport(s.conf.BindAddr, addr, 3, 10*time.Second, os.Stderr)
 	if err != nil {
 		return err
 	}

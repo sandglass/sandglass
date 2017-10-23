@@ -1,9 +1,11 @@
 name: node3
-advertise_addr: 0.0.0.0:9902
+bind_addr: 0.0.0.0
+# advertise_addr: 0.0.0.0
 db_path: /tmp/node3
-http_addr: :4108
-grpc_addr: :7172
-raft_addr: :9192
+gossip_port: 9902
+http_port: 4108
+grpc_port: 7172
+raft_port: 9192
 initial_peers:
   - 0.0.0.0:9900
   - 0.0.0.0:9901
