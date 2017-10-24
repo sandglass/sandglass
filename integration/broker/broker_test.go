@@ -434,11 +434,17 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 		basepath, err := ioutil.TempDir("", "")
 		require.Nil(tb, err)
 		paths = append(paths, basepath)
-		advertise_addr := RandomAddr()
-		grpc_addr := RandomAddr()
-		http_addr := RandomAddr()
-		raft_addr := RandomAddr()
-		brokers = append(brokers, newBroker(tb, i, dc.String(), advertise_addr, grpc_addr, http_addr, raft_addr, basepath))
+		bind_addr := "localhost"
+		advertise_addr := "127.0.0.1"
+		_, gossip_port, err := net.SplitHostPort(RandomAddr())
+		require.NoError(tb, err)
+		_, grpc_port, err := net.SplitHostPort(RandomAddr())
+		require.NoError(tb, err)
+		_, http_port, err := net.SplitHostPort(RandomAddr())
+		require.NoError(tb, err)
+		_, raft_port, err := net.SplitHostPort(RandomAddr())
+		require.NoError(tb, err)
+		brokers = append(brokers, newBroker(tb, i, dc.String(), bind_addr, advertise_addr, gossip_port, grpc_port, http_port, raft_port, basepath))
 	}
 
 	for _, b := range brokers {
@@ -449,8 +455,8 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 	servers := []*server.Server{}
 	var doneServers sync.WaitGroup
 	for i := 0; i < n; i++ {
-		grpc_addr := brokers[i].Conf().GRPCAddr
-		http_addr := brokers[i].Conf().HTTPAddr
+		grpc_addr := net.JoinHostPort(brokers[i].Conf().BindAddr, brokers[i].Conf().GRPCPort)
+		http_addr := net.JoinHostPort(brokers[i].Conf().BindAddr, brokers[i].Conf().HTTPPort)
 
 		server := server.New(brokers[i], grpc_addr, http_addr, logy.NewWithLogger(logger, logy.INFO))
 		doneServers.Add(1)
@@ -465,8 +471,8 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 
 	peers := []string{}
 	for _, b := range brokers[1:] {
-		peers = append(peers, b.Conf().AdvertiseAddr)
-		err := b.Join(brokers[0].Conf().AdvertiseAddr)
+		peers = append(peers, net.JoinHostPort(b.Conf().AdvertiseAddr, b.Conf().GossipPort))
+		err := b.Join(net.JoinHostPort(brokers[0].Conf().AdvertiseAddr, brokers[0].Conf().GossipPort))
 		require.Nil(tb, err)
 	}
 
@@ -492,15 +498,17 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 
 var logger = log.New(os.Stdout, "", log.LstdFlags)
 
-func newBroker(tb testing.TB, i int, dc, adv_addr, grpc_addr, http_addr, raft_addr, basepath string) *broker.Broker {
+func newBroker(tb testing.TB, i int, dc, bind_addr, adv_addr, gossip_port, grpc_port, http_port, raft_port, basepath string) *broker.Broker {
 	conf := &broker.Config{
 		Name:          "broker" + strconv.Itoa(i),
 		DCName:        dc,
+		BindAddr:      bind_addr,
 		AdvertiseAddr: adv_addr,
 		DBPath:        basepath,
-		GRPCAddr:      grpc_addr,
-		HTTPAddr:      http_addr,
-		RaftAddr:      raft_addr,
+		GossipPort:    gossip_port,
+		GRPCPort:      grpc_port,
+		HTTPPort:      http_port,
+		RaftPort:      raft_port,
 		BootstrapRaft: i == 0,
 	}
 	fmt.Printf("conf: %+v\n", conf)
