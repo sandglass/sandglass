@@ -1,3 +1,5 @@
+// +build cgo
+
 package rocksdb
 
 import (
