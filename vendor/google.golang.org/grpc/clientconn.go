@@ -431,13 +431,16 @@ func DialContext(ctx context.Context, target string, opts ...DialOption) (conn *
 	if cc.dopts.bs == nil {
 		cc.dopts.bs = DefaultBackoffConfig
 	}
+	cc.parsedTarget = parseTarget(cc.target)
 	creds := cc.dopts.copts.TransportCredentials
 	if creds != nil && creds.Info().ServerName != "" {
 		cc.authority = creds.Info().ServerName
 	} else if cc.dopts.insecure && cc.dopts.copts.Authority != "" {
 		cc.authority = cc.dopts.copts.Authority
 	} else {
-		cc.authority = target
+		// Use endpoint from "scheme://authority/endpoint" as the default
+		// authority for ClientConn.
+		cc.authority = cc.parsedTarget.Endpoint
 	}
 
 	if cc.dopts.scChan != nil && !scSet {
@@ -541,10 +544,11 @@ type ClientConn struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	target    string
-	authority string
-	dopts     dialOptions
-	csMgr     *connectivityStateManager
+	target       string
+	parsedTarget resolver.Target
+	authority    string
+	dopts        dialOptions
+	csMgr        *connectivityStateManager
 
 	customBalancer    bool // If this is true, switching balancer will be disabled.
 	balancerBuildOpts balancer.BuildOptions
@@ -705,7 +709,7 @@ func (cc *ClientConn) removeAddrConn(ac *addrConn, err error) {
 // It does nothing if the ac is not IDLE.
 // TODO(bar) Move this to the addrConn section.
 // This was part of resetAddrConn, keep it here to make the diff look clean.
-func (ac *addrConn) connect(block bool) error {
+func (ac *addrConn) connect() error {
 	ac.mu.Lock()
 	if ac.state == connectivity.Shutdown {
 		ac.mu.Unlock()
@@ -719,32 +723,18 @@ func (ac *addrConn) connect(block bool) error {
 	ac.cc.handleSubConnStateChange(ac.acbw, ac.state)
 	ac.mu.Unlock()
 
-	if block {
+	// Start a goroutine connecting to the server asynchronously.
+	go func() {
 		if err := ac.resetTransport(); err != nil {
+			grpclog.Warningf("Failed to dial %s: %v; please retry.", ac.addrs[0].Addr, err)
 			if err != errConnClosing {
+				// Keep this ac in cc.conns, to get the reason it's torn down.
 				ac.tearDown(err)
 			}
-			if e, ok := err.(transport.ConnectionError); ok && !e.Temporary() {
-				return e.Origin()
-			}
-			return err
+			return
 		}
-		// Start to monitor the error status of transport.
-		go ac.transportMonitor()
-	} else {
-		// Start a goroutine connecting to the server asynchronously.
-		go func() {
-			if err := ac.resetTransport(); err != nil {
-				grpclog.Warningf("Failed to dial %s: %v; please retry.", ac.addrs[0].Addr, err)
-				if err != errConnClosing {
-					// Keep this ac in cc.conns, to get the reason it's torn down.
-					ac.tearDown(err)
-				}
-				return
-			}
-			ac.transportMonitor()
-		}()
-	}
+		ac.transportMonitor()
+	}()
 	return nil
 }
 
@@ -905,6 +895,7 @@ func (ac *addrConn) errorf(format string, a ...interface{}) {
 
 // resetTransport recreates a transport to the address for ac.  The old
 // transport will close itself on error or when the clientconn is closed.
+//
 // TODO(bar) make sure all state transitions are valid.
 func (ac *addrConn) resetTransport() error {
 	ac.mu.Lock()
@@ -912,8 +903,6 @@ func (ac *addrConn) resetTransport() error {
 		ac.mu.Unlock()
 		return errConnClosing
 	}
-	ac.state = connectivity.TransientFailure
-	ac.cc.handleSubConnStateChange(ac.acbw, ac.state)
 	if ac.ready != nil {
 		close(ac.ready)
 		ac.ready = nil
@@ -937,8 +926,10 @@ func (ac *addrConn) resetTransport() error {
 			return errConnClosing
 		}
 		ac.printf("connecting")
-		ac.state = connectivity.Connecting
-		ac.cc.handleSubConnStateChange(ac.acbw, ac.state)
+		if ac.state != connectivity.Connecting {
+			ac.state = connectivity.Connecting
+			ac.cc.handleSubConnStateChange(ac.acbw, ac.state)
+		}
 		// copy ac.addrs in case of race
 		addrsIter := make([]resolver.Address, len(ac.addrs))
 		copy(addrsIter, ac.addrs)
@@ -953,8 +944,9 @@ func (ac *addrConn) resetTransport() error {
 			}
 			ac.mu.Unlock()
 			sinfo := transport.TargetInfo{
-				Addr:     addr.Addr,
-				Metadata: addr.Metadata,
+				Addr:      addr.Addr,
+				Metadata:  addr.Metadata,
+				Authority: ac.cc.authority,
 			}
 			newTransport, err := transport.NewClientTransport(ac.cc.ctx, sinfo, copts, timeout)
 			if err != nil {
@@ -1032,6 +1024,13 @@ func (ac *addrConn) transportMonitor() {
 			ac.adjustParams(t.GetGoAwayReason())
 		default:
 		}
+		ac.mu.Lock()
+		// Set connectivity state to TransientFailure before calling
+		// resetTransport. Transition READY->CONNECTING is not valid.
+		ac.state = connectivity.TransientFailure
+		ac.cc.handleSubConnStateChange(ac.acbw, ac.state)
+		ac.curAddr = resolver.Address{}
+		ac.mu.Unlock()
 		if err := ac.resetTransport(); err != nil {
 			ac.mu.Lock()
 			ac.printf("transport exiting: %v", err)
@@ -1103,7 +1102,7 @@ func (ac *addrConn) getReadyTransport() (transport.ClientTransport, bool) {
 	ac.mu.Unlock()
 	// Trigger idle ac to connect.
 	if idle {
-		ac.connect(false)
+		ac.connect()
 	}
 	return nil, false
 }

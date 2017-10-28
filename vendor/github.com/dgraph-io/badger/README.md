@@ -172,7 +172,7 @@ of the application in some cases. But it also means that a transaction is not
 durable until the callback has been invoked with a `nil` error value.
 
 ### Using key/value pairs
-To save a key/value pair to a bucket, use the `Txn.Set()` method:
+To save a key/value pair, use the `Txn.Set()` method:
 
 ```go
 err := db.Update(func(txn *badger.Txn) error {
@@ -205,7 +205,7 @@ Please note that values returned from `Get()` are only valid while the
 transaction is open. If you need to use a value outside of the transaction
 then you must use `copy()` to copy it to another byte slice.
 
-Use the `Txn.Delete()` method to delete a key from the bucket.
+Use the `Txn.Delete()` method to delete a key.
 
 ### Iterating over keys
 To iterate over keys, we can use an `Iterator`, which can be obtained using the
@@ -351,7 +351,8 @@ Values in SSD-conscious Storage][wisckey]_.
 | Feature             | Badger                                       | RocksDB                       | BoltDB    |
 | -------             | ------                                       | -------                       | ------    |
 | Design              | LSM tree with value log                      | LSM tree only                 | B+ tree   |
-| High RW Performance | Yes                                          | Yes                           | No        |
+| High Read throughput | Yes                                          | No                           | Yes        |
+| High Write throughput | Yes                                          | Yes                           | No        |
 | Designed for SSDs   | Yes (with latest research <sup>1</sup>)      | Not specifically <sup>2</sup> | No        |
 | Embeddable          | Yes                                          | Yes                           | Yes       |
 | Sorted KV access    | Yes                                          | Yes                           | Yes       |

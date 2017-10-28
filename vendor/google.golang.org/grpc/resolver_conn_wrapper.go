@@ -37,20 +37,24 @@ type ccResolverWrapper struct {
 }
 
 // split2 returns the values from strings.SplitN(s, sep, 2).
-// If sep is not found, it returns "", s instead.
-func split2(s, sep string) (string, string) {
+// If sep is not found, it returns ("", s, false) instead.
+func split2(s, sep string) (string, string, bool) {
 	spl := strings.SplitN(s, sep, 2)
 	if len(spl) < 2 {
-		return "", s
+		return "", "", false
 	}
-	return spl[0], spl[1]
+	return spl[0], spl[1], true
 }
 
 // parseTarget splits target into a struct containing scheme, authority and
 // endpoint.
 func parseTarget(target string) (ret resolver.Target) {
-	ret.Scheme, ret.Endpoint = split2(target, "://")
-	ret.Authority, ret.Endpoint = split2(ret.Endpoint, "/")
+	var ok bool
+	ret.Scheme, ret.Endpoint, ok = split2(target, "://")
+	if !ok {
+		return resolver.Target{Endpoint: target}
+	}
+	ret.Authority, ret.Endpoint, _ = split2(ret.Endpoint, "/")
 	return ret
 }
 
@@ -58,12 +62,11 @@ func parseTarget(target string) (ret resolver.Target) {
 // builder for this scheme. It then builds the resolver and starts the
 // monitoring goroutine for it.
 func newCCResolverWrapper(cc *ClientConn) (*ccResolverWrapper, error) {
-	target := parseTarget(cc.target)
-	grpclog.Infof("dialing to target with scheme: %q", target.Scheme)
+	grpclog.Infof("dialing to target with scheme: %q", cc.parsedTarget.Scheme)
 
-	rb := resolver.Get(target.Scheme)
+	rb := resolver.Get(cc.parsedTarget.Scheme)
 	if rb == nil {
-		return nil, fmt.Errorf("could not get resolver for scheme: %q", target.Scheme)
+		return nil, fmt.Errorf("could not get resolver for scheme: %q", cc.parsedTarget.Scheme)
 	}
 
 	ccr := &ccResolverWrapper{
@@ -74,7 +77,7 @@ func newCCResolverWrapper(cc *ClientConn) (*ccResolverWrapper, error) {
 	}
 
 	var err error
-	ccr.resolver, err = rb.Build(target, ccr, resolver.BuildOption{})
+	ccr.resolver, err = rb.Build(cc.parsedTarget, ccr, resolver.BuildOption{})
 	if err != nil {
 		return nil, err
 	}

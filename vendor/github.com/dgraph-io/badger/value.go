@@ -25,6 +25,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"sort"
@@ -386,19 +387,16 @@ func (vlog *valueLog) rewrite(f *logFile) error {
 }
 
 func (vlog *valueLog) incrIteratorCount() {
-	vlog.filesLock.Lock()
-	vlog.numActiveIterators++
-	vlog.filesLock.Unlock()
+	atomic.AddInt32(&vlog.numActiveIterators, 1)
 }
 
 func (vlog *valueLog) decrIteratorCount() error {
-	vlog.filesLock.Lock()
-
-	vlog.numActiveIterators--
-	if vlog.numActiveIterators != 0 {
-		vlog.filesLock.Unlock()
+	num := atomic.AddInt32(&vlog.numActiveIterators, -1)
+	if num != 0 {
 		return nil
 	}
+
+	vlog.filesLock.Lock()
 	lfs := make([]*logFile, 0, len(vlog.filesToBeDeleted))
 	for _, id := range vlog.filesToBeDeleted {
 		lfs = append(lfs, vlog.filesMap[id])
@@ -427,6 +425,13 @@ func (vlog *valueLog) deleteLogFile(lf *logFile) error {
 	return os.Remove(path)
 }
 
+// lfDiscardStats keeps track of the amount of data that could be discarded for
+// a given logfile.
+type lfDiscardStats struct {
+	sync.Mutex
+	m map[uint32]int64
+}
+
 type valueLog struct {
 	buf     bytes.Buffer
 	dirPath string
@@ -437,14 +442,15 @@ type valueLog struct {
 	filesMap         map[uint32]*logFile
 	filesToBeDeleted []uint32
 	// A refcount of iterators -- when this hits zero, we can delete the filesToBeDeleted.
-	numActiveIterators int
+	numActiveIterators int32
 
 	kv                *DB
 	maxFid            uint32
 	writableLogOffset uint32
 	opt               Options
 
-	garbageCh chan struct{}
+	garbageCh      chan struct{}
+	lfDiscardStats *lfDiscardStats
 }
 
 func vlogFilePath(dirPath string, fid uint32) string {
@@ -543,7 +549,7 @@ func (vlog *valueLog) Open(kv *DB, opt Options) error {
 
 	vlog.elog = trace.NewEventLog("Badger", "Valuelog")
 	vlog.garbageCh = make(chan struct{}, 1) // Only allow one GC at a time.
-
+	vlog.lfDiscardStats = &lfDiscardStats{m: make(map[uint32]int64)}
 	return nil
 }
 
@@ -800,17 +806,44 @@ func valueBytesToEntry(buf []byte) (e entry) {
 	return
 }
 
-func (vlog *valueLog) pickLog() *logFile {
+func (vlog *valueLog) pickLog(head valuePointer) *logFile {
 	vlog.filesLock.RLock()
 	defer vlog.filesLock.RUnlock()
 	fids := vlog.sortedFids()
-	if len(fids) <= 1 {
+	if len(fids) <= 1 || head.Fid == 0 {
 		return nil
 	}
-	// This file shouldn't be being written to.
-	idx := rand.Intn(len(fids))
+
+	i := sort.Search(len(fids), func(i int) bool {
+		return fids[i] == head.Fid
+	})
+	if i == len(fids) {
+		return nil
+	}
+
+	// Pick a candidate that contains the largest amount of discardable data
+	candidate := struct {
+		fid     uint32
+		discard int64
+	}{math.MaxUint32, 0}
+	vlog.lfDiscardStats.Lock()
+	for j := 0; j < i; j++ {
+		fid := fids[j]
+		if vlog.lfDiscardStats.m[fid] > candidate.discard {
+			candidate.fid = fids[j]
+			candidate.discard = vlog.lfDiscardStats.m[fid]
+		}
+	}
+	vlog.lfDiscardStats.Unlock()
+
+	if candidate.fid != math.MaxUint32 { // Found a candidate
+		return vlog.filesMap[candidate.fid]
+	}
+
+	// Fallback to randomly picking a log file
+	idx := rand.Intn(i) // Don’t include head.Fid. We pick a random file before it.
 	if idx > 0 {
-		idx = rand.Intn(idx) // Another level of rand to favor smaller fids.
+		idx = rand.Intn(idx + 1) // Another level of rand to favor smaller fids.
 	}
 	return vlog.filesMap[fids[idx]]
 }
@@ -835,11 +868,21 @@ func discardEntry(e entry, vs y.ValueStruct) bool {
 	return false
 }
 
-func (vlog *valueLog) doRunGC(gcThreshold float64) error {
-	lf := vlog.pickLog()
+func (vlog *valueLog) doRunGC(gcThreshold float64, head valuePointer) (err error) {
+	// Pick a log file for GC
+	lf := vlog.pickLog(head)
 	if lf == nil {
 		return ErrNoRewrite
 	}
+
+	// Update stats before exiting
+	defer func() {
+		if err == nil {
+			vlog.lfDiscardStats.Lock()
+			delete(vlog.lfDiscardStats.m, lf.fid)
+			vlog.lfDiscardStats.Unlock()
+		}
+	}()
 
 	type reason struct {
 		total   float64
@@ -857,7 +900,7 @@ func (vlog *valueLog) doRunGC(gcThreshold float64) error {
 
 	start := time.Now()
 	y.AssertTrue(vlog.kv != nil)
-	err := vlog.iterate(lf, 0, func(e entry, vp valuePointer) error {
+	err = vlog.iterate(lf, 0, func(e entry, vp valuePointer) error {
 		esz := float64(vp.Len) / (1 << 20) // in MBs. +4 for the CAS stuff.
 		skipped += esz
 		if skipped < skipFirstM {
@@ -950,13 +993,25 @@ func (vlog *valueLog) waitOnGC(lc *y.Closer) {
 	vlog.garbageCh <- struct{}{}
 }
 
-func (vlog *valueLog) runGC(gcThreshold float64) error {
+func (vlog *valueLog) runGC(gcThreshold float64, head valuePointer) error {
 	select {
 	case vlog.garbageCh <- struct{}{}:
-		err := vlog.doRunGC(gcThreshold)
+
+		// Run GC
+		err := vlog.doRunGC(gcThreshold, head)
 		<-vlog.garbageCh
 		return err
 	default:
 		return ErrRejected
+	}
+}
+
+func (vlog *valueLog) updateGCStats(item *Item) {
+	if item.meta&bitValuePointer > 0 {
+		var vp valuePointer
+		vp.Decode(item.vptr)
+		vlog.lfDiscardStats.Lock()
+		vlog.lfDiscardStats.m[vp.Fid] += int64(vp.Len)
+		vlog.lfDiscardStats.Unlock()
 	}
 }

@@ -222,6 +222,7 @@ func Open(opt Options) (db *DB, err error) {
 	}()
 
 	orc := &oracle{
+		isManaged:      opt.managedTxns,
 		nextCommit:     1,
 		pendingCommits: make(map[uint64]struct{}),
 		commits:        make(map[uint64]uint64),
@@ -867,29 +868,34 @@ func (db *DB) updateSize(lc *y.Closer) {
 
 // PurgeVersionsBelow will delete all versions of a key below the specified version
 func (db *DB) PurgeVersionsBelow(key []byte, ts uint64) error {
-	return db.View(func(txn *Txn) error {
-		opts := DefaultIteratorOptions
-		opts.AllVersions = true
-		opts.PrefetchValues = false
-		it := txn.NewIterator(opts)
+	txn := db.NewTransaction(false)
+	defer txn.Discard()
+	return db.purgeVersionsBelow(txn, key, ts)
+}
 
-		var entries []*entry
+func (db *DB) purgeVersionsBelow(txn *Txn, key []byte, ts uint64) error {
+	opts := DefaultIteratorOptions
+	opts.AllVersions = true
+	opts.PrefetchValues = false
+	it := txn.NewIterator(opts)
 
-		for it.Seek(key); it.ValidForPrefix(key); it.Next() {
-			item := it.Item()
-			if !bytes.Equal(key, item.Key()) || item.Version() >= ts {
-				continue
-			}
+	var entries []*entry
 
-			// Found an older version. Mark for deletion
-			entries = append(entries,
-				&entry{
-					Key:  y.KeyWithTs(key, item.version),
-					Meta: bitDelete,
-				})
+	for it.Seek(key); it.ValidForPrefix(key); it.Next() {
+		item := it.Item()
+		if !bytes.Equal(key, item.Key()) || item.Version() >= ts {
+			continue
 		}
-		return db.batchSet(entries)
-	})
+
+		// Found an older version. Mark for deletion
+		entries = append(entries,
+			&entry{
+				Key:  y.KeyWithTs(key, item.version),
+				Meta: bitDelete,
+			})
+		db.vlog.updateGCStats(item)
+	}
+	return db.batchSet(entries)
 }
 
 // PurgeOlderVersions deletes older versions of all keys.
@@ -942,6 +948,7 @@ func (db *DB) PurgeOlderVersions() error {
 					Key:  y.KeyWithTs(lastKey, item.version),
 					Meta: bitDelete,
 				})
+			db.vlog.updateGCStats(item)
 			count++
 
 			// Batch up 1000 entries at a time and write
@@ -996,5 +1003,20 @@ func (db *DB) RunValueLogGC(discardRatio float64) error {
 	if discardRatio >= 1.0 || discardRatio <= 0.0 {
 		return ErrInvalidRequest
 	}
-	return db.vlog.runGC(discardRatio)
+
+	// Find head on disk
+	headKey := y.KeyWithTs(head, math.MaxUint64)
+	// Need to pass with timestamp, lsm get removes the last 8 bytes and compares key
+	val, err := db.lc.get(headKey)
+	if err != nil {
+		return errors.Wrap(err, "Retrieving head from on-disk LSM")
+	}
+
+	var head valuePointer
+	if len(val.Value) > 0 {
+		head.Decode(val.Value)
+	}
+
+	// Pick a log file and run GC
+	return db.vlog.runGC(discardRatio, head)
 }
