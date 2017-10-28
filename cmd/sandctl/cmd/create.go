@@ -16,8 +16,11 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
+
+	"google.golang.org/grpc"
 
 	"github.com/spf13/viper"
 
@@ -47,12 +50,15 @@ var createCmd = &cobra.Command{
 			Name:              name,
 			ReplicationFactor: int32(viper.GetInt("replication_factor")),
 			NumPartitions:     int32(viper.GetInt("num_partitions")),
-			Kind:              sgproto.TopicKind(sgproto.TopicKind_value[cmd.Flag("storage_driver").Value.String()]),
-			StorageDriver:     sgproto.StorageDriver(sgproto.StorageDriver_value[cmd.Flag("num_partitions").Value.String()]),
+			Kind:              sgproto.TopicKind(sgproto.TopicKind_value[viper.GetString("storage_driver")]),
+			StorageDriver:     sgproto.StorageDriver(sgproto.StorageDriver_value[viper.GetString("num_partitions")]),
 		})
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(grpc.ErrorDesc(err))
+			return
 		}
+
+		fmt.Println("topic '%s' was successfully created")
 	},
 }
 
@@ -64,7 +70,7 @@ func init() {
 	createCmd.Flags().String("storage_driver", sgproto.StorageDriver_RocksDB.String(), "Number of partitions")
 	createCmd.Flags().String("kind", sgproto.TopicKind_TimerKind.String(), "Topic kind")
 
-	cmdcommon.BindViper(createCmd,
+	cmdcommon.BindViper(createCmd.Flags(),
 		"replication_factor",
 		"num_partitions",
 		"storage_driver",

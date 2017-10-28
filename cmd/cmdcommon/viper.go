@@ -1,13 +1,13 @@
 package cmdcommon
 
 import (
-	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
-func BindViper(cmd *cobra.Command, names ...string) {
+func BindViper(flags *pflag.FlagSet, names ...string) {
 	for _, name := range names {
-		err := viper.BindPFlag(name, cmd.PersistentFlags().Lookup(name))
+		err := viper.BindPFlag(name, flags.Lookup(name))
 		if err != nil {
 			panic(err)
 		}

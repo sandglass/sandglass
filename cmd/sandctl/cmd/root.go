@@ -88,7 +88,7 @@ func init() {
 	RootCmd.PersistentFlags().StringSliceP("addrs", "s", []string{":7170"}, "grpc adresses of nodes in sandglass cluster")
 	RootCmd.PersistentFlags().Duration("timeout", 3*time.Second, "timeout")
 
-	cmdcommon.BindViper(RootCmd,
+	cmdcommon.BindViper(RootCmd.PersistentFlags(),
 		"config",
 		"addrs",
 		"timeout",
