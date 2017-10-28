@@ -22,38 +22,40 @@ See TODO section below for more information
 
 ## Installation
 
-As of now there is no binaries available, you can only install from source using:
+You can grab binaries [here](https://github.com/celrenheit/sandglass/releases). If you're using MacOS you can also use homebrew to install sandglass:
 
 ```shell
-$ go get -u github.com/celrenheit/sandglass/cmd/sandglass
+$ brew install celrenheit/taps/sandglass
 ```
 
-## Usage
+## Getting started
 
-All data will be stored in /tmp/node1 for the first and /tmp/node2 for the second.
+NOTE: All data will be stored in /tmp/node1 for the first node and /tmp/node2 for the second node.
 
-Open a first terminal window:
+First, let's launch sandglass server:
 
 ```shell
 $ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node1.yaml
 ```
 
-On a second terminal window:
+In another terminal window, create a _payments_ topic:
 
 ```shell
-$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node2.yaml
+$ sandctl topics create payments --num_partitions 3 --replication_factor 1
 ```
 
-Now you can create a topic using:
-```shell
-$ curl -XPOST http://localhost:2108/topics -d '{"name": "payments", "kind": 0, "replicationFactor": 2, "numPartitions": 6 }'
-```
-
-...and public a message:
+...produce a message:
 
 ```shell
-$ curl -XPOST http://localhost:2108/topics/payments -d '{"value": "eyJoZWxsbyI6ICJ3b3JsZCIgfQo="}' -H 'Content-Type: application/json'
+$ sandctl produce payments "Payments received"
 ```
+
+...and consume from the _payments_ topic:
+
+```shell
+$ sandctl consume payments
+```
+
 
 ## Architecture
 
