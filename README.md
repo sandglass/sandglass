@@ -30,7 +30,7 @@ $ brew install celrenheit/taps/sandglass
 
 ## Getting started
 
-NOTE: All data will be stored in /tmp/node1 for the first node and /tmp/node2 for the second node.
+> NOTE: All data will be stored in /tmp/node1 for the first node and /tmp/node2 for the second node.
 
 First, let's launch sandglass server:
 
