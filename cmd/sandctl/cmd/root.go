@@ -40,12 +40,6 @@ var RootCmd = &cobra.Command{
 	Use:   "sandctl",
 	Short: "SandCtl",
 	Long:  `SandCtl`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("run root")
-	},
-	PostRun: func(cmd *cobra.Command, args []string) {
-		fmt.Println("PostRun")
-	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
