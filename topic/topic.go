@@ -25,6 +25,20 @@ type Topic struct {
 	ring     *hashring.HashRing
 }
 
+func (t *Topic) Validate() error {
+	if t.Name == "" { // TODO: check non ascii chars
+		return fmt.Errorf("topic name should not be empty")
+	}
+	if t.ReplicationFactor < 1 {
+		return fmt.Errorf("replication factor should not be > 0")
+	}
+	if t.NumPartitions < 1 {
+		return fmt.Errorf("number of partitions should not be > 0")
+	}
+
+	return nil
+}
+
 func (t *Topic) InitStore(basePath string) error {
 	t.ring = hashring.New([]string{})
 

@@ -545,6 +545,10 @@ type command struct {
 }
 
 func (s *Store) CreateTopic(t *topic.Topic) error {
+	if err := t.Validate(); err != nil {
+		return err
+	}
+
 	return s.raftApplyCommand(CreateTopicOp, t)
 }
 
