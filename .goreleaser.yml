@@ -6,7 +6,17 @@ builds:
     ldflags: -extldflags "-static"
     flags: -a -tags netgo
     goos:
-      # - windows
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+  - main: cmd/sandctl/main.go
+    binary: sandctl
+    ldflags: -extldflags "-static"
+    flags: -a -tags netgo
+    goos:
+      - windows
       - darwin
       - linux
     goarch:
