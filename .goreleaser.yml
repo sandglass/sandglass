@@ -25,7 +25,7 @@ builds:
 brew:
   github:
     owner: celrenheit
-    name: taps
+    name: homebrew-taps
 
   commit_author:
     name: Celrenheit
