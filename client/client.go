@@ -26,6 +26,13 @@ func WithAddresses(addrs ...string) optionFn {
 	}
 }
 
+func WithGRPCClientConn(conn *grpc.ClientConn) optionFn {
+	return func(c *Client) (err error) {
+		c.conn = conn
+		return err
+	}
+}
+
 func New(opts ...optionFn) (c *Client, err error) {
 	c = &Client{opts: &options{}}
 
@@ -36,13 +43,15 @@ func New(opts ...optionFn) (c *Client, err error) {
 		}
 	}
 
-	// TODO: use grpc loadbalancer
-	for _, addr := range c.opts.addrs {
-		c.conn, err = grpc.Dial(addr, grpc.WithInsecure())
-		if err != nil {
-			return nil, err
+	if c.conn == nil {
+		// TODO: use grpc loadbalancer
+		for _, addr := range c.opts.addrs {
+			c.conn, err = grpc.Dial(addr, grpc.WithInsecure())
+			if err != nil {
+				return nil, err
+			}
+			break
 		}
-		break
 	}
 
 	c.client = sgproto.NewBrokerServiceClient(c.conn)

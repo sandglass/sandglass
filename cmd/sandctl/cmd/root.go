@@ -20,10 +20,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/celrenheit/sandglass/cmd/cmdcommon"
+	"github.com/celrenheit/sandglass/client"
 
-	"github.com/celrenheit/sandglass/sgproto"
-	"google.golang.org/grpc"
+	"github.com/celrenheit/sandglass/cmd/cmdcommon"
 
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -32,7 +31,7 @@ import (
 
 var (
 	cfgFile string
-	client  sgproto.BrokerServiceClient
+	cli     *client.Client
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -45,31 +44,21 @@ var RootCmd = &cobra.Command{
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	var (
-		conn *grpc.ClientConn
-		err  error
+	var err error
+
+	cli, err = client.New(
+		client.WithAddresses(viper.GetStringSlice("addrs")...),
 	)
-
-	for _, addr := range viper.GetStringSlice("addrs") {
-		conn, err = grpc.Dial(addr,
-			grpc.WithInsecure(),
-		)
-		if err == nil {
-			break
-		}
+	if err != nil {
+		log.Fatal(err)
 	}
-	if conn == nil {
-		log.Fatal("no address worked")
-	}
-
-	client = sgproto.NewBrokerServiceClient(conn)
 
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	if err := conn.Close(); err != nil {
+	if err := cli.Close(); err != nil {
 		log.Fatalf("error while closing connection: %v", err)
 	}
 }

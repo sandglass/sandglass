@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"golang.org/x/sync/errgroup"
 
@@ -30,7 +31,9 @@ func (b *Broker) PublishMessage(ctx context.Context, msg *sgproto.Message) (*san
 
 	var p *topic.Partition
 	if msg.Partition != "" { // already specified
-		p = t.GetPartition(msg.Partition)
+		if p = t.GetPartition(msg.Partition); p == nil {
+			return nil, fmt.Errorf("unknown partition '%s'", msg.Partition)
+		}
 	} else { // choose one
 		p = t.ChoosePartition(msg)
 	}

@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"google.golang.org/grpc"
 
@@ -36,17 +35,15 @@ var createCmd = &cobra.Command{
 	Short: "",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) > 1 {
+		if len(args) != 1 {
 			log.Fatal("only one topic is allowed")
 		}
 		name := args[0]
 
-		dur, _ := time.ParseDuration(cmd.Flag("timeout").Value.String())
-
-		ctx, cancel := context.WithTimeout(context.Background(), dur)
+		ctx, cancel := context.WithTimeout(context.Background(), viper.GetDuration("timeout"))
 		defer cancel()
 
-		_, err := client.CreateTopic(ctx, &sgproto.CreateTopicParams{
+		err := cli.CreateTopic(ctx, &sgproto.CreateTopicParams{
 			Name:              name,
 			ReplicationFactor: int32(viper.GetInt("replication_factor")),
 			NumPartitions:     int32(viper.GetInt("num_partitions")),
