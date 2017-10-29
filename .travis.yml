@@ -7,5 +7,8 @@ script:
 - docker-compose build --pull --force-rm --no-cache test
 - docker-compose run test
 notifications:
+  email: false
   slack:
     secure: Y5W2mhAzI/WcUZtNhFXbDJMAsahNESUrRB2EHfnoelEO08ohBslFvaPqOIVsWwmZQVe0A6d0E/7+JmFegVpWDDFYyAry4rXw7D8P470xy4Ql2YBFO/a+gzlPcF6dpiWaFfIk3pzI/Jp2tty5eaHKGKO27kMZAd8/WNuGA3h2eYZhVstriwxhNHn/DhFE7OXgxuHlGMxlEfL43zLw8m7pcKwzmuUhgF92gySV5k3QhlqtWKN3s9GMk4a7b3EQCwGIHfW9Xpj127PEXPitWJIvEDpxI4KXVH4Xe6kmSMw6xytbKWyGe+MXPbSvGSka3IR8PytOE8hmmYXEANshP+mmzePQh9annZUWXYTaOnrzL5pBrOmJAd9esObS8pjNecOCTCPEUtlza/mHr7r2PzMxvV1fx22IHS1cx5FMtDa0WvPBMYdJGj2ETBdDQ/LBqfN/cLdba3KT6WJZLVuJUw87D7VrEfHCFyJudf749yOymmlP5Dvg0uAJKaAFyrnTuRy6hLCqRpJMkGxOjDZxcFFTm70p4o5oXyYPBOq5cpJlvs/Dt4g53a3IRkCFZvo+ikASKMd2xtuLjJ2PWcJ1S7qxRVAqhUzzaUdB/NGPZ0eN53SepyWriG22/Q/W9wSgeDTausVar1LY0lRICB4HIK8eh8RocwaXTo4FLEo5b6GEO3Y=
+after_success:
+  - test -n "$TRAVIS_TAG" && docker-compose build releaser && docker-compose run releaser
