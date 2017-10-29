@@ -23,8 +23,9 @@ func TestRaft(t *testing.T) {
 	defer os.RemoveAll(tmpDir2)
 
 	s := New(Config{
-		Addr: "127.0.0.1:1234",
-		Dir:  tmpDir,
+		BindAddr: "127.0.0.1:1234",
+		AdvAddr:  "127.0.0.1:1234",
+		Dir:      tmpDir,
 		// StartAsLeader: true,
 	}, logger)
 
@@ -32,8 +33,9 @@ func TestRaft(t *testing.T) {
 	require.NoError(t, err)
 
 	s2 := New(Config{
-		Addr: "127.0.0.1:12345",
-		Dir:  tmpDir2,
+		BindAddr: "127.0.0.1:12345",
+		AdvAddr:  "127.0.0.1:12345",
+		Dir:      tmpDir2,
 	}, logger)
 
 	err = s2.Init(false, &serf.Serf{}, nil)
@@ -45,8 +47,9 @@ func TestRaft(t *testing.T) {
 	require.NoError(t, future.Error())
 
 	err = s.CreateTopic(&topic.Topic{
-		Name:          "hello",
-		NumPartitions: 3,
+		Name:              "hello",
+		NumPartitions:     3,
+		ReplicationFactor: 1,
 	})
 	require.NoError(t, err)
 
