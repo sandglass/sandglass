@@ -47,3 +47,15 @@ func (r *EventEmitter) Once(event string) chan interface{} {
 	})
 	return ch
 }
+
+func (r *EventEmitter) On(event string) chan interface{} {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ch := make(chan interface{}, 1)
+
+	r.listeners[event] = append(r.listeners[event], Listener{
+		ch:   ch,
+		once: false,
+	})
+	return ch
+}
