@@ -3,7 +3,7 @@ LABEL Salim Alami <celrenheit+github@gmail.com>
 
 EXPOSE 8080
 
-RUN wget https://github.com/goreleaser/goreleaser/releases/download/v0.35.4/goreleaser_Linux_arm64.tar.gz && \
+RUN wget https://github.com/goreleaser/goreleaser/releases/download/v0.35.5/goreleaser_Linux_x86_64.tar.gz && \
     tar -zxvf goreleaser_Linux_arm64.tar.gz && \
     chmod a+x goreleaser && mv goreleaser /usr/bin/goreleaser
 
