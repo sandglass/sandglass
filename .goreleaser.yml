@@ -36,3 +36,12 @@ brew:
   homepage: "https://github.com/celrenheit/sandglass"
 
   description: "Sandglass is a distributed, horizontally scalable, persistent, delayed message queue"
+
+archive:
+  format: tar.gz
+  replacements:
+    amd64: 64-bit
+    darwin: macOS
+  files:
+    - LICENSE
+    - README.md
