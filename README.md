@@ -30,7 +30,8 @@ $ brew install celrenheit/taps/sandglass
 
 ## Getting started
 
-> NOTE: All data will be stored in /tmp/node1 for the first node and /tmp/node2 for the second node.
+> NOTE: All data will be stored in /tmp/node1. If you wish to change this, copy `demo/node1.yaml` and modify it accordingly.
+
 
 First, let's launch sandglass server:
 
@@ -38,16 +39,18 @@ First, let's launch sandglass server:
 $ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node1.yaml
 ```
 
+> We are using a single node cluster, this is not recommended for production.
+
 In another terminal window, create a _payments_ topic:
 
 ```shell
-$ sandctl topics create payments --num_partitions 3 --replication_factor 1
+$ sandctl topics create payments --num_partitions 300 --replication_factor 1
 ```
 
-...produce a message:
+...produce 10,000 messages:
 
 ```shell
-$ sandctl produce payments "Payments received"
+$ sandctl produce payments '{"hello" : "world"}' -n 10000
 ```
 
 ...and consume from the _payments_ topic:
@@ -55,6 +58,8 @@ $ sandctl produce payments "Payments received"
 ```shell
 $ sandctl consume payments
 ```
+
+(or if you wish to watch you can use `sandctl consume -f payments` to see messages coming live)
 
 
 ## Architecture

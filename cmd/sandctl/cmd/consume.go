@@ -42,11 +42,18 @@ var consumeCmd = &cobra.Command{
 		}
 		topic := args[0]
 
+		consumerGroup := viper.GetString("consumer-group")
+		consumerName := viper.GetString("consumer-name")
+		if consumerName == "" {
+			var gen sandflake.Generator
+			consumerName = gen.Next().String()
+		}
+
 		var group errgroup.Group
 		msgCh := make(chan *sgproto.Message)
 		if cmd.Flag("partition").Changed {
 			group.Go(func() error {
-				consume(msgCh, topic, viper.GetString("partition"), viper.GetBool("follow"), viper.GetBool("commit"))
+				consume(msgCh, topic, viper.GetString("partition"), consumerGroup, consumerName, viper.GetBool("follow"), viper.GetBool("commit"))
 				return nil
 			})
 		} else {
@@ -58,7 +65,7 @@ var consumeCmd = &cobra.Command{
 			for _, part := range partitions {
 				part := part
 				group.Go(func() error {
-					consume(msgCh, topic, part, viper.GetBool("follow"), viper.GetBool("commit"))
+					consume(msgCh, topic, part, consumerGroup, consumerName, viper.GetBool("follow"), viper.GetBool("commit"))
 					return nil
 				})
 			}
@@ -69,9 +76,11 @@ var consumeCmd = &cobra.Command{
 			close(msgCh)
 		}()
 
+		fmt.Printf("PARTITION\tOFFSET\tPAYLOAD\n")
 		for msg := range msgCh {
-			fmt.Println(msg.Offset, string(msg.Value))
+			fmt.Printf("%s\t%s\t%s\n", msg.Partition, msg.Offset, string(msg.Value))
 		}
+
 	},
 }
 
@@ -95,9 +104,9 @@ func init() {
 	)
 }
 
-func consume(msgCh chan *sgproto.Message, topic, partition string, follow, commit bool) {
+func consume(msgCh chan *sgproto.Message, topic, partition, group, name string, follow, commit bool) {
 	ctx := context.Background()
-	consumer := cli.NewConsumer(topic, partition, "group", "consumer1")
+	consumer := cli.NewConsumer(topic, partition, group, name)
 
 FOLLOW:
 	consumeCh, err := consumer.Consume(ctx)
