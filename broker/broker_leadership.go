@@ -20,7 +20,7 @@ func (b *Broker) monitorLeadership() error {
 		case isElected := <-b.raft.LeaderCh():
 			if isElected {
 				// Do something
-				b.Info("elected as controller %v\n", b.Name())
+				b.Debug("elected as controller %v\n", b.Name())
 				exists := b.topicExists(ConsumerOffsetTopicName)
 				if !exists {
 					for i := 0; i < 10; i++ {
@@ -40,7 +40,7 @@ func (b *Broker) monitorLeadership() error {
 				b.rearrangePartitionsLeadership()
 			} else {
 				// Do something else
-				b.Info("NOT elected as controller: %v\n", b.Name())
+				b.Debug("NOT elected as controller: %v\n", b.Name())
 			}
 		}
 	}

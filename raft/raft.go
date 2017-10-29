@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -97,7 +98,13 @@ func (s *Store) Init(bootstrap bool, serf *serf.Serf, reconcileCh chan serf.Memb
 	if serverId == "" {
 		serverId = address
 	}
-	config.Logger = log.New(os.Stdout, "raft["+serverId+"] ", log.LstdFlags)
+
+	if s.logger.Level() < logy.DEBUG {
+		config.LogOutput = ioutil.Discard
+	} else {
+		config.Logger = log.New(os.Stdout, "raft["+serverId+"] ", log.LstdFlags)
+	}
+
 	config.LocalID = raft.ServerID(serverId)
 	config.StartAsLeader = s.conf.StartAsLeader
 	config.ShutdownOnRemove = false
@@ -452,7 +459,7 @@ func (f *fsm) applySetTopic(b []byte) error {
 	if err := json.Unmarshal(b, &t); err != nil {
 		return err
 	}
-	f.logger.Info("applyCreateTopic %v", t.Name)
+	f.logger.Debug("applyCreateTopic %v", t.Name)
 
 	if !f.HasTopic(t.Name) {
 		err := t.InitStore(f.conf.Dir)

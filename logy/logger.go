@@ -16,6 +16,7 @@ type Logger interface {
 	Info(format string, args ...interface{})
 	Debug(format string, args ...interface{})
 	Fatal(format string, args ...interface{})
+	Level() Level
 }
 
 type logger struct {
@@ -56,6 +57,10 @@ func (l *logger) Debug(format string, args ...interface{}) {
 
 func (l *logger) Fatal(format string, args ...interface{}) {
 	l.log(FATAL, format, args...)
+}
+
+func (l *logger) Level() Level {
+	return l.level
 }
 
 var _ Logger = (*logger)(nil)

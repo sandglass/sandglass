@@ -23,6 +23,8 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/fatih/color"
+
 	"time"
 
 	"github.com/celrenheit/sandglass/broker"
@@ -32,6 +34,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/tj/go-gracefully"
+)
+
+var (
+	warningColor   = color.New(color.Italic, color.FgHiBlack).SprintfFunc()
+	infoColor      = color.New(color.FgHiBlack).SprintfFunc()
+	sandglassColor = color.New(color.Bold, color.FgHiGreen).SprintfFunc()
 )
 
 var cfgFile string
@@ -77,23 +85,30 @@ var RootCmd = &cobra.Command{
 			}
 		}()
 
+		fmt.Println(warningColor("WARNING: This code is a very early release, it contains bugs and should not be used in production environments."))
+
+		fmt.Println(sandglassColor(`
+⏳  Sandglass started!
+Beware of the sandstorm.
+`))
+
 		// waiting for shutdown
 		gracefully.Timeout = 10 * time.Second
 		gracefully.Shutdown()
-		fmt.Println("graceful shutdown")
+		b.Debug("graceful shutdown")
 		ctx := context.Background()
 
-		fmt.Println("shutting down http server")
+		b.Debug("shutting down http server")
 		if err := server.Shutdown(ctx); err != nil {
 			log.Println(errors.Cause(err))
 		}
 
-		fmt.Println("shutting down broker")
+		b.Debug("shutting down broker")
 		if err := b.Stop(ctx); err != nil {
 			log.Println(errors.Cause(err))
 		}
 
-		fmt.Println("Done!")
+		fmt.Println(sandglassColor("⌛️  sandglass stopped!"))
 		os.Exit(0)
 	},
 }
@@ -157,7 +172,7 @@ func initConfig() {
 		}
 	} else {
 		if err := viper.ReadInConfig(); err == nil {
-			fmt.Println("Using config file:", viper.ConfigFileUsed())
+			fmt.Println(infoColor("Using config file: %s", viper.ConfigFileUsed()))
 		} else {
 			fmt.Println("err", err)
 		}

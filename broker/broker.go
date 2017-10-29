@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net"
@@ -44,17 +45,18 @@ func init() {
 }
 
 type Config struct {
-	Name          string   `yaml:"name,omitempty"`
-	DCName        string   `yaml:"dc_name,omitempty"`
-	BindAddr      string   `yaml:"bind_addr,omitempty"`
-	AdvertiseAddr string   `yaml:"advertise_addr,omitempty"`
-	DBPath        string   `yaml:"db_path,omitempty"`
-	GossipPort    string   `yaml:"gossip_port,omitempty"`
-	HTTPPort      string   `yaml:"http_port,omitempty"`
-	GRPCPort      string   `yaml:"grpc_port,omitempty"`
-	RaftPort      string   `yaml:"raft_port,omitempty"`
-	InitialPeers  []string `yaml:"initial_peers,omitempty"`
-	BootstrapRaft bool     `yaml:"bootstrap_raft,omitempty"`
+	Name          string      `yaml:"name,omitempty"`
+	DCName        string      `yaml:"dc_name,omitempty"`
+	BindAddr      string      `yaml:"bind_addr,omitempty"`
+	AdvertiseAddr string      `yaml:"advertise_addr,omitempty"`
+	DBPath        string      `yaml:"db_path,omitempty"`
+	GossipPort    string      `yaml:"gossip_port,omitempty"`
+	HTTPPort      string      `yaml:"http_port,omitempty"`
+	GRPCPort      string      `yaml:"grpc_port,omitempty"`
+	RaftPort      string      `yaml:"raft_port,omitempty"`
+	InitialPeers  []string    `yaml:"initial_peers,omitempty"`
+	BootstrapRaft bool        `yaml:"bootstrap_raft,omitempty"`
+	LoggingLevel  *logy.Level `yaml:"-"`
 }
 
 type Broker struct {
@@ -96,7 +98,12 @@ func New(conf *Config) (*Broker, error) {
 		}
 	}
 
-	logger := logy.NewWithLogger(log.New(os.Stdout, fmt.Sprintf("[broker: %v] ", conf.Name), log.LstdFlags), logy.DEBUG)
+	level := logy.INFO
+	if conf.LoggingLevel != nil {
+		level = *conf.LoggingLevel
+	}
+
+	logger := logy.NewWithLogger(log.New(os.Stdout, fmt.Sprintf("[broker: %v] ", conf.Name), log.LstdFlags), level)
 
 	b := &Broker{
 		currentNode: &sandglass.Node{
@@ -158,7 +165,7 @@ func (b *Broker) Stop(ctx context.Context) error {
 		// return nil
 	}
 
-	b.Info("closing topics dbs...")
+	b.Debug("closing topics dbs...")
 	// closing topics
 	for _, t := range b.raft.GetTopics() {
 		if err := t.Close(); err != nil {
@@ -226,8 +233,8 @@ func (b *Broker) getNodeByRaftAddr(addr string) *sandglass.Node {
 }
 
 func (b *Broker) Bootstrap() error {
-	b.Info("Bootstrapping...")
-	b.Info("config: %+v", b.Conf())
+	b.Debug("Bootstrapping %s...", b.Name())
+	b.Debug("config: %+v", b.Conf())
 	b.readyListeners = append(b.readyListeners)
 
 	conf := serf.DefaultConfig()
@@ -247,6 +254,13 @@ func (b *Broker) Bootstrap() error {
 	conf.Tags["http_addr"] = net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.HTTPPort)
 	conf.Tags["grpc_addr"] = net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.GRPCPort)
 	conf.Tags["raft_addr"] = net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.RaftPort)
+	if b.Logger.Level() < logy.DEBUG {
+		conf.LogOutput = ioutil.Discard
+		conf.MemberlistConfig.LogOutput = ioutil.Discard
+	} else {
+		conf.Logger = log.New(os.Stdout, "serf["+b.Name()+"] ", log.LstdFlags)
+		conf.MemberlistConfig.Logger = log.New(os.Stdout, "serf["+b.Name()+"] ", log.LstdFlags)
+	}
 
 	b.eventCh = make(chan serf.Event, 64)
 	conf.EventCh = b.eventCh
@@ -342,7 +356,7 @@ loop:
 		case <-shutdownCh:
 			break loop
 		case e := <-b.eventCh:
-			fmt.Printf("event: %+v\n", e)
+			b.Debug("event: %+v\n", e)
 			switch e.EventType() {
 			case serf.EventMemberJoin:
 				ev := e.(serf.MemberEvent)
