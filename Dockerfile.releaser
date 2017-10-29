@@ -12,5 +12,3 @@ WORKDIR $GOPATH/src/github.com/celrenheit/sandglass
 
 
 COPY . ./
-
-# RUN git checkout -- . && git clean -f -d
