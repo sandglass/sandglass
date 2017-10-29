@@ -23,6 +23,8 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/celrenheit/sandglass/cmd/cmdcommon"
+
 	"github.com/fatih/color"
 
 	"time"
@@ -61,6 +63,11 @@ var RootCmd = &cobra.Command{
 			RaftPort:      viper.GetString("raft_port"),
 			InitialPeers:  viper.GetStringSlice("initial_peers"),
 			BootstrapRaft: viper.GetBool("bootstrap_raft"),
+		}
+
+		if viper.GetBool("verbose") {
+			lvl := logy.DEBUG
+			conf.LoggingLevel = &lvl
 		}
 
 		b, err := broker.New(&conf)
@@ -126,25 +133,27 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.sandglass.yaml)")
-	viper.BindPFlag("config", RootCmd.PersistentFlags().Lookup("config"))
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "config")
 	RootCmd.PersistentFlags().String("name", "", "name")
-	viper.BindPFlag("name", RootCmd.PersistentFlags().Lookup("name"))
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "name")
 	RootCmd.PersistentFlags().String("http_port", ":2108", "http addr")
-	viper.BindPFlag("http_port", RootCmd.PersistentFlags().Lookup("http_port"))
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "http_port")
 	RootCmd.PersistentFlags().String("grpc_port", ":7170", "grpc addr")
-	viper.BindPFlag("grpc_port", RootCmd.PersistentFlags().Lookup("grpc_port"))
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "grpc_port")
 	RootCmd.PersistentFlags().String("gossip_port", ":9900", "gossip addr")
-	viper.BindPFlag("gossip_port", RootCmd.PersistentFlags().Lookup("gossip_port"))
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "gossip_port")
 	RootCmd.PersistentFlags().String("advertise_addr", "", "advertise addr")
-	viper.BindPFlag("advertise_addr", RootCmd.PersistentFlags().Lookup("advertise_addr"))
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "advertise_addr")
 	RootCmd.PersistentFlags().String("bind_addr", "", "bind addr")
-	viper.BindPFlag("bind_addr", RootCmd.PersistentFlags().Lookup("bind_addr"))
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "bind_addr")
 	RootCmd.PersistentFlags().String("db_path", "/tmp/sandglassdb", "base directory for data storage")
-	viper.BindPFlag("db_path", RootCmd.PersistentFlags().Lookup("db_path"))
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "db_path")
 	RootCmd.PersistentFlags().StringArrayP("initial_peers", "p", nil, "Inital peers")
-	viper.BindPFlag("initial_peers", RootCmd.PersistentFlags().Lookup("initial_peers"))
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "initial_peers")
 	RootCmd.PersistentFlags().Bool("bootstrap_raft", false, "Bootstrap raft")
-	viper.BindPFlag("bootstrap_raft", RootCmd.PersistentFlags().Lookup("bootstrap_raft"))
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "bootstrap_raft")
+	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "Bootstrap raft")
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "verbose")
 
 	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
