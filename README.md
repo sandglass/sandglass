@@ -7,31 +7,25 @@ Sandglass is a distributed, horizontally scalable, persistent, delayed message q
 * Horizontal scalability
 * Highly available
 * Persistent storage
-* Roughly strong ordering with a single consumer in a consumer group
-* Round robin consumption between multiple consumers in a consumer group (looses ordering)
+* Time ordered
+* Round robin consumption between multiple consumers in a consumer group
 * Produce message to be consumed in the future
 * Acknowledge each message individualy
 * Automatic consumer offset tracking
 
-## Project status
-
-**EXPERIMENTAL**: This is a prototype. This should not be used in production in its current form.
-
-See TODO section below for more information
-
 
 ## Installation
 
-You can grab binaries [here](https://github.com/celrenheit/sandglass/releases). If you're using MacOS you can also use homebrew to install sandglass:
-
+On MacOS using [Homebrew](https://brew.sh):
 ```shell
 $ brew install celrenheit/taps/sandglass
 ```
 
+For other platforms, you can grab binaries [here](https://github.com/celrenheit/sandglass/releases). 
+
 ## Getting started
 
 > NOTE: All data will be stored in /tmp/node1. If you wish to change this, copy `demo/node1.yaml` and modify it accordingly.
-
 
 First, let's launch sandglass server:
 
@@ -39,9 +33,7 @@ First, let's launch sandglass server:
 $ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node1.yaml
 ```
 
-> We are using a single node cluster, this is not recommended for production.
-
-In another terminal window, create a _emails_ topic:
+In a second terminal window, create a _emails_ topic:
 
 ```shell
 $ sandctl topics create emails --num_partitions 3 --replication_factor 1
@@ -61,6 +53,20 @@ $ sandctl consume emails
 
 (or if you wish to watch you can use `sandctl consume -f emails` to see messages coming live)
 
+> We are using a single node cluster, this is not recommended for production.
+
+Add a second node to the cluster:
+```shell
+$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node2.yaml
+```
+
+and repeat the same steps described above for another topic and increasing the replication factor to 2.
+
+## Project status
+
+**EXPERIMENTAL**: This is a prototype. This should not be used in production in its current form.
+
+See TODO section below for more information
 
 ## Architecture
 
