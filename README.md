@@ -44,7 +44,7 @@ $ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/mast
 In another terminal window, create a _payments_ topic:
 
 ```shell
-$ sandctl topics create payments --num_partitions 300 --replication_factor 1
+$ sandctl topics create payments --num_partitions 3 --replication_factor 1
 ```
 
 ...produce 10,000 messages:
