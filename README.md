@@ -41,25 +41,25 @@ $ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/mast
 
 > We are using a single node cluster, this is not recommended for production.
 
-In another terminal window, create a _payments_ topic:
+In another terminal window, create a _emails_ topic:
 
 ```shell
-$ sandctl topics create payments --num_partitions 3 --replication_factor 1
+$ sandctl topics create emails --num_partitions 3 --replication_factor 1
 ```
 
 ...produce 10,000 messages:
 
 ```shell
-$ sandctl produce payments '{"hello" : "world"}' -n 10000
+$ sandctl produce emails '{"dest" : "hi@example.com"}' -n 10000
 ```
 
-...and consume from the _payments_ topic:
+...and consume from the _emails_ topic:
 
 ```shell
-$ sandctl consume payments
+$ sandctl consume emails
 ```
 
-(or if you wish to watch you can use `sandctl consume -f payments` to see messages coming live)
+(or if you wish to watch you can use `sandctl consume -f emails` to see messages coming live)
 
 
 ## Architecture
