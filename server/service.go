@@ -83,7 +83,11 @@ func (s *service) PublishMessagesStream(stream sgproto.BrokerService_PublishMess
 		}
 	}
 
-	return s.broker.PublishMessages(ctx, messages)
+	if len(messages) > 0 {
+		return s.broker.PublishMessages(ctx, messages)
+	}
+
+	return nil
 }
 
 func (s *service) StoreMessageLocally(ctx context.Context, msg *sgproto.Message) (*sgproto.StoreLocallyReply, error) {
