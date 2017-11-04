@@ -55,7 +55,7 @@ var createCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Println("topic '%s' was successfully created")
+		fmt.Printf("topic '%s' was successfully created", name)
 	},
 }
 
