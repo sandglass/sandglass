@@ -426,6 +426,65 @@ func BenchmarkCompactedTopicGet(b *testing.B) {
 	})
 }
 
+func BenchmarkConsume(b *testing.B) {
+	time.Sleep(500 * time.Millisecond)
+	n := 3
+	brokers, destroyFn := makeNBrokers(b, n)
+	defer destroyFn()
+
+	time.Sleep(5000 * time.Millisecond)
+	createTopicParams := &sgproto.CreateTopicParams{
+		Name:              "payments",
+		Kind:              sgproto.TopicKind_TimerKind,
+		ReplicationFactor: 2,
+		NumPartitions:     3,
+	}
+	err := brokers[0].CreateTopic(ctx, createTopicParams)
+	require.Nil(b, err)
+
+	err = brokers[0].CreateTopic(ctx, createTopicParams)
+	require.NotNil(b, err)
+
+	// waiting for goroutine to receive topic
+	time.Sleep(1000 * time.Millisecond)
+	require.Len(b, brokers[0].Members(), n)
+	for i := 0; i < n; i++ {
+		require.Len(b, brokers[i].Topics(), 2)
+	}
+
+	payments := getTopicFromBroker(brokers[0], "payments")
+	require.NotNil(b, payments)
+
+	// time.Sleep(2000 * time.Millisecond)
+	for i := 0; i < 30; i++ {
+		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
+			Topic:     "payments",
+			Partition: payments.Partitions[0].Id,
+			Value:     []byte(strconv.Itoa(i)),
+		})
+		require.Nil(b, err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.Run("consumption", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			err := brokers[0].Consume(context.Background(),
+				payments.Name,
+				payments.Partitions[0].Id,
+				"consumerGroup",
+				"consumerName",
+				func(msg *sgproto.Message) error {
+					return nil
+				})
+			require.NoError(b, err)
+		}
+	})
+}
+
 func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn func()) {
 	var g sandflake.Generator
 	dc := g.Next()
