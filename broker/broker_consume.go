@@ -17,7 +17,7 @@ func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGrou
 	pk := partitionKey(topicName, partition, consumerGroup, consumerName)
 	offsetPartition := offsetTopic.ChoosePartitionForKey(pk)
 	if offsetPartition == nil {
-		return ErrNoLeaderFound
+		return ErrPartitionNotFound
 	}
 
 	leader := b.getPartitionLeader(ConsumerOffsetTopicName, offsetPartition.Id)

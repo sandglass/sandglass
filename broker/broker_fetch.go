@@ -22,6 +22,35 @@ func (b *Broker) FetchRange(ctx context.Context, topicName, partition string, fr
 	}
 
 	if partition != "" {
+		leader := b.getPartitionLeader(topic.Name, partition)
+		if leader.Name != b.Name() {
+			stream, err := leader.FetchRange(ctx, &sgproto.FetchRangeRequest{
+				Topic:     topicName,
+				Partition: partition,
+				From:      from,
+				To:        to,
+			})
+			if err != nil {
+				return err
+			}
+
+			for {
+				msg, err := stream.Recv()
+				if err == io.EOF {
+					break
+				} else if err != nil {
+					return err
+				}
+
+				err = fn(msg)
+				if err != nil {
+					return err
+				}
+			}
+
+			return nil
+		}
+
 		p := topic.GetPartition(partition)
 		return p.ForRange(from, to, fn)
 	}
