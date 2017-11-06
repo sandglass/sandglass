@@ -70,7 +70,10 @@ func (t *Partition) getStorageKey(msg *sgproto.Message) []byte {
 	case sgproto.TopicKind_TimerKind:
 		storekey = msg.Offset[:]
 	case sgproto.TopicKind_CompactedKind:
-		storekey = joinKeys(msg.Key, msg.ClusteringKey)
+		storekey = msg.Key
+		if len(msg.ClusteringKey) > 0 {
+			storekey = joinKeys(msg.Key, msg.ClusteringKey)
+		}
 	default:
 		panic("INVALID STORAGE KIND: " + t.topic.Kind.String())
 	}
