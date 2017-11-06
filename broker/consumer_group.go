@@ -7,8 +7,6 @@ import (
 
 	"github.com/celrenheit/sandflake"
 
-	"github.com/celrenheit/sandglass/topic"
-
 	"github.com/celrenheit/sandglass/sgproto"
 	"golang.org/x/sync/errgroup"
 )
@@ -16,13 +14,13 @@ import (
 type ConsumerGroup struct {
 	broker    *Broker
 	topic     string
-	partition *topic.Partition
+	partition string
 	name      string
 	mu        sync.RWMutex
 	receivers []*receiver
 }
 
-func NewConsumerGroup(b *Broker, topic string, partition *topic.Partition, name string) *ConsumerGroup {
+func NewConsumerGroup(b *Broker, topic, partition, name string) *ConsumerGroup {
 	return &ConsumerGroup{
 		broker:    b,
 		name:      name,
@@ -61,7 +59,7 @@ func (c *ConsumerGroup) register(consumerName string) *receiver {
 }
 
 func (c *ConsumerGroup) consumeLoop() {
-	from, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition.Id, c.name, "", sgproto.LastOffsetRequest_Commited)
+	from, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.LastOffsetRequest_Commited)
 	if err != nil {
 		c.broker.Debug("got error when fetching last committed offset: %v ", err)
 		return
@@ -69,25 +67,22 @@ func (c *ConsumerGroup) consumeLoop() {
 
 	msgCh := make(chan *sgproto.Message)
 	var group errgroup.Group
-	p := c.partition
 	group.Go(func() error {
-		it := p.Iter()
-
-		for m := it.Seek(from); it.Valid(); m = it.Next() {
+		return c.broker.FetchRange(context.Background(), c.topic, c.partition, from, sandflake.MaxID, func(m *sgproto.Message) error {
 			// skip the first if it is the same as the starting point
 			if from == m.Offset {
-				continue
+				return nil
 			}
 
 			now := sandflake.NewID(time.Now().UTC(), sandflake.MaxID.WorkerID(), sandflake.MaxID.Sequence(), sandflake.MaxID.RandomBytes())
 			if m.Offset.After(now) {
-				break
+				return nil
 			}
 
 			msgCh <- m
-		}
 
-		return it.Close()
+			return nil
+		})
 	})
 
 	go func() {
@@ -98,7 +93,7 @@ func (c *ConsumerGroup) consumeLoop() {
 	var i int
 loop:
 	for m := range msgCh {
-		isAcknowledged, err := c.broker.isAcknoweldged(context.TODO(), c.topic, c.partition.Id, c.name, m.Offset)
+		isAcknowledged, err := c.broker.isAcknoweldged(context.TODO(), c.topic, c.partition, c.name, m.Offset)
 		if err != nil {
 			c.broker.Debug("STOPPING CONSUMPTION got err: %v", err)
 			break

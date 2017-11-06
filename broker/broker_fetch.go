@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"sync"
@@ -106,7 +107,7 @@ func (b *Broker) Get(ctx context.Context, topicName string, partition string, ke
 	return b.getFromPartition(ctx, topicName, p, key)
 }
 
-func (b *Broker) HasKey(ctx context.Context, topicName string, partition string, key []byte) (bool, error) {
+func (b *Broker) HasKey(ctx context.Context, topicName string, partition string, key, clusterKey []byte) (bool, error) {
 	t := b.getTopic(topicName)
 	var p *topic.Partition
 	if partition != "" {
@@ -114,7 +115,7 @@ func (b *Broker) HasKey(ctx context.Context, topicName string, partition string,
 	} else {
 		p = t.ChoosePartitionForKey(key)
 	}
-	return b.hasKeyInPartition(ctx, topicName, p, key)
+	return b.hasKeyInPartition(ctx, topicName, p, key, clusterKey)
 }
 
 func (b *Broker) getFromPartition(ctx context.Context, topic string, p *topic.Partition, key []byte) (*sgproto.Message, error) {
@@ -144,7 +145,7 @@ func (b *Broker) getFromPartition(ctx context.Context, topic string, p *topic.Pa
 	return msg, nil
 }
 
-func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.Partition, key []byte) (bool, error) {
+func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.Partition, key, clusterKey []byte) (bool, error) {
 	leader := b.getPartitionLeader(topic, p.Id)
 	if leader == nil {
 		return false, ErrNoLeaderFound
@@ -153,9 +154,10 @@ func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.P
 	if leader.Name != b.Name() {
 		b.Debug("fetch key remotely '%v' from %v", string(key), leader.Name)
 		resp, err := leader.HasKey(ctx, &sgproto.GetRequest{
-			Topic:     topic,
-			Partition: p.Id,
-			Key:       key,
+			Topic:         topic,
+			Partition:     p.Id,
+			Key:           key,
+			ClusteringKey: clusterKey,
 		})
 		if err != nil {
 			return false, err
@@ -164,5 +166,13 @@ func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.P
 		return resp.Exists, nil
 	}
 
-	return p.HasKey(key)
+	return p.HasKey(key, clusterKey)
+}
+
+func generateConsumerOffsetKey(partitionKey []byte, offset sandflake.ID, kind sgproto.LastOffsetRequest_Kind) []byte {
+	return bytes.Join([][]byte{
+		partitionKey,
+		[]byte(offset.String()), // .String() for debugging, remove this later
+		[]byte{byte(kind)},
+	}, []byte{'/'})
 }

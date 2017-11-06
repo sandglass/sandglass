@@ -64,13 +64,13 @@ func (t *Partition) String() string {
 	return t.Id
 }
 
-func (t *Partition) getStorageKey(offset sandflake.ID, key []byte) []byte {
+func (t *Partition) getStorageKey(msg *sgproto.Message) []byte {
 	var storekey []byte
 	switch t.topic.Kind {
 	case sgproto.TopicKind_TimerKind:
-		storekey = offset[:]
+		storekey = msg.Offset[:]
 	case sgproto.TopicKind_CompactedKind:
-		storekey = key
+		storekey = joinKeys(msg.Key, msg.ClusteringKey)
 	default:
 		panic("INVALID STORAGE KIND: " + t.topic.Kind.String())
 	}
@@ -111,7 +111,7 @@ func (s *Partition) GetMessage(offset sandflake.ID, k, suffix []byte) (*sgproto.
 }
 
 func (t *Partition) PutMessage(msg *sgproto.Message) error {
-	storagekey := t.getStorageKey(msg.Offset, msg.Key)
+	storagekey := t.getStorageKey(msg)
 	if msg.Index == sandflake.Nil {
 		msg.Index = t.NextID()
 	}
@@ -131,28 +131,31 @@ func (t *Partition) PutMessage(msg *sgproto.Message) error {
 		return err
 	}
 
-	t.bf.Add(msg.Key)
-	t.ibf.Add(msg.Key)
+	t.bf.Add(storagekey)
+	t.ibf.Add(storagekey)
 
 	return nil
 }
 
-func (t *Partition) HasKey(key []byte) (bool, error) {
+func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 	switch t.topic.Kind {
 	case sgproto.TopicKind_CompactedKind:
 	default:
 		panic("not compacted topic")
 	}
 
-	if t.ibf.Test(key) {
+	pk := joinKeys(key, clusterKey)
+	existKey := scommons.PrependPrefix(scommons.MsgPrefix, pk)
+
+	if t.ibf.Test(existKey) {
 		return true, nil
 	}
 
-	if !t.bf.Test(key) {
+	if !t.bf.Test(existKey) {
 		return false, nil
 	}
 
-	msg, err := t.GetMessage(sandflake.Nil, key, nil)
+	msg, err := t.GetMessage(sandflake.Nil, pk, nil)
 	if err != nil {
 		return false, err
 	}
@@ -177,13 +180,13 @@ func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
 		if msg.Index == sandflake.Nil {
 			msg.Index = t.NextID()
 		}
-		storagekey := t.getStorageKey(msg.Offset, msg.Key)
+		storagekey := t.getStorageKey(msg)
 		val, err := proto.Marshal(msg)
 		if err != nil {
 			return err
 		}
-		t.bf.Add(msg.Key)
-		t.ibf.Add(msg.Key)
+		t.bf.Add(storagekey)
+		t.ibf.Add(storagekey)
 		entries[i] = &storage.Entry{
 			Key:   storagekey,
 			Value: val,
@@ -302,4 +305,11 @@ func (p *Partition) getMessageByStorageKey(k []byte) (*sgproto.Message, error) {
 	}
 
 	return &msg, nil
+}
+
+func joinKeys(key, clusterKey []byte) []byte {
+	return bytes.Join([][]byte{
+		key,
+		clusterKey,
+	}, []byte{'/'})
 }

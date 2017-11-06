@@ -16,6 +16,7 @@ var (
 	ErrInvalidTopicName       = errors.New("ErrInvalidTopicName")
 	ErrUnableToSelectReplicas = errors.New("ErrUnableToSelectReplicas")
 	ErrTopicNotFound          = errors.New("ErrTopicNotFound")
+	ErrPartitionNotFound      = errors.New("ErrPartitionNotFound")
 	ErrNoPartitionSet         = errors.New("ErrNoPartitionSet")
 	ErrNoControllerSet        = errors.New("ErrNoControllerSet")
 	ErrNoLeaderFound          = errors.New("ErrNoLeaderFound")

@@ -45,11 +45,12 @@ func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionNa
 	msgs := []*sgproto.Message{}
 	for _, offset := range offsets {
 		msgs = append(msgs, &sgproto.Message{
-			Topic:     ConsumerOffsetTopicName,
-			Partition: p.Id,
-			Offset:    offset,
-			Key:       generateConsumerOffsetKey(topicName, partitionName, consumerGroup, consumerName, offset, sgproto.LastOffsetRequest_Acknowledged),
-			Value:     []byte{byte(sgproto.LastOffsetRequest_Acknowledged)},
+			Topic:         ConsumerOffsetTopicName,
+			Partition:     p.Id,
+			Offset:        offset,
+			Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
+			ClusteringKey: generateClusterKey(offset, sgproto.LastOffsetRequest_Acknowledged),
+			Value:         []byte{byte(sgproto.LastOffsetRequest_Acknowledged)},
 		})
 	}
 
@@ -96,11 +97,12 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 	}
 
 	res, err := b.PublishMessage(ctx, &sgproto.Message{
-		Topic:     ConsumerOffsetTopicName,
-		Partition: p.Id,
-		Offset:    offset,
-		Key:       generateConsumerOffsetKey(topicName, partitionName, consumerGroup, consumerName, offset, kind),
-		Value:     []byte{byte(kind)},
+		Topic:         ConsumerOffsetTopicName,
+		Partition:     p.Id,
+		Offset:        offset,
+		Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
+		ClusteringKey: generateClusterKey(offset, kind),
+		Value:         []byte{byte(kind)},
 	})
 	return res != nil, err
 }
@@ -159,8 +161,8 @@ func (b *Broker) isAcknoweldged(ctx context.Context, topicName, partition, consu
 	}
 	pk := partitionKey(topicName, partition, consumerGroup, "NOT SET")
 	p := topic.ChoosePartitionForKey(pk)
-	key := generateConsumerOffsetKey(topicName, partition, consumerGroup, "", offset, sgproto.LastOffsetRequest_Acknowledged)
-	return b.hasKeyInPartition(ctx, ConsumerOffsetTopicName, p, key)
+	clusterKey := generateClusterKey(offset, sgproto.LastOffsetRequest_Acknowledged)
+	return b.hasKeyInPartition(ctx, ConsumerOffsetTopicName, p, pk, clusterKey)
 }
 
 func partitionKey(topicName, partitionName, consumerGroup, consumerName string) []byte {
@@ -173,9 +175,8 @@ func partitionKey(topicName, partitionName, consumerGroup, consumerName string) 
 	}, []byte{'/'})
 }
 
-func generateConsumerOffsetKey(topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID, kind sgproto.LastOffsetRequest_Kind) []byte {
+func generateClusterKey(offset sandflake.ID, kind sgproto.LastOffsetRequest_Kind) []byte {
 	return bytes.Join([][]byte{
-		partitionKey(topicName, partitionName, consumerGroup, consumerName),
 		[]byte(offset.String()), // .String() for debugging, remove this later
 		[]byte{byte(kind)},
 	}, []byte{'/'})

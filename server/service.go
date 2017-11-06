@@ -153,7 +153,7 @@ func (s *service) HasKey(ctx context.Context, req *sgproto.GetRequest) (*sgproto
 		return nil, fmt.Errorf("can only be used with a key")
 	}
 
-	exists, err := s.broker.HasKey(ctx, req.Topic, req.Partition, req.Key)
+	exists, err := s.broker.HasKey(ctx, req.Topic, req.Partition, req.Key, req.ClusteringKey)
 	if err != nil {
 		return nil, err
 	}
