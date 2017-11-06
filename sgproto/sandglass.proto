@@ -15,10 +15,14 @@ option (gogoproto.unmarshaler_all) = true;
 message Message {
     string topic = 1;
     string partition = 2;
-    bytes index = 3 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
-    bytes offset = 4 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
-    bytes key = 5;
-    bytes value = 6;
+
+    bytes index = 10 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+    bytes offset = 11 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+
+    bytes key = 20;
+    bytes clusteringKey = 21;
+
+    bytes value = 30;
 }
 
 message DUIDReply {
@@ -85,6 +89,7 @@ message GetRequest {
     string topic = 1;
     string partition = 2;
     bytes key = 3;
+    bytes clusteringKey = 4;
 }
 
 message ConsumeFromGroupRequest {

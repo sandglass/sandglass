@@ -455,6 +455,10 @@
           "type": "string",
           "format": "byte"
         },
+        "clusteringKey": {
+          "type": "string",
+          "format": "byte"
+        },
         "value": {
           "type": "string",
           "format": "byte"
