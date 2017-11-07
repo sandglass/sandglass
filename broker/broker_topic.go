@@ -10,6 +10,7 @@ import (
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass/sgproto"
 	"github.com/celrenheit/sandglass/topic"
+	"github.com/hashicorp/serf/serf"
 	"github.com/serialx/hashring"
 )
 
@@ -31,7 +32,7 @@ func (b *Broker) watchTopic() error {
 		case <-b.ShutdownCh:
 			return nil
 		case topic := <-b.raft.NewTopicChan():
-			b.Info("[topic watcher] received new topic: %s", topic.Name)
+			b.Debug("[topic watcher] received new topic: %s", topic.Name)
 			// exists := b.topicExists(topic.Name)
 			// if !exists {
 			// 	err := b.setupTopic(topic)
@@ -134,6 +135,25 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicPar
 	case <-topicCreatedCh:
 	case <-time.After(10 * time.Second):
 		return fmt.Errorf("timed out creating topic: %v", t.Name)
+	}
+
+	qry, err := b.cluster.Query("wait-for-topic", []byte(t.Name), &serf.QueryParam{})
+	if err != nil {
+		return err
+	}
+	defer qry.Close()
+
+	members := len(b.cluster.Members())
+	acks := 0
+	for !qry.Finished() {
+		resp := <-qry.ResponseCh()
+		if len(resp.Payload) > 0 {
+			acks++
+		}
+	}
+
+	if acks < ((members / 2) + 1) {
+		return fmt.Errorf("unable to have quorum")
 	}
 
 	return nil

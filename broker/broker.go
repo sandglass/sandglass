@@ -385,6 +385,22 @@ loop:
 			case serf.EventQuery:
 				qry := e.(*serf.Query)
 				b.Debug("received query: %v", qry)
+				topicName := string(qry.Payload)
+				if b.getTopic(topicName) != nil {
+					err := qry.Respond([]byte("OK"))
+					if err != nil {
+						b.Info("got error responding: %v", err)
+					}
+					continue
+				}
+				ch := b.eventEmitter.Once("topics:created:" + topicName)
+				go func() {
+					<-ch
+					err := qry.Respond([]byte("OK"))
+					if err != nil {
+						b.Info("got error responding: %v", err)
+					}
+				}()
 			}
 		}
 	}
