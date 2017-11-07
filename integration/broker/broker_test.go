@@ -455,8 +455,9 @@ func BenchmarkConsume(b *testing.B) {
 	payments := getTopicFromBroker(brokers[0], "payments")
 	require.NotNil(b, payments)
 
+	N := 1000
 	// time.Sleep(2000 * time.Millisecond)
-	for i := 0; i < 30; i++ {
+	for i := 0; i < N; i++ {
 		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic:     "payments",
 			Partition: payments.Partitions[0].Id,
@@ -472,15 +473,18 @@ func BenchmarkConsume(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
+			count := 0
 			err := brokers[0].Consume(context.Background(),
 				payments.Name,
 				payments.Partitions[0].Id,
 				"consumerGroup",
 				"consumerName",
 				func(msg *sgproto.Message) error {
+					count++
 					return nil
 				})
 			require.NoError(b, err)
+			require.Equal(b, N, count)
 		}
 	})
 }
