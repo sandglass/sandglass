@@ -237,7 +237,7 @@ func (b *Broker) Bootstrap() error {
 	b.Debug("config: %+v", b.Conf())
 	b.readyListeners = append(b.readyListeners,
 		b.eventEmitter.Once(leaderElectedEvent),
-		b.eventEmitter.Once(consumerOffsetReceivedEvent),
+		b.eventEmitter.Once("topics:created:"+ConsumerOffsetTopicName),
 	)
 
 	conf := serf.DefaultConfig()

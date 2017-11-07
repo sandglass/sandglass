@@ -12,8 +12,7 @@ import (
 )
 
 var (
-	leaderElectedEvent          = "a leader was elected"
-	consumerOffsetReceivedEvent = "consumer offset received"
+	leaderElectedEvent = "a leader was elected"
 )
 
 func (b *Broker) monitorLeadership() error {

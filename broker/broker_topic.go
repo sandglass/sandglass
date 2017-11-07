@@ -50,9 +50,6 @@ func (b *Broker) watchTopic() error {
 				}
 			}()
 			b.eventEmitter.Emit("topics:created:"+topic.Name, nil)
-			if topic.Name == ConsumerOffsetTopicName {
-				b.eventEmitter.Emit(consumerOffsetReceivedEvent, nil)
-			}
 		}
 	}
 }
