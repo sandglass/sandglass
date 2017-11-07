@@ -47,6 +47,10 @@ func (b *Broker) watchTopic() error {
 					b.Debug("error while rearrangeLeadership err=%v", err)
 				}
 			}()
+
+			if topic.Name == ConsumerOffsetTopicName {
+				b.eventEmitter.Emit(consumerOffsetReceivedEvent, nil)
+			}
 		}
 	}
 }

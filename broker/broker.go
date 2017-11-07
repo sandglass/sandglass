@@ -235,7 +235,10 @@ func (b *Broker) getNodeByRaftAddr(addr string) *sandglass.Node {
 func (b *Broker) Bootstrap() error {
 	b.Debug("Bootstrapping %s...", b.Name())
 	b.Debug("config: %+v", b.Conf())
-	b.readyListeners = append(b.readyListeners)
+	b.readyListeners = append(b.readyListeners,
+		b.eventEmitter.Once(leaderElectedEvent),
+		b.eventEmitter.Once(consumerOffsetReceivedEvent),
+	)
 
 	conf := serf.DefaultConfig()
 	conf.Init()

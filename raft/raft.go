@@ -82,7 +82,7 @@ func New(conf Config, logger logy.Logger) *Store {
 		conf:             conf,
 		logger:           logger,
 		state:            newState(),
-		newTopicChan:     make(chan *topic.Topic),
+		newTopicChan:     make(chan *topic.Topic, 10),
 		leaderChangeChan: make(chan bool, 10),
 		shutdownCh:       make(chan struct{}),
 	}
@@ -469,6 +469,7 @@ func (f *fsm) applySetTopic(b []byte) error {
 		f.mu.Lock()
 		f.state.Topics[t.Name] = &t
 		f.mu.Unlock()
+		f.newTopicChan <- &t
 	}
 
 	return nil

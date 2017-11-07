@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/celrenheit/sandglass/sgutils"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/celrenheit/sandglass/topic"
 
@@ -510,11 +511,6 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 		brokers = append(brokers, newBroker(tb, i, dc.String(), bind_addr, advertise_addr, gossip_port, grpc_port, http_port, raft_port, basepath))
 	}
 
-	for _, b := range brokers {
-		err := b.WaitForIt()
-		require.Nil(tb, err)
-	}
-
 	servers := []*server.Server{}
 	var doneServers sync.WaitGroup
 	for i := 0; i < n; i++ {
@@ -542,6 +538,15 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 	err := brokers[0].Join(peers...)
 	require.Nil(tb, err)
 
+	var group errgroup.Group
+	for _, b := range brokers {
+		b := b
+		group.Go(b.WaitForIt)
+	}
+
+	err = group.Wait()
+	require.Nil(tb, err)
+
 	destroyFn = func() {
 		for _, b := range brokers {
 			err := b.Stop(context.Background())
@@ -562,6 +567,7 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 var logger = log.New(os.Stdout, "", log.LstdFlags)
 
 func newBroker(tb testing.TB, i int, dc, bind_addr, adv_addr, gossip_port, grpc_port, http_port, raft_port, basepath string) *broker.Broker {
+	lvl := logy.INFO
 	conf := &broker.Config{
 		Name:          "broker" + strconv.Itoa(i),
 		DCName:        dc,
@@ -573,6 +579,7 @@ func newBroker(tb testing.TB, i int, dc, bind_addr, adv_addr, gossip_port, grpc_
 		HTTPPort:      http_port,
 		RaftPort:      raft_port,
 		BootstrapRaft: i == 0,
+		LoggingLevel:  &lvl,
 	}
 	fmt.Printf("conf: %+v\n", conf)
 	fmt.Printf("basepath: %+v\n", basepath)
