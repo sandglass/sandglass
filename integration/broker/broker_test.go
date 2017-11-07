@@ -39,7 +39,6 @@ import (
 var ctx = context.TODO()
 
 func TestSandglass(t *testing.T) {
-	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
@@ -56,14 +55,11 @@ func TestSandglass(t *testing.T) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(2000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
 	}
 
-	time.Sleep(2000 * time.Millisecond)
 	for i := 0; i < 1000; i++ {
 		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic: "payments",
@@ -83,7 +79,6 @@ func TestSandglass(t *testing.T) {
 }
 
 func TestCompactedTopic(t *testing.T) {
-	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
@@ -100,14 +95,11 @@ func TestCompactedTopic(t *testing.T) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(2000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
 	}
 
-	// time.Sleep(2000 * time.Millisecond)
 	for i := 0; i < 1000; i++ {
 		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic: "payments",
@@ -133,7 +125,6 @@ func TestCompactedTopic(t *testing.T) {
 }
 
 func TestACK(t *testing.T) {
-	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
@@ -150,8 +141,6 @@ func TestACK(t *testing.T) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(2000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
@@ -198,7 +187,6 @@ func TestACK(t *testing.T) {
 }
 
 func TestConsume(t *testing.T) {
-	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
@@ -215,8 +203,6 @@ func TestConsume(t *testing.T) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(2000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
@@ -295,7 +281,6 @@ func TestConsume(t *testing.T) {
 
 func TestSyncRequest(t *testing.T) {
 	broker.DefaultStateCheckInterval = 300 * time.Second
-	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
@@ -312,8 +297,6 @@ func TestSyncRequest(t *testing.T) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(2000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
@@ -376,7 +359,6 @@ func getTopicFromBroker(b *broker.Broker, topic string) *topic.Topic {
 }
 
 func BenchmarkCompactedTopicGet(b *testing.B) {
-	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(b, n)
 	defer destroyFn()
@@ -393,14 +375,11 @@ func BenchmarkCompactedTopicGet(b *testing.B) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(b, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(1000 * time.Millisecond)
 	require.Len(b, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(b, brokers[i].Topics(), 1)
 	}
 
-	// time.Sleep(2000 * time.Millisecond)
 	for i := 0; i < 30; i++ {
 		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic: "payments",
@@ -423,7 +402,6 @@ func BenchmarkCompactedTopicGet(b *testing.B) {
 }
 
 func BenchmarkConsume(b *testing.B) {
-	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(b, n)
 	defer destroyFn()
@@ -440,8 +418,6 @@ func BenchmarkConsume(b *testing.B) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(b, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(1000 * time.Millisecond)
 	require.Len(b, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(b, brokers[i].Topics(), 2)
@@ -451,7 +427,6 @@ func BenchmarkConsume(b *testing.B) {
 	require.NotNil(b, payments)
 
 	N := 1000
-	// time.Sleep(2000 * time.Millisecond)
 	for i := 0; i < N; i++ {
 		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic:     "payments",
