@@ -94,6 +94,13 @@ var RootCmd = &cobra.Command{
 
 		fmt.Println(warningColor("WARNING: This code is a very early release, it contains bugs and should not be used in production environments."))
 
+		fmt.Println("")
+		fmt.Println(infoColor("wait for it..."))
+		err = b.WaitForIt()
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		fmt.Println(sandglassColor(`
 ⏳  Sandglass started!
 Beware of the sandstorm.
