@@ -1,4 +1,5 @@
 sudo: required
+language: go
 services:
 - docker
 after_script:
