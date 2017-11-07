@@ -44,7 +44,6 @@ func TestSandglass(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
@@ -88,7 +87,6 @@ func TestCompactedTopic(t *testing.T) {
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
-	time.Sleep(5000 * time.Millisecond)
 
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
@@ -103,7 +101,7 @@ func TestCompactedTopic(t *testing.T) {
 	require.NotNil(t, err)
 
 	// waiting for goroutine to receive topic
-	time.Sleep(5000 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
@@ -140,7 +138,6 @@ func TestACK(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
@@ -154,7 +151,7 @@ func TestACK(t *testing.T) {
 	require.NotNil(t, err)
 
 	// waiting for goroutine to receive topic
-	time.Sleep(4000 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
@@ -206,7 +203,6 @@ func TestConsume(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
@@ -220,7 +216,7 @@ func TestConsume(t *testing.T) {
 	require.NotNil(t, err)
 
 	// waiting for goroutine to receive topic
-	time.Sleep(5000 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
@@ -304,7 +300,6 @@ func TestSyncRequest(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
@@ -318,7 +313,7 @@ func TestSyncRequest(t *testing.T) {
 	require.NotNil(t, err)
 
 	// waiting for goroutine to receive topic
-	time.Sleep(5000 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
@@ -433,7 +428,6 @@ func BenchmarkConsume(b *testing.B) {
 	brokers, destroyFn := makeNBrokers(b, n)
 	defer destroyFn()
 
-	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,

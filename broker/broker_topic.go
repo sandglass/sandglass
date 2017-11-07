@@ -3,7 +3,9 @@ package broker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass/sgproto"
@@ -47,7 +49,7 @@ func (b *Broker) watchTopic() error {
 					b.Debug("error while rearrangeLeadership err=%v", err)
 				}
 			}()
-
+			b.eventEmitter.Emit("topics:created:"+topic.Name, nil)
 			if topic.Name == ConsumerOffsetTopicName {
 				b.eventEmitter.Emit(consumerOffsetReceivedEvent, nil)
 			}
@@ -112,9 +114,7 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicPar
 		p.Replicas = replicas
 		t.Partitions = append(t.Partitions, p)
 	}
-
-	// topicCreatedCh := b.eventEmitter.Once("topics:created:" + t.Name)
-
+	topicCreatedCh := b.eventEmitter.Once("topics:created:" + t.Name)
 	if err := b.raft.CreateTopic(t); err != nil {
 		return err
 	}
@@ -133,11 +133,11 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicPar
 		return err
 	}
 
-	// select {
-	// case <-topicCreatedCh:
-	// case <-time.After(10 * time.Second):
-	// 	return fmt.Errorf("timed out creating topic: %v", t.Name)
-	// }
+	select {
+	case <-topicCreatedCh:
+	case <-time.After(10 * time.Second):
+		return fmt.Errorf("timed out creating topic: %v", t.Name)
+	}
 
 	return nil
 }
