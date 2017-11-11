@@ -68,14 +68,10 @@ func (c *ConsumerGroup) consumeLoop() {
 	msgCh := make(chan *sgproto.Message)
 	var group errgroup.Group
 	group.Go(func() error {
-		return c.broker.FetchRange(context.Background(), c.topic, c.partition, from, sandflake.MaxID, func(m *sgproto.Message) error {
+		now := sandflake.NewID(time.Now().UTC(), sandflake.MaxID.WorkerID(), sandflake.MaxID.Sequence(), sandflake.MaxID.RandomBytes())
+		return c.broker.FetchRange(context.Background(), c.topic, c.partition, from, now, func(m *sgproto.Message) error {
 			// skip the first if it is the same as the starting point
 			if from == m.Offset {
-				return nil
-			}
-
-			now := sandflake.NewID(time.Now().UTC(), sandflake.MaxID.WorkerID(), sandflake.MaxID.Sequence(), sandflake.MaxID.RandomBytes())
-			if m.Offset.After(now) {
 				return nil
 			}
 
