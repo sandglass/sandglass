@@ -38,17 +38,16 @@ func (st nativeSliceTransform) InRange(src []byte) bool     { return false }
 func (st nativeSliceTransform) Name() string                { return "" }
 
 // Hold references to slice transforms.
-var sliceTransforms []SliceTransform
+var sliceTransforms = NewCOWList()
 
 func registerSliceTransform(st SliceTransform) int {
-	sliceTransforms = append(sliceTransforms, st)
-	return len(sliceTransforms) - 1
+	return sliceTransforms.Append(st)
 }
 
 //export gorocksdb_slicetransform_transform
 func gorocksdb_slicetransform_transform(idx int, cKey *C.char, cKeyLen C.size_t, cDstLen *C.size_t) *C.char {
 	key := charToByte(cKey, cKeyLen)
-	dst := sliceTransforms[idx].Transform(key)
+	dst := sliceTransforms.Get(idx).(SliceTransform).Transform(key)
 	*cDstLen = C.size_t(len(dst))
 	return cByteSlice(dst)
 }
@@ -56,18 +55,18 @@ func gorocksdb_slicetransform_transform(idx int, cKey *C.char, cKeyLen C.size_t,
 //export gorocksdb_slicetransform_in_domain
 func gorocksdb_slicetransform_in_domain(idx int, cKey *C.char, cKeyLen C.size_t) C.uchar {
 	key := charToByte(cKey, cKeyLen)
-	inDomain := sliceTransforms[idx].InDomain(key)
+	inDomain := sliceTransforms.Get(idx).(SliceTransform).InDomain(key)
 	return boolToChar(inDomain)
 }
 
 //export gorocksdb_slicetransform_in_range
 func gorocksdb_slicetransform_in_range(idx int, cKey *C.char, cKeyLen C.size_t) C.uchar {
 	key := charToByte(cKey, cKeyLen)
-	inRange := sliceTransforms[idx].InRange(key)
+	inRange := sliceTransforms.Get(idx).(SliceTransform).InRange(key)
 	return boolToChar(inRange)
 }
 
 //export gorocksdb_slicetransform_name
 func gorocksdb_slicetransform_name(idx int) *C.char {
-	return stringToChar(sliceTransforms[idx].Name())
+	return stringToChar(sliceTransforms.Get(idx).(SliceTransform).Name())
 }

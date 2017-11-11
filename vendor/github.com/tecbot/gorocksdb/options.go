@@ -188,6 +188,42 @@ func (opts *Options) SetParanoidChecks(value bool) {
 	C.rocksdb_options_set_paranoid_checks(opts.c, boolToChar(value))
 }
 
+// SetDBPaths sets the DBPaths of the options.
+//
+// A list of paths where SST files can be put into, with its target size.
+// Newer data is placed into paths specified earlier in the vector while
+// older data gradually moves to paths specified later in the vector.
+//
+// For example, you have a flash device with 10GB allocated for the DB,
+// as well as a hard drive of 2TB, you should config it to be:
+//   [{"/flash_path", 10GB}, {"/hard_drive", 2TB}]
+//
+// The system will try to guarantee data under each path is close to but
+// not larger than the target size. But current and future file sizes used
+// by determining where to place a file are based on best-effort estimation,
+// which means there is a chance that the actual size under the directory
+// is slightly more than target size under some workloads. User should give
+// some buffer room for those cases.
+//
+// If none of the paths has sufficient room to place a file, the file will
+// be placed to the last path anyway, despite to the target size.
+//
+// Placing newer data to earlier paths is also best-efforts. User should
+// expect user files to be placed in higher levels in some extreme cases.
+//
+// If left empty, only one path will be used, which is db_name passed when
+// opening the DB.
+// Default: empty
+func (opts *Options) SetDBPaths(dbpaths []*DBPath) {
+	l := len(dbpaths)
+	cDbpaths := make([]*C.rocksdb_dbpath_t, l)
+	for i, v := range dbpaths {
+		cDbpaths[i] = v.c
+	}
+
+	C.rocksdb_options_set_db_paths(opts.c, &cDbpaths[0], C.size_t(l))
+}
+
 // SetEnv sets the specified object to interact with the environment,
 // e.g. to read/write files, schedule background work, etc.
 // Default: DefaultEnv
@@ -303,6 +339,25 @@ func (opts *Options) SetMinWriteBufferNumberToMerge(value int) {
 // Default: 1000
 func (opts *Options) SetMaxOpenFiles(value int) {
 	C.rocksdb_options_set_max_open_files(opts.c, C.int(value))
+}
+
+// SetMaxFileOpeningThreads sets the maximum number of file opening threads.
+// If max_open_files is -1, DB will open all files on DB::Open(). You can
+// use this option to increase the number of threads used to open the files.
+// Default: 16
+func (opts *Options) SetMaxFileOpeningThreads(value int) {
+	C.rocksdb_options_set_max_file_opening_threads(opts.c, C.int(value))
+}
+
+// SetMaxTotalWalSize sets the maximum total wal size in bytes.
+// Once write-ahead logs exceed this size, we will start forcing the flush of
+// column families whose memtables are backed by the oldest live WAL file
+// (i.e. the ones that are causing all the space amplification). If set to 0
+// (default), we will dynamically choose the WAL size limit to be
+// [sum of all write_buffer_size * max_write_buffer_number] * 4
+// Default: 0
+func (opts *Options) SetMaxTotalWalSize(value uint64) {
+	C.rocksdb_options_set_max_total_wal_size(opts.c, C.uint64_t(value))
 }
 
 // SetCompression sets the compression algorithm.
@@ -445,6 +500,33 @@ func (opts *Options) SetMaxBytesForLevelBase(value uint64) {
 // Default: 10
 func (opts *Options) SetMaxBytesForLevelMultiplier(value float64) {
 	C.rocksdb_options_set_max_bytes_for_level_multiplier(opts.c, C.double(value))
+}
+
+// SetMaxCompactionBytes sets the maximum number of bytes in all compacted files.
+// We try to limit number of bytes in one compaction to be lower than this
+// threshold. But it's not guaranteed.
+// Value 0 will be sanitized.
+// Default: result.target_file_size_base * 25
+func (opts *Options) SetMaxCompactionBytes(value uint64) {
+	C.rocksdb_options_set_max_compaction_bytes(opts.c, C.uint64_t(value))
+}
+
+// SetSoftPendingCompactionBytesLimit sets the threshold at which
+// all writes will be slowed down to at least delayed_write_rate if estimated
+// bytes needed to be compaction exceed this threshold.
+//
+// Default: 64GB
+func (opts *Options) SetSoftPendingCompactionBytesLimit(value uint64) {
+	C.rocksdb_options_set_soft_pending_compaction_bytes_limit(opts.c, C.size_t(value))
+}
+
+// SetHardPendingCompactionBytesLimit sets the bytes threshold at which
+// all writes are stopped if estimated bytes needed to be compaction exceed
+// this threshold.
+//
+// Default: 256GB
+func (opts *Options) SetHardPendingCompactionBytesLimit(value uint64) {
+	C.rocksdb_options_set_hard_pending_compaction_bytes_limit(opts.c, C.size_t(value))
 }
 
 // SetMaxBytesForLevelMultiplierAdditional sets different max-size multipliers
@@ -682,7 +764,7 @@ func (opts *Options) SetAllowMmapReads(value bool) {
 }
 
 // SetAllowMmapWrites enable/disable mmap writes for writing sst tables.
-// Default: true
+// Default: false
 func (opts *Options) SetAllowMmapWrites(value bool) {
 	C.rocksdb_options_set_allow_mmap_writes(opts.c, boolToChar(value))
 }
@@ -727,6 +809,20 @@ func (opts *Options) SetStatsDumpPeriodSec(value uint) {
 // Default: true
 func (opts *Options) SetAdviseRandomOnOpen(value bool) {
 	C.rocksdb_options_set_advise_random_on_open(opts.c, boolToChar(value))
+}
+
+// SetDbWriteBufferSize sets the amount of data to build up
+// in memtables across all column families before writing to disk.
+//
+// This is distinct from write_buffer_size, which enforces a limit
+// for a single memtable.
+//
+// This feature is disabled by default. Specify a non-zero value
+// to enable it.
+//
+// Default: 0 (disabled)
+func (opts *Options) SetDbWriteBufferSize(value int) {
+	C.rocksdb_options_set_db_write_buffer_size(opts.c, C.size_t(value))
 }
 
 // SetAccessHintOnCompactionStart specifies the file access pattern
@@ -812,6 +908,21 @@ func (opts *Options) SetInplaceUpdateSupport(value bool) {
 // Default: 10000, if inplace_update_support = true, else 0.
 func (opts *Options) SetInplaceUpdateNumLocks(value int) {
 	C.rocksdb_options_set_inplace_update_num_locks(opts.c, C.size_t(value))
+}
+
+// SetMemtableHugePageSize sets the page size for huge page for
+// arena used by the memtable.
+// If <=0, it won't allocate from huge page but from malloc.
+// Users are responsible to reserve huge pages for it to be allocated. For
+// example:
+//      sysctl -w vm.nr_hugepages=20
+// See linux doc Documentation/vm/hugetlbpage.txt
+// If there isn't enough free huge page available, it will fall back to
+// malloc.
+//
+// Dynamically changeable through SetOptions() API
+func (opts *Options) SetMemtableHugePageSize(value int) {
+	C.rocksdb_options_set_memtable_huge_page_size(opts.c, C.size_t(value))
 }
 
 // SetBloomLocality sets the bloom locality.
