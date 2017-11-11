@@ -53,7 +53,7 @@ func (s *Storage) Put(key, val []byte) error {
 func (s *Storage) BatchPut(entries []*storage.Entry) error {
 	return s.db.Update(func(txn *badger.Txn) error {
 		for _, e := range entries {
-			if err := txn.Set(e.Key, e.Value, 0); err != nil {
+			if err := txn.Set(e.Key, e.Value); err != nil {
 				return err
 			}
 		}
