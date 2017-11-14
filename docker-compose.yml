@@ -31,16 +31,16 @@ services:
     node1:
         extends: sandglass
         ports:
-        - "2201:2201"
-        - "3301:3301"
-        command: --config node1.yaml
+        - "2108:2108"
+        command: -v --config node1.yaml --advertise_addr node1
 
     node2:
         extends: sandglass
-        ports:
-        - "2202:2202"
-        - "3302:3302"
-        command: --config node2.yaml
+        command: -v --config node2.yaml --advertise_addr node2
+
+    node3:
+        extends: sandglass
+        command: -v --config node3.yaml --advertise_addr node3
 
     integration_test:
         extends: sandglass
