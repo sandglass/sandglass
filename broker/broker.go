@@ -248,15 +248,27 @@ func (b *Broker) Bootstrap() error {
 		return err
 	}
 
+	var advAddr string
+
+	if b.conf.AdvertiseAddr != "" {
+		if ip := net.ParseIP(b.conf.AdvertiseAddr); ip == nil {
+			addr, err := net.ResolveUDPAddr("udp", b.conf.AdvertiseAddr+":0")
+			if err != nil {
+				return err
+			}
+			advAddr = addr.IP.String()
+		}
+	}
+
 	conf.MemberlistConfig.BindAddr = b.conf.BindAddr
 	conf.MemberlistConfig.BindPort = port
-	conf.MemberlistConfig.AdvertiseAddr = b.conf.AdvertiseAddr
+	conf.MemberlistConfig.AdvertiseAddr = advAddr
 	conf.MemberlistConfig.AdvertisePort = port
 	conf.NodeName = b.Name()
 	conf.Tags["id"] = b.currentNode.ID
-	conf.Tags["http_addr"] = net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.HTTPPort)
-	conf.Tags["grpc_addr"] = net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.GRPCPort)
-	conf.Tags["raft_addr"] = net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.RaftPort)
+	conf.Tags["http_addr"] = net.JoinHostPort(advAddr, b.conf.HTTPPort)
+	conf.Tags["grpc_addr"] = net.JoinHostPort(advAddr, b.conf.GRPCPort)
+	conf.Tags["raft_addr"] = net.JoinHostPort(advAddr, b.conf.RaftPort)
 	if b.Logger.Level() < logy.DEBUG {
 		conf.LogOutput = ioutil.Discard
 		conf.MemberlistConfig.LogOutput = ioutil.Discard
@@ -278,7 +290,7 @@ func (b *Broker) Bootstrap() error {
 	b.raft = raft.New(raft.Config{
 		Name:     b.conf.Name,
 		BindAddr: net.JoinHostPort(b.conf.BindAddr, b.conf.RaftPort),
-		AdvAddr:  net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.RaftPort),
+		AdvAddr:  net.JoinHostPort(advAddr, b.conf.RaftPort),
 		Dir:      b.conf.DBPath,
 	}, b.Logger)
 
