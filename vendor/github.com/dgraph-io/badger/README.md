@@ -7,7 +7,9 @@ written in pure Go. It's meant to be a performant alternative to non-Go-based
 key-value stores like [RocksDB](https://github.com/facebook/rocksdb).
 
 ## Project Status
-Badger v1.0 was released in Nov 2017. The latest release is [v1.0.1]
+Badger v1.0 was released in Nov 2017. Check the [Changelog] for the full details.
+
+[Changelog]:https://github.com/dgraph-io/badger/blob/master/CHANGELOG.md
 
 We introduced transactions in [v0.9.0] which involved a major API change. If you have a Badger 
 datastore prior to that, please use [v0.8.1], but we strongly urge you to upgrade. Upgrading from
@@ -224,7 +226,8 @@ metadata can be set using the `Txn.SetWithMeta()` API method.
 
 ### Iterating over keys
 To iterate over keys, we can use an `Iterator`, which can be obtained using the
-`Txn.NewIterator()` method.
+`Txn.NewIterator()` method. Iteration happens in byte-wise lexicographical sorting
+order.
 
 
 ```go
@@ -441,11 +444,12 @@ and [#315](https://github.com/dgraph-io/badger/issues/315).
 
 There are multiple workarounds during iteration:
 
+1. Use `Item::ValueCopy` instead of `Item::Value` when retrieving value.
 1. Set `Prefetch` to true. Badger would then copy over the value and release the
    file lock immediately.
-2. When `Prefetch` is false, don't call `Item::Value` and do a pure key-only
+1. When `Prefetch` is false, don't call `Item::Value` and do a pure key-only
    iteration. This might be useful if you just want to delete a lot of keys.
-3. Do the writes in a separate transaction after the reads.
+1. Do the writes in a separate transaction after the reads.
 
 - **My writes are really slow. Why?**
 
