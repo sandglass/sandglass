@@ -99,14 +99,7 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicPar
 
 		replicas, ok := b.selectReplicasForPartition(t, p)
 		if !ok {
-			if params.Name != ConsumerOffsetTopicName { // should we allow this for all topics ?
-				return ErrUnableToSelectReplicas
-			}
-
-			// if we don't have enough replicas we all nodes currently available
-			for _, n := range b.Members() {
-				replicas = append(replicas, n.Name)
-			}
+			return ErrUnableToSelectReplicas
 		}
 
 		p.Replicas = replicas
@@ -143,7 +136,7 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicPar
 	}
 	defer qry.Close()
 
-	members := len(b.cluster.Members())
+	members := t.ReplicationFactor
 	acks := 0
 	for !qry.Finished() {
 		resp := <-qry.ResponseCh()
