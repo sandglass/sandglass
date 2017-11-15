@@ -31,16 +31,16 @@ services:
     node1:
         extends: sandglass
         ports:
-        - "2108:2108"
-        command: -v --config node1.yaml --advertise_addr node1
+        - "7170:7170"
+        command: -v --name node1 --advertise_addr node1 --initial_peers node2:9900 --bootstrap_raft --db_path /data
 
     node2:
         extends: sandglass
-        command: -v --config node2.yaml --advertise_addr node2
+        command: -v --name node2 --advertise_addr node2 --initial_peers node1:9900 --db_path /data
 
     node3:
         extends: sandglass
-        command: -v --config node3.yaml --advertise_addr node3
+        command: -v --name node3 --advertise_addr node3 --initial_peers node3:9900 --db_path /data
 
     integration_test:
         extends: sandglass

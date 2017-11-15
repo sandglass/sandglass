@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -106,12 +107,6 @@ func New(conf *Config) (*Broker, error) {
 	logger := logy.NewWithLogger(log.New(os.Stdout, fmt.Sprintf("[broker: %v] ", conf.Name), log.LstdFlags), level)
 
 	b := &Broker{
-		currentNode: &sandglass.Node{
-			Name:     conf.Name,
-			HTTPAddr: net.JoinHostPort(conf.AdvertiseAddr, conf.HTTPPort),
-			GRPCAddr: net.JoinHostPort(conf.AdvertiseAddr, conf.GRPCPort),
-			RAFTAddr: net.JoinHostPort(conf.AdvertiseAddr, conf.RaftPort),
-		},
 		conf:         conf,
 		ShutdownCh:   make(chan struct{}),
 		doneCh:       make(chan struct{}),
@@ -251,13 +246,17 @@ func (b *Broker) Bootstrap() error {
 	var advAddr string
 
 	if b.conf.AdvertiseAddr != "" {
-		if ip := net.ParseIP(b.conf.AdvertiseAddr); ip == nil {
-			addr, err := net.ResolveUDPAddr("udp", b.conf.AdvertiseAddr+":0")
-			if err != nil {
-				return err
-			}
-			advAddr = addr.IP.String()
+		advAddr, err = resolveAddr(b.conf.AdvertiseAddr)
+		if err != nil {
+			return err
 		}
+	}
+
+	b.currentNode = &sandglass.Node{
+		Name:     b.conf.Name,
+		HTTPAddr: net.JoinHostPort(advAddr, b.conf.HTTPPort),
+		GRPCAddr: net.JoinHostPort(advAddr, b.conf.GRPCPort),
+		RAFTAddr: net.JoinHostPort(advAddr, b.conf.RaftPort),
 	}
 
 	conf.MemberlistConfig.BindAddr = b.conf.BindAddr
@@ -347,8 +346,42 @@ func (b *Broker) WaitForIt() error {
 	}
 }
 
-func (b *Broker) Join(clusterAddrs ...string) error {
-	_, err := b.cluster.Join(clusterAddrs, false)
+func resolveAddr(host string) (string, error) {
+	// FIXME: this is shit
+	var port string
+	if strings.Contains(host, ":") {
+		var err error
+		host, port, err = net.SplitHostPort(host)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	if ip := net.ParseIP(host); ip == nil {
+		addr, err := net.ResolveUDPAddr("udp", host+":0")
+		if err != nil {
+			return "", err
+		}
+		host = addr.IP.String()
+	}
+
+	if port != "" {
+		host = net.JoinHostPort(host, port)
+	}
+
+	return host, nil
+}
+
+func (b *Broker) Join(clusterAddrs ...string) (err error) {
+	resolved := make([]string, len(clusterAddrs))
+	for i, addr := range clusterAddrs {
+		resolved[i], err = resolveAddr(addr)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = b.cluster.Join(clusterAddrs, false)
 	if err != nil {
 		b.Debug("Couldn't join cluster, starting own: %v\n", err)
 		// return err
