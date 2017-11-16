@@ -161,12 +161,12 @@ func TestACK(t *testing.T) {
 	require.True(t, ok)
 
 	got, err := b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
-		sgproto.LastOffsetRequest_Commited)
+		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
 	require.Equal(t, sandflake.Nil, got)
 
 	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
-		sgproto.LastOffsetRequest_Acknowledged)
+		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
 
@@ -176,12 +176,12 @@ func TestACK(t *testing.T) {
 	require.True(t, ok)
 
 	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
-		sgproto.LastOffsetRequest_Commited)
+		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
 	require.Equal(t, offset2, got)
 
 	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
-		sgproto.LastOffsetRequest_Acknowledged)
+		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
 }

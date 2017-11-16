@@ -2,10 +2,15 @@ package broker
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/celrenheit/sandflake"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/celrenheit/sandglass/sgproto"
 	"golang.org/x/sync/errgroup"
@@ -59,14 +64,24 @@ func (c *ConsumerGroup) register(consumerName string) *receiver {
 }
 
 func (c *ConsumerGroup) consumeLoop() {
-	lastCommited, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.LastOffsetRequest_Commited)
+	defer func() { // close receivers for whatever reason
+		c.mu.Lock()
+		for _, r := range c.receivers {
+			close(r.msgCh)
+			close(r.doneCh)
+		}
+		c.receivers = c.receivers[:0]
+		c.mu.Unlock()
+	}()
+
+	lastCommited, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.MarkKind_Commited)
 	if err != nil {
 		c.broker.Debug("got error when fetching last committed offset: %v ", err)
 		return
 	}
 	var _ = lastCommited // TODO: advance comitted cursor
 
-	from, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.LastOffsetRequest_Consumed)
+	from, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.MarkKind_Consumed)
 	if err != nil {
 		c.broker.Debug("got error when fetching last committed offset: %v ", err)
 		return
@@ -74,9 +89,40 @@ func (c *ConsumerGroup) consumeLoop() {
 
 	msgCh := make(chan *sgproto.Message)
 	var group errgroup.Group
+
+	if !lastCommited.Equal(from) {
+		group.Go(func() error {
+			return c.broker.FetchRange(context.TODO(), c.topic, c.partition, lastCommited, from, func(m *sgproto.Message) error {
+				// skip the first if it is the same as the starting point
+				if from == m.Offset {
+					return nil
+				}
+
+				msg, err := c.broker.GetMarkStateMessage(context.TODO(), c.topic, c.partition, c.name, "", m.Offset)
+				if err != nil {
+					s, ok := status.FromError(err)
+					if !ok || s.Code() == codes.NotFound {
+						return err
+					}
+				}
+				// fmt.Printf("msg: %+v |||| %+v\n", msg.Index.Time(), msg.Offset.Time())
+				redeliver, err := shouldRedeliver(msg)
+				if err != nil {
+					return err
+				}
+
+				if redeliver {
+					fmt.Println("caca", m.Offset)
+					msgCh <- m
+				}
+
+				return nil
+			})
+		})
+	}
 	group.Go(func() error {
 		now := sandflake.NewID(time.Now().UTC(), sandflake.MaxID.WorkerID(), sandflake.MaxID.Sequence(), sandflake.MaxID.RandomBytes())
-		return c.broker.FetchRange(context.Background(), c.topic, c.partition, from, now, func(m *sgproto.Message) error {
+		return c.broker.FetchRange(context.TODO(), c.topic, c.partition, from, now, func(m *sgproto.Message) error {
 			// skip the first if it is the same as the starting point
 			if from == m.Offset {
 				return nil
@@ -89,7 +135,10 @@ func (c *ConsumerGroup) consumeLoop() {
 	})
 
 	go func() {
-		group.Wait()
+		err := group.Wait()
+		if err != nil {
+			c.broker.Info("error in consumeLoop: %v", err)
+		}
 		close(msgCh)
 	}()
 
@@ -121,20 +170,37 @@ loop:
 		}
 	}
 
-	c.mu.Lock()
-	for _, r := range c.receivers {
-		close(r.msgCh)
-		close(r.doneCh)
-	}
-	c.receivers = c.receivers[:0]
-	c.mu.Unlock()
-
 	if m != nil {
 		_, err := c.broker.MarkConsumed(context.TODO(), c.topic, c.partition, c.name, "REMOVE THIS", m.Offset)
 		if err != nil {
 			c.broker.Debug("unable to mark as consumed: %v", err)
 		}
 	}
+}
+
+func shouldRedeliver(msg *sgproto.Message) (bool, error) {
+	if msg == nil {
+		return true, nil
+	}
+
+	var state sgproto.MarkState
+	err := proto.Unmarshal(msg.Value, &state)
+	if err != nil {
+		return false, err
+	}
+
+	switch state.Kind {
+	case sgproto.MarkKind_NotAcknowledged:
+		return true, nil
+	case sgproto.MarkKind_Consumed: // inflight
+		return msg.Index.Time().Add(10 * time.Second).Before(time.Now().UTC()), nil
+	case sgproto.MarkKind_Acknowledged, sgproto.MarkKind_Commited:
+		return false, nil
+	default:
+		panic("unknown markkind: " + state.Kind.String())
+	}
+
+	return false, nil
 }
 
 func (c *ConsumerGroup) removeConsumer(name string) bool {

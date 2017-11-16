@@ -202,6 +202,10 @@ func (s *service) LastOffset(ctx context.Context, req *sgproto.LastOffsetRequest
 	}, err
 }
 
+func (s *service) GetMarkStateMessage(ctx context.Context, req *sgproto.OffsetChangeRequest) (*sgproto.Message, error) {
+	return s.broker.GetMarkStateMessage(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
+}
+
 func (s *service) FetchFromSync(req *sgproto.FetchFromSyncRequest, stream sgproto.InternalService_FetchFromSyncServer) error {
 	return s.broker.FetchFromSync(req.Topic, req.Partition, req.From, func(msg *sgproto.Message) error {
 		// if msg == nil {

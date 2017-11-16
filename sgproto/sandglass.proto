@@ -123,21 +123,22 @@ message LastOffsetReply {
     bytes offset = 1 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
 }
 
+enum MarkKind {
+    Unknown = 0;
+    Consumed = 10;
+    NotAcknowledged = 20;
+    Acknowledged = 30;
+    Commited = 40;
+}
+
 message LastOffsetRequest {
     string topic = 1;
     string partition = 2;
     string consumerGroup = 3;
     string consumerName = 4;
     
-    enum Kind {
-        Unknown = 0;
-        Consumed = 10;
-        NotAcknowledged = 20;
-        Acknowledged = 30;
-        Commited = 40;
-    }
 
-    Kind kind = 5;
+    MarkKind kind = 5;
 }
 
 message FetchFromSyncRequest {
@@ -148,6 +149,10 @@ message FetchFromSyncRequest {
 
 message HasResponse {
     bool exists = 1;
+}
+
+message MarkState {
+    MarkKind kind = 1;
 }
 
 service BrokerService {
@@ -236,6 +241,8 @@ service InternalService {
 
     rpc MarkConsumed (OffsetChangeRequest) returns (OffsetChangeReply) {
     }
+
+    rpc GetMarkStateMessage (OffsetChangeRequest) returns (Message) {}
 }
 
 // ---------------- Internal (not related to a service) -----------------
