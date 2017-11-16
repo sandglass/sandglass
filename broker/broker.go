@@ -66,7 +66,6 @@ type Broker struct {
 	conf       *Config
 	eventCh    chan serf.Event
 	ShutdownCh chan struct{}
-	doneCh     chan struct{}
 
 	nodes       map[string]string
 	mu          sync.RWMutex
@@ -109,7 +108,6 @@ func New(conf *Config) (*Broker, error) {
 	b := &Broker{
 		conf:         conf,
 		ShutdownCh:   make(chan struct{}),
-		doneCh:       make(chan struct{}),
 		Logger:       logger,
 		nodes:        make(map[string]string),
 		peers:        map[string]*sandglass.Node{},
@@ -145,8 +143,15 @@ func (b *Broker) Stop(ctx context.Context) error {
 			b.Debug("error while stopping raft: %v", err)
 		}
 
-		<-b.doneCh
 		b.wg.Wait()
+
+		for _, peer := range b.peers {
+			if err := peer.Close(); err != nil {
+				gracefulCh <- errors.Wrapf(err, "error while closing peer: %v", peer.Name)
+				return
+			}
+		}
+
 		close(gracefulCh)
 	}()
 
@@ -449,8 +454,6 @@ loop:
 			}
 		}
 	}
-
-	close(b.doneCh)
 }
 
 func (b *Broker) syncWatcher() {
@@ -460,7 +463,7 @@ func (b *Broker) syncWatcher() {
 
 		for {
 			select {
-			case <-b.doneCh:
+			case <-b.ShutdownCh:
 				return
 			case <-time.After(DefaultStateCheckInterval):
 				err := b.TriggerSyncRequest()
