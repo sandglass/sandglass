@@ -2,7 +2,6 @@ package broker
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -101,18 +100,17 @@ func (c *ConsumerGroup) consumeLoop() {
 				msg, err := c.broker.GetMarkStateMessage(context.TODO(), c.topic, c.partition, c.name, "", m.Offset)
 				if err != nil {
 					s, ok := status.FromError(err)
-					if !ok || s.Code() == codes.NotFound {
+					if !ok || s.Code() != codes.NotFound {
 						return err
 					}
 				}
-				// fmt.Printf("msg: %+v |||| %+v\n", msg.Index.Time(), msg.Offset.Time())
+
 				redeliver, err := shouldRedeliver(msg)
 				if err != nil {
 					return err
 				}
 
 				if redeliver {
-					fmt.Println("caca", m.Offset)
 					msgCh <- m
 				}
 
@@ -180,7 +178,7 @@ loop:
 
 func shouldRedeliver(msg *sgproto.Message) (bool, error) {
 	if msg == nil {
-		return true, nil
+		return false, nil
 	}
 
 	var state sgproto.MarkState

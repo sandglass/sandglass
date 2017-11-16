@@ -266,10 +266,6 @@ func TestConsume(t *testing.T) {
 	require.Equal(t, 20, count)
 	require.Equal(t, want, got)
 
-	ok, err := b.Commit(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", got)
-	require.True(t, ok)
-	require.Nil(t, err)
-
 	count = 0
 	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
 		count++

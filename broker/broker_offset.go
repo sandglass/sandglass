@@ -189,7 +189,7 @@ func (b *Broker) GetMarkStateMessage(ctx context.Context, topicName, partitionNa
 	}
 
 	if msg == nil {
-		return nil, status.Error(codes.NotFound, "acked message not found")
+		return nil, status.Error(codes.NotFound, "mark state not found")
 	}
 
 	return msg, nil
