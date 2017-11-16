@@ -202,6 +202,7 @@ service BrokerService {
             body: "*"
         };
   }
+  
 
   rpc AcknowledgeMessages (MultiOffsetChangeRequest) returns (OffsetChangeReply) {}
 
@@ -232,6 +233,9 @@ service InternalService {
     rpc FetchFromSync (FetchFromSyncRequest) returns (stream Message) {}
 
     rpc LastOffset (LastOffsetRequest) returns (LastOffsetReply) {}
+
+    rpc MarkConsumed (OffsetChangeRequest) returns (OffsetChangeReply) {
+    }
 }
 
 // ---------------- Internal (not related to a service) -----------------

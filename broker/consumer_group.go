@@ -59,7 +59,14 @@ func (c *ConsumerGroup) register(consumerName string) *receiver {
 }
 
 func (c *ConsumerGroup) consumeLoop() {
-	from, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.LastOffsetRequest_Commited)
+	lastCommited, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.LastOffsetRequest_Commited)
+	if err != nil {
+		c.broker.Debug("got error when fetching last committed offset: %v ", err)
+		return
+	}
+	var _ = lastCommited // TODO: advance comitted cursor
+
+	from, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.LastOffsetRequest_Consumed)
 	if err != nil {
 		c.broker.Debug("got error when fetching last committed offset: %v ", err)
 		return
@@ -87,20 +94,12 @@ func (c *ConsumerGroup) consumeLoop() {
 	}()
 
 	var i int
+	var m *sgproto.Message
 loop:
-	for m := range msgCh {
-		isAcknowledged, err := c.broker.isAcknoweldged(context.TODO(), c.topic, c.partition, c.name, m.Offset)
-		if err != nil {
-			c.broker.Debug("STOPPING CONSUMPTION got err: %v", err)
-			break
-		}
-		if isAcknowledged {
-			// skip already acknowledged message
-			continue
-		}
-
+	for m = range msgCh {
 		// select receiver
 	selectreceiver:
+		i++
 		c.mu.RLock()
 		r := c.receivers[i%len(c.receivers)]
 		c.mu.RUnlock()
@@ -120,7 +119,6 @@ loop:
 			}
 		case r.msgCh <- m:
 		}
-		i++
 	}
 
 	c.mu.Lock()
@@ -130,6 +128,13 @@ loop:
 	}
 	c.receivers = c.receivers[:0]
 	c.mu.Unlock()
+
+	if m != nil {
+		_, err := c.broker.MarkConsumed(context.TODO(), c.topic, c.partition, c.name, "REMOVE THIS", m.Offset)
+		if err != nil {
+			c.broker.Debug("unable to mark as consumed: %v", err)
+		}
+	}
 }
 
 func (c *ConsumerGroup) removeConsumer(name string) bool {

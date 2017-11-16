@@ -411,6 +411,7 @@ func BenchmarkConsume(b *testing.B) {
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
 		NumPartitions:     3,
+		StorageDriver:     sgproto.StorageDriver_Badger,
 	}
 	err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(b, err)
@@ -442,12 +443,13 @@ func BenchmarkConsume(b *testing.B) {
 	b.Run("consumption", func(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
+		var gen sandflake.Generator
 		for i := 0; i < b.N; i++ {
 			count := 0
 			err := brokers[0].Consume(context.Background(),
 				payments.Name,
 				payments.Partitions[0].Id,
-				"consumerGroup",
+				gen.Next().String(),
 				"consumerName",
 				func(msg *sgproto.Message) error {
 					count++

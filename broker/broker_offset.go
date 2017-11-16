@@ -61,6 +61,10 @@ func (b *Broker) Commit(ctx context.Context, topicName, partitionName, consumerG
 	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.LastOffsetRequest_Commited)
 }
 
+func (b *Broker) MarkConsumed(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
+	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.LastOffsetRequest_Consumed)
+}
+
 func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID, kind sgproto.LastOffsetRequest_Kind) (bool, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
 	p := topic.ChoosePartitionForKey(partitionKey(topicName, partitionName, consumerGroup, consumerName))
@@ -88,6 +92,8 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 			res, err = n.Acknowledge(ctx, change)
 		case sgproto.LastOffsetRequest_Commited:
 			res, err = n.Commit(ctx, change)
+		case sgproto.LastOffsetRequest_Consumed:
+			res, err = n.MarkConsumed(ctx, change)
 		}
 		if err != nil {
 			return false, err

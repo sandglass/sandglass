@@ -188,6 +188,13 @@ func (s *service) Commit(ctx context.Context, req *sgproto.OffsetChangeRequest) 
 	}, err
 }
 
+func (s *service) MarkConsumed(ctx context.Context, req *sgproto.OffsetChangeRequest) (*sgproto.OffsetChangeReply, error) {
+	ok, err := s.broker.MarkConsumed(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
+	return &sgproto.OffsetChangeReply{
+		Success: ok,
+	}, err
+}
+
 func (s *service) LastOffset(ctx context.Context, req *sgproto.LastOffsetRequest) (*sgproto.LastOffsetReply, error) {
 	offset, err := s.broker.LastOffset(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Kind)
 	return &sgproto.LastOffsetReply{
