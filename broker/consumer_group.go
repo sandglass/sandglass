@@ -99,6 +99,10 @@ func (c *ConsumerGroup) consumeLoop() {
 				committed   = false
 			)
 			return c.broker.FetchRange(context.TODO(), c.topic, c.partition, lastCommited, from, func(m *sgproto.Message) error {
+				if m.Offset.Equal(lastCommited) { // skip first item, since it is already committed
+					return nil
+				}
+
 				msg, err := c.broker.GetMarkStateMessage(context.TODO(), c.topic, c.partition, c.name, "", m.Offset)
 				if err != nil {
 					s, ok := status.FromError(err)
