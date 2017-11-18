@@ -5,24 +5,30 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celrenheit/sandflake"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
-	"github.com/celrenheit/sandglass/topic"
+	"github.com/celrenheit/sandflake"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/celrenheit/sandglass/sgproto"
 	"golang.org/x/sync/errgroup"
 )
 
+var (
+	RedeliveryTimeout = 10 * time.Second
+)
+
 type ConsumerGroup struct {
 	broker    *Broker
 	topic     string
-	partition *topic.Partition
+	partition string
 	name      string
 	mu        sync.RWMutex
 	receivers []*receiver
 }
 
-func NewConsumerGroup(b *Broker, topic string, partition *topic.Partition, name string) *ConsumerGroup {
+func NewConsumerGroup(b *Broker, topic, partition, name string) *ConsumerGroup {
 	return &ConsumerGroup{
 		broker:    b,
 		name:      name,
@@ -61,7 +67,23 @@ func (c *ConsumerGroup) register(consumerName string) *receiver {
 }
 
 func (c *ConsumerGroup) consumeLoop() {
-	from, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition.Id, c.name, "", sgproto.LastOffsetRequest_Commited)
+	defer func() { // close receivers for whatever reason
+		c.mu.Lock()
+		for _, r := range c.receivers {
+			close(r.msgCh)
+			close(r.doneCh)
+		}
+		c.receivers = c.receivers[:0]
+		c.mu.Unlock()
+	}()
+
+	lastCommited, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.MarkKind_Commited)
+	if err != nil {
+		c.broker.Debug("got error when fetching last committed offset: %v ", err)
+		return
+	}
+
+	from, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.MarkKind_Consumed)
 	if err != nil {
 		c.broker.Debug("got error when fetching last committed offset: %v ", err)
 		return
@@ -69,47 +91,97 @@ func (c *ConsumerGroup) consumeLoop() {
 
 	msgCh := make(chan *sgproto.Message)
 	var group errgroup.Group
-	p := c.partition
-	group.Go(func() error {
-		it := p.Iter()
 
-		for m := it.Seek(from); it.Valid(); m = it.Next() {
+	if !lastCommited.Equal(from) {
+		group.Go(func() error {
+			var (
+				lastMessage *sgproto.Message
+				committed   = false
+			)
+			return c.broker.FetchRange(context.TODO(), c.topic, c.partition, lastCommited, from, func(m *sgproto.Message) error {
+				if m.Offset.Equal(lastCommited) { // skip first item, since it is already committed
+					return nil
+				}
+
+				msg, err := c.broker.GetMarkStateMessage(context.TODO(), c.topic, c.partition, c.name, "", m.Offset)
+				if err != nil {
+					s, ok := status.FromError(err)
+					if !ok || s.Code() != codes.NotFound {
+						return err
+					}
+				}
+
+				var state sgproto.MarkState
+				if msg != nil {
+					err := proto.Unmarshal(msg.Value, &state)
+					if err != nil {
+						return err
+					}
+				}
+
+				// advance commit offset
+				// if we only got acked messages before
+				if state.Kind != sgproto.MarkKind_Acknowledged {
+					if !committed && lastMessage != nil {
+						// we might commit in a goroutine, we can redo this the next time we consume
+						_, err := c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, "", lastMessage.Offset)
+						if err != nil {
+							c.broker.Debug("unable to commit")
+						}
+					}
+					committed = true
+				}
+				lastMessage = m
+
+				if shouldRedeliver(m.Index, state) {
+					msgCh <- m // deliver
+
+					if state.Kind != sgproto.MarkKind_Unknown {
+						state.DeliveryCount++
+						msg.Value, err = proto.Marshal(&state)
+						if err != nil {
+							return err
+						}
+
+						if _, err := c.broker.PublishMessage(context.TODO(), msg); err != nil {
+							return err
+						}
+					}
+				}
+
+				return nil
+			})
+		})
+	}
+	group.Go(func() error {
+		now := sandflake.NewID(time.Now().UTC(), sandflake.MaxID.WorkerID(), sandflake.MaxID.Sequence(), sandflake.MaxID.RandomBytes())
+		return c.broker.FetchRange(context.TODO(), c.topic, c.partition, from, now, func(m *sgproto.Message) error {
 			// skip the first if it is the same as the starting point
 			if from == m.Offset {
-				continue
-			}
-
-			now := sandflake.NewID(time.Now().UTC(), sandflake.MaxID.WorkerID(), sandflake.MaxID.Sequence(), sandflake.MaxID.RandomBytes())
-			if m.Offset.After(now) {
-				break
+				return nil
 			}
 
 			msgCh <- m
-		}
 
-		return it.Close()
+			return nil
+		})
 	})
 
 	go func() {
-		group.Wait()
+		err := group.Wait()
+		if err != nil {
+			c.broker.Info("error in consumeLoop: %v", err)
+		}
 		close(msgCh)
 	}()
 
 	var i int
+	var m *sgproto.Message
 loop:
-	for m := range msgCh {
-		isAcknowledged, err := c.broker.isAcknoweldged(context.TODO(), c.topic, c.partition.Id, c.name, m.Offset)
-		if err != nil {
-			c.broker.Debug("STOPPING CONSUMPTION got err: %v", err)
-			break
-		}
-		if isAcknowledged {
-			// skip already acknowledged message
-			continue
-		}
-
+	for m = range msgCh {
 		// select receiver
 	selectreceiver:
+		i++
 		c.mu.RLock()
 		r := c.receivers[i%len(c.receivers)]
 		c.mu.RUnlock()
@@ -129,16 +201,29 @@ loop:
 			}
 		case r.msgCh <- m:
 		}
-		i++
 	}
 
-	c.mu.Lock()
-	for _, r := range c.receivers {
-		close(r.msgCh)
-		close(r.doneCh)
+	if m != nil {
+		_, err := c.broker.MarkConsumed(context.TODO(), c.topic, c.partition, c.name, "REMOVE THIS", m.Offset)
+		if err != nil {
+			c.broker.Debug("unable to mark as consumed: %v", err)
+		}
 	}
-	c.receivers = c.receivers[:0]
-	c.mu.Unlock()
+}
+
+func shouldRedeliver(index sandflake.ID, state sgproto.MarkState) bool {
+	switch state.Kind {
+	case sgproto.MarkKind_NotAcknowledged:
+		return true
+	case sgproto.MarkKind_Consumed, sgproto.MarkKind_Unknown: // inflight
+		return index.Time().Add(RedeliveryTimeout).Before(time.Now().UTC())
+	case sgproto.MarkKind_Acknowledged, sgproto.MarkKind_Commited:
+		return false
+	default:
+		panic("unknown markkind: " + state.Kind.String())
+	}
+
+	return false
 }
 
 func (c *ConsumerGroup) removeConsumer(name string) bool {

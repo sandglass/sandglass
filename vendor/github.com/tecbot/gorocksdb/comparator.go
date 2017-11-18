@@ -29,21 +29,20 @@ func (c nativeComparator) Compare(a, b []byte) int { return 0 }
 func (c nativeComparator) Name() string            { return "" }
 
 // Hold references to comperators.
-var comperators []Comparator
+var comperators = NewCOWList()
 
 func registerComperator(cmp Comparator) int {
-	comperators = append(comperators, cmp)
-	return len(comperators) - 1
+	return comperators.Append(cmp)
 }
 
 //export gorocksdb_comparator_compare
 func gorocksdb_comparator_compare(idx int, cKeyA *C.char, cKeyALen C.size_t, cKeyB *C.char, cKeyBLen C.size_t) C.int {
 	keyA := charToByte(cKeyA, cKeyALen)
 	keyB := charToByte(cKeyB, cKeyBLen)
-	return C.int(comperators[idx].Compare(keyA, keyB))
+	return C.int(comperators.Get(idx).(Comparator).Compare(keyA, keyB))
 }
 
 //export gorocksdb_comparator_name
 func gorocksdb_comparator_name(idx int) *C.char {
-	return stringToChar(comperators[idx].Name())
+	return stringToChar(comperators.Get(idx).(Comparator).Name())
 }

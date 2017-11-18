@@ -9,7 +9,6 @@ import (
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass/sgproto"
 	"github.com/celrenheit/sandglass/sgutils"
-	"github.com/serialx/hashring"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -22,7 +21,6 @@ type Topic struct {
 	StorageDriver     sgproto.StorageDriver
 
 	basepath string
-	ring     *hashring.HashRing
 }
 
 func (t *Topic) Validate() error {
@@ -40,8 +38,6 @@ func (t *Topic) Validate() error {
 }
 
 func (t *Topic) InitStore(basePath string) error {
-	t.ring = hashring.New([]string{})
-
 	msgdir := filepath.Join(basePath, t.Name)
 	t.basepath = msgdir
 
@@ -69,7 +65,6 @@ func (t *Topic) initPartition(p *Partition) error {
 	if err != nil {
 		return err
 	}
-	t.ring = t.ring.AddNode(p.Id)
 
 	return nil
 }
@@ -96,36 +91,29 @@ func (t *Topic) GetPartition(id string) *Partition {
 }
 
 func (t *Topic) ChoosePartitionForKey(key []byte) *Partition {
-	var id string
+	var id []byte
 	switch t.Kind {
 	case sgproto.TopicKind_TimerKind:
 		panic(fmt.Sprintf("not for timer kind %v %v", t.Name, t.Partitions))
-	case sgproto.TopicKind_CompactedKind:
-		id = string(key)
-	}
-	pid, ok := t.ring.GetNode(id)
-	if !ok {
-		panic(fmt.Sprintf("not ok %v %v", t.Name, t.Partitions))
+	case sgproto.TopicKind_KVKind:
+		id = key
 	}
 
-	return t.getPartition(pid)
+	idx := sgutils.Hash(id, len(t.Partitions))
+	return t.Partitions[idx]
 }
 
 func (t *Topic) ChoosePartition(msg *sgproto.Message) *Partition {
-	var id string
+	var id []byte
 	switch t.Kind {
 	case sgproto.TopicKind_TimerKind:
-		id = msg.Offset.String()
-	case sgproto.TopicKind_CompactedKind:
-		id = string(msg.Key)
+		id = msg.Offset.Bytes()
+	case sgproto.TopicKind_KVKind:
+		id = msg.Key
 	}
 
-	pid, ok := t.ring.GetNode(id)
-	if !ok {
-		panic(fmt.Sprintf("not ok %v %v", t.Name, t.Partitions))
-	}
-
-	return t.getPartition(pid)
+	idx := sgutils.Hash(id, len(t.Partitions))
+	return t.Partitions[idx]
 }
 
 func (t *Topic) PutMessage(msg *sgproto.Message) error {
@@ -145,11 +133,8 @@ func (t *Topic) PutMessage(msg *sgproto.Message) error {
 func (t *Topic) BatchPutMessages(msgs []*sgproto.Message) error {
 	msgsByPartitions := make([][]*sgproto.Message, len(t.Partitions))
 	for _, m := range msgs {
-		pidx, ok := t.ring.GetNodePos(m.Offset.String())
-		pidx = pidx % len(t.Partitions)
-		if ok {
-			msgsByPartitions[pidx] = append(msgsByPartitions[pidx], m)
-		}
+		pidx := sgutils.HashString(m.Offset.String(), len(t.Partitions))
+		msgsByPartitions[pidx] = append(msgsByPartitions[pidx], m)
 	}
 
 	var group errgroup.Group

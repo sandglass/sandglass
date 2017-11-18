@@ -34,6 +34,12 @@ var (
 	cli     *client.Client
 )
 
+var (
+	Version = "dev"
+	Commit  = "none"
+	Date    = "unknown"
+)
+
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "sandctl",
@@ -44,27 +50,20 @@ var RootCmd = &cobra.Command{
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	var err error
-
-	cli, err = client.New(
-		client.WithAddresses(viper.GetStringSlice("addrs")...),
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	if err := cli.Close(); err != nil {
-		log.Fatalf("error while closing connection: %v", err)
+	if cli != nil {
+		if err := cli.Close(); err != nil {
+			log.Fatalf("error while closing connection: %v", err)
+		}
 	}
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(initConfig, createConnection)
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.sandctl.yaml)")
 
@@ -101,5 +100,16 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	}
+
+}
+
+func createConnection() {
+	var err error
+	cli, err = client.New(
+		client.WithAddresses(viper.GetStringSlice("addrs")...),
+	)
+	if err != nil {
+		log.Fatal(err)
 	}
 }

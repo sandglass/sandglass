@@ -21,7 +21,6 @@ import (
 	"math/rand"
 	"os"
 	"sort"
-	"sync"
 	"time"
 
 	"golang.org/x/net/trace"
@@ -33,16 +32,12 @@ import (
 )
 
 type levelsController struct {
-	elog trace.EventLog
+	nextFileID uint64 // Atomic
+	elog       trace.EventLog
 
 	// The following are initialized once and const.
 	levels []*levelHandler
 	kv     *DB
-
-	nextFileID uint64 // Atomic
-
-	// For ending compactions.
-	compactWorkersWg sync.WaitGroup
 
 	cstatus compactStatus
 }

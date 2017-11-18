@@ -5,20 +5,30 @@ import (
 	"io"
 	"strings"
 
-	"github.com/celrenheit/sandglass/topic"
-
 	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass/storage"
 )
 
 func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGroup, consumerName string, fn func(msg *sgproto.Message) error) error {
-	topic := b.getTopic(topicName)
-	if topic == nil {
+	offsetTopic := b.getTopic(ConsumerOffsetTopicName)
+	if offsetTopic == nil {
 		return ErrTopicNotFound
 	}
 
-	leader := b.getPartitionLeader(topicName, partition)
+	pk := partitionKey(topicName, partition, consumerGroup, consumerName)
+	offsetPartition := offsetTopic.ChoosePartitionForKey(pk)
+	if offsetPartition == nil {
+		return ErrPartitionNotFound
+	}
+
+	leader := b.getPartitionLeader(ConsumerOffsetTopicName, offsetPartition.Id)
 	if leader == nil {
 		return ErrNoLeaderFound
+	}
+
+	topic := b.getTopic(topicName)
+	if topic == nil {
+		return ErrTopicNotFound
 	}
 
 	if leader.Name != b.Name() {
@@ -51,7 +61,10 @@ func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGrou
 	}
 
 	p := topic.GetPartition(partition)
-	cg := b.getConsumerGroup(topicName, p, consumerGroup)
+	if p == nil {
+		return ErrPartitionNotFound
+	}
+	cg := b.getConsumerGroup(topicName, partition, consumerGroup)
 	msgCh, closeCh, err := cg.Consume(consumerName)
 	if err != nil {
 		return err
@@ -67,8 +80,8 @@ func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGrou
 	return nil
 }
 
-func (b *Broker) getConsumerGroup(topicName string, partition *topic.Partition, name string) *ConsumerGroup {
-	key := strings.Join([]string{topicName, partition.Id, name}, "/")
+func (b *Broker) getConsumerGroup(topicName, partition string, name string) *ConsumerGroup {
+	key := strings.Join([]string{topicName, partition, name}, string(storage.Separator))
 	c := b.getConsumer(key)
 	if c != nil {
 		return c

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/celrenheit/sandglass/sgutils"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/celrenheit/sandglass/topic"
 
@@ -38,12 +39,10 @@ import (
 var ctx = context.TODO()
 
 func TestSandglass(t *testing.T) {
-	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
@@ -56,14 +55,11 @@ func TestSandglass(t *testing.T) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(2000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
 	}
 
-	time.Sleep(2000 * time.Millisecond)
 	for i := 0; i < 1000; i++ {
 		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic: "payments",
@@ -82,16 +78,14 @@ func TestSandglass(t *testing.T) {
 	require.Equal(t, 1000, count)
 }
 
-func TestCompactedTopic(t *testing.T) {
-	time.Sleep(500 * time.Millisecond)
+func TestKVTopic(t *testing.T) {
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
-	time.Sleep(5000 * time.Millisecond)
 
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
-		Kind:              sgproto.TopicKind_CompactedKind,
+		Kind:              sgproto.TopicKind_KVKind,
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
@@ -101,14 +95,11 @@ func TestCompactedTopic(t *testing.T) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(5000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
 	}
 
-	// time.Sleep(2000 * time.Millisecond)
 	for i := 0; i < 1000; i++ {
 		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic: "payments",
@@ -134,12 +125,10 @@ func TestCompactedTopic(t *testing.T) {
 }
 
 func TestACK(t *testing.T) {
-	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
@@ -152,8 +141,6 @@ func TestACK(t *testing.T) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(4000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
@@ -174,12 +161,12 @@ func TestACK(t *testing.T) {
 	require.True(t, ok)
 
 	got, err := b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
-		sgproto.LastOffsetRequest_Commited)
+		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
 	require.Equal(t, sandflake.Nil, got)
 
 	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
-		sgproto.LastOffsetRequest_Acknowledged)
+		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
 
@@ -189,23 +176,21 @@ func TestACK(t *testing.T) {
 	require.True(t, ok)
 
 	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
-		sgproto.LastOffsetRequest_Commited)
+		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
 	require.Equal(t, offset2, got)
 
 	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
-		sgproto.LastOffsetRequest_Acknowledged)
+		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
 }
 
 func TestConsume(t *testing.T) {
-	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
@@ -218,8 +203,6 @@ func TestConsume(t *testing.T) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(5000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
@@ -283,10 +266,6 @@ func TestConsume(t *testing.T) {
 	require.Equal(t, 20, count)
 	require.Equal(t, want, got)
 
-	ok, err := b.Commit(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", got)
-	require.True(t, ok)
-	require.Nil(t, err)
-
 	count = 0
 	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
 		count++
@@ -294,16 +273,25 @@ func TestConsume(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, 0, count)
+
+	broker.RedeliveryTimeout = 10 * time.Millisecond // this should trigger redelivery
+	time.Sleep(20 * time.Millisecond)
+
+	count = 0
+	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+		count++
+		return nil
+	})
+	require.Nil(t, err)
+	require.Equal(t, 20, count)
 }
 
 func TestSyncRequest(t *testing.T) {
 	broker.DefaultStateCheckInterval = 300 * time.Second
-	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
@@ -316,8 +304,6 @@ func TestSyncRequest(t *testing.T) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(5000 * time.Millisecond)
 	require.Len(t, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(t, brokers[i].Topics(), 2)
@@ -379,15 +365,14 @@ func getTopicFromBroker(b *broker.Broker, topic string) *topic.Topic {
 	return nil
 }
 
-func BenchmarkCompactedTopicGet(b *testing.B) {
-	time.Sleep(500 * time.Millisecond)
+func BenchmarkKVTopicGet(b *testing.B) {
 	n := 3
 	brokers, destroyFn := makeNBrokers(b, n)
 	defer destroyFn()
 
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
-		Kind:              sgproto.TopicKind_CompactedKind,
+		Kind:              sgproto.TopicKind_KVKind,
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
@@ -397,14 +382,11 @@ func BenchmarkCompactedTopicGet(b *testing.B) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(b, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(1000 * time.Millisecond)
 	require.Len(b, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(b, brokers[i].Topics(), 1)
 	}
 
-	// time.Sleep(2000 * time.Millisecond)
 	for i := 0; i < 30; i++ {
 		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic: "payments",
@@ -427,17 +409,16 @@ func BenchmarkCompactedTopicGet(b *testing.B) {
 }
 
 func BenchmarkConsume(b *testing.B) {
-	time.Sleep(500 * time.Millisecond)
 	n := 3
 	brokers, destroyFn := makeNBrokers(b, n)
 	defer destroyFn()
 
-	time.Sleep(5000 * time.Millisecond)
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
 		NumPartitions:     3,
+		StorageDriver:     sgproto.StorageDriver_Badger,
 	}
 	err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(b, err)
@@ -445,8 +426,6 @@ func BenchmarkConsume(b *testing.B) {
 	err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(b, err)
 
-	// waiting for goroutine to receive topic
-	time.Sleep(1000 * time.Millisecond)
 	require.Len(b, brokers[0].Members(), n)
 	for i := 0; i < n; i++ {
 		require.Len(b, brokers[i].Topics(), 2)
@@ -455,8 +434,8 @@ func BenchmarkConsume(b *testing.B) {
 	payments := getTopicFromBroker(brokers[0], "payments")
 	require.NotNil(b, payments)
 
-	// time.Sleep(2000 * time.Millisecond)
-	for i := 0; i < 30; i++ {
+	N := 1000
+	for i := 0; i < N; i++ {
 		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
 			Topic:     "payments",
 			Partition: payments.Partitions[0].Id,
@@ -471,16 +450,20 @@ func BenchmarkConsume(b *testing.B) {
 	b.Run("consumption", func(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
+		var gen sandflake.Generator
 		for i := 0; i < b.N; i++ {
+			count := 0
 			err := brokers[0].Consume(context.Background(),
 				payments.Name,
 				payments.Partitions[0].Id,
-				"consumerGroup",
+				gen.Next().String(),
 				"consumerName",
 				func(msg *sgproto.Message) error {
+					count++
 					return nil
 				})
 			require.NoError(b, err)
+			require.Equal(b, N, count)
 		}
 	})
 }
@@ -504,11 +487,6 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 		_, raft_port, err := net.SplitHostPort(RandomAddr())
 		require.NoError(tb, err)
 		brokers = append(brokers, newBroker(tb, i, dc.String(), bind_addr, advertise_addr, gossip_port, grpc_port, http_port, raft_port, basepath))
-	}
-
-	for _, b := range brokers {
-		err := b.WaitForIt()
-		require.Nil(tb, err)
 	}
 
 	servers := []*server.Server{}
@@ -538,6 +516,15 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 	err := brokers[0].Join(peers...)
 	require.Nil(tb, err)
 
+	var group errgroup.Group
+	for _, b := range brokers {
+		b := b
+		group.Go(b.WaitForIt)
+	}
+
+	err = group.Wait()
+	require.Nil(tb, err)
+
 	destroyFn = func() {
 		for _, b := range brokers {
 			err := b.Stop(context.Background())
@@ -558,6 +545,7 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 var logger = log.New(os.Stdout, "", log.LstdFlags)
 
 func newBroker(tb testing.TB, i int, dc, bind_addr, adv_addr, gossip_port, grpc_port, http_port, raft_port, basepath string) *broker.Broker {
+	lvl := logy.INFO
 	conf := &broker.Config{
 		Name:          "broker" + strconv.Itoa(i),
 		DCName:        dc,
@@ -569,6 +557,7 @@ func newBroker(tb testing.TB, i int, dc, bind_addr, adv_addr, gossip_port, grpc_
 		HTTPPort:      http_port,
 		RaftPort:      raft_port,
 		BootstrapRaft: i == 0,
+		LoggingLevel:  &lvl,
 	}
 	fmt.Printf("conf: %+v\n", conf)
 	fmt.Printf("basepath: %+v\n", basepath)

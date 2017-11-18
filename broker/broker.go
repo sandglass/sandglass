@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -65,7 +66,6 @@ type Broker struct {
 	conf       *Config
 	eventCh    chan serf.Event
 	ShutdownCh chan struct{}
-	doneCh     chan struct{}
 
 	nodes       map[string]string
 	mu          sync.RWMutex
@@ -106,15 +106,8 @@ func New(conf *Config) (*Broker, error) {
 	logger := logy.NewWithLogger(log.New(os.Stdout, fmt.Sprintf("[broker: %v] ", conf.Name), log.LstdFlags), level)
 
 	b := &Broker{
-		currentNode: &sandglass.Node{
-			Name:     conf.Name,
-			HTTPAddr: net.JoinHostPort(conf.AdvertiseAddr, conf.HTTPPort),
-			GRPCAddr: net.JoinHostPort(conf.AdvertiseAddr, conf.GRPCPort),
-			RAFTAddr: net.JoinHostPort(conf.AdvertiseAddr, conf.RaftPort),
-		},
 		conf:         conf,
 		ShutdownCh:   make(chan struct{}),
-		doneCh:       make(chan struct{}),
 		Logger:       logger,
 		nodes:        make(map[string]string),
 		peers:        map[string]*sandglass.Node{},
@@ -150,8 +143,15 @@ func (b *Broker) Stop(ctx context.Context) error {
 			b.Debug("error while stopping raft: %v", err)
 		}
 
-		<-b.doneCh
 		b.wg.Wait()
+
+		for _, peer := range b.peers {
+			if err := peer.Close(); err != nil {
+				gracefulCh <- errors.Wrapf(err, "error while closing peer: %v", peer.Name)
+				return
+			}
+		}
+
 		close(gracefulCh)
 	}()
 
@@ -235,7 +235,10 @@ func (b *Broker) getNodeByRaftAddr(addr string) *sandglass.Node {
 func (b *Broker) Bootstrap() error {
 	b.Debug("Bootstrapping %s...", b.Name())
 	b.Debug("config: %+v", b.Conf())
-	b.readyListeners = append(b.readyListeners)
+	b.readyListeners = append(b.readyListeners,
+		b.eventEmitter.Once(leaderElectedEvent),
+		b.eventEmitter.Once("topics:created:"+ConsumerOffsetTopicName),
+	)
 
 	conf := serf.DefaultConfig()
 	conf.Init()
@@ -245,15 +248,31 @@ func (b *Broker) Bootstrap() error {
 		return err
 	}
 
+	var advAddr string
+
+	if b.conf.AdvertiseAddr != "" {
+		advAddr, err = resolveAddr(b.conf.AdvertiseAddr)
+		if err != nil {
+			return err
+		}
+	}
+
+	b.currentNode = &sandglass.Node{
+		Name:     b.conf.Name,
+		HTTPAddr: net.JoinHostPort(advAddr, b.conf.HTTPPort),
+		GRPCAddr: net.JoinHostPort(advAddr, b.conf.GRPCPort),
+		RAFTAddr: net.JoinHostPort(advAddr, b.conf.RaftPort),
+	}
+
 	conf.MemberlistConfig.BindAddr = b.conf.BindAddr
 	conf.MemberlistConfig.BindPort = port
-	conf.MemberlistConfig.AdvertiseAddr = b.conf.AdvertiseAddr
+	conf.MemberlistConfig.AdvertiseAddr = advAddr
 	conf.MemberlistConfig.AdvertisePort = port
 	conf.NodeName = b.Name()
 	conf.Tags["id"] = b.currentNode.ID
-	conf.Tags["http_addr"] = net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.HTTPPort)
-	conf.Tags["grpc_addr"] = net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.GRPCPort)
-	conf.Tags["raft_addr"] = net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.RaftPort)
+	conf.Tags["http_addr"] = net.JoinHostPort(advAddr, b.conf.HTTPPort)
+	conf.Tags["grpc_addr"] = net.JoinHostPort(advAddr, b.conf.GRPCPort)
+	conf.Tags["raft_addr"] = net.JoinHostPort(advAddr, b.conf.RaftPort)
 	if b.Logger.Level() < logy.DEBUG {
 		conf.LogOutput = ioutil.Discard
 		conf.MemberlistConfig.LogOutput = ioutil.Discard
@@ -275,7 +294,7 @@ func (b *Broker) Bootstrap() error {
 	b.raft = raft.New(raft.Config{
 		Name:     b.conf.Name,
 		BindAddr: net.JoinHostPort(b.conf.BindAddr, b.conf.RaftPort),
-		AdvAddr:  net.JoinHostPort(b.conf.AdvertiseAddr, b.conf.RaftPort),
+		AdvAddr:  net.JoinHostPort(advAddr, b.conf.RaftPort),
 		Dir:      b.conf.DBPath,
 	}, b.Logger)
 
@@ -332,8 +351,42 @@ func (b *Broker) WaitForIt() error {
 	}
 }
 
-func (b *Broker) Join(clusterAddrs ...string) error {
-	_, err := b.cluster.Join(clusterAddrs, false)
+func resolveAddr(host string) (string, error) {
+	// FIXME: this is shit
+	var port string
+	if strings.Contains(host, ":") {
+		var err error
+		host, port, err = net.SplitHostPort(host)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	if ip := net.ParseIP(host); ip == nil {
+		addr, err := net.ResolveUDPAddr("udp", host+":0")
+		if err != nil {
+			return "", err
+		}
+		host = addr.IP.String()
+	}
+
+	if port != "" {
+		host = net.JoinHostPort(host, port)
+	}
+
+	return host, nil
+}
+
+func (b *Broker) Join(clusterAddrs ...string) (err error) {
+	resolved := make([]string, len(clusterAddrs))
+	for i, addr := range clusterAddrs {
+		resolved[i], err = resolveAddr(addr)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = b.cluster.Join(clusterAddrs, false)
 	if err != nil {
 		b.Debug("Couldn't join cluster, starting own: %v\n", err)
 		// return err
@@ -382,11 +435,25 @@ loop:
 			case serf.EventQuery:
 				qry := e.(*serf.Query)
 				b.Debug("received query: %v", qry)
+				topicName := string(qry.Payload)
+				if b.getTopic(topicName) != nil {
+					err := qry.Respond([]byte("OK"))
+					if err != nil {
+						b.Info("got error responding: %v", err)
+					}
+					continue
+				}
+				ch := b.eventEmitter.Once("topics:created:" + topicName)
+				go func() {
+					<-ch
+					err := qry.Respond([]byte("OK"))
+					if err != nil {
+						b.Info("got error responding: %v", err)
+					}
+				}()
 			}
 		}
 	}
-
-	close(b.doneCh)
 }
 
 func (b *Broker) syncWatcher() {
@@ -396,7 +463,7 @@ func (b *Broker) syncWatcher() {
 
 		for {
 			select {
-			case <-b.doneCh:
+			case <-b.ShutdownCh:
 				return
 			case <-time.After(DefaultStateCheckInterval):
 				err := b.TriggerSyncRequest()

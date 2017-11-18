@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	MsgPrefix = []byte("m")
-	WalPrefix = []byte("w")
+	ViewPrefix = []byte("v")
+	WalPrefix  = []byte("w")
 )
 
 type StorageCommons struct {
@@ -79,7 +79,7 @@ func (s *StorageCommons) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Me
 	}
 
 	for ; it.Valid(); m = it.Next() {
-		if !m.Offset.Before(max) {
+		if m.Offset.After(max) {
 			break
 		}
 
@@ -118,5 +118,5 @@ func (s *StorageCommons) ForEachKey(min []byte, fn func(k []byte) error) error {
 }
 
 func PrependPrefix(prefix, key []byte) []byte {
-	return bytes.Join([][]byte{prefix, key}, []byte("/"))
+	return bytes.Join([][]byte{prefix, key}, storage.Separator)
 }

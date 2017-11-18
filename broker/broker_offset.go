@@ -5,14 +5,19 @@ import (
 	"context"
 	"fmt"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/celrenheit/sandflake"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/topic"
 )
 
 func (b *Broker) Acknowledge(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
-	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.LastOffsetRequest_Acknowledged)
+	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.MarkKind_Acknowledged)
 }
 
 func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets []sandflake.ID) error {
@@ -45,11 +50,12 @@ func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionNa
 	msgs := []*sgproto.Message{}
 	for _, offset := range offsets {
 		msgs = append(msgs, &sgproto.Message{
-			Topic:     ConsumerOffsetTopicName,
-			Partition: p.Id,
-			Offset:    offset,
-			Key:       generateConsumerOffsetKey(topicName, partitionName, consumerGroup, consumerName, offset, sgproto.LastOffsetRequest_Acknowledged),
-			Value:     []byte{byte(sgproto.LastOffsetRequest_Acknowledged)},
+			Topic:         ConsumerOffsetTopicName,
+			Partition:     p.Id,
+			Offset:        offset,
+			Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
+			ClusteringKey: generateClusterKey(offset, sgproto.MarkKind_Acknowledged),
+			Value:         []byte{byte(sgproto.MarkKind_Acknowledged)},
 		})
 	}
 
@@ -57,10 +63,14 @@ func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionNa
 }
 
 func (b *Broker) Commit(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
-	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.LastOffsetRequest_Commited)
+	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.MarkKind_Commited)
 }
 
-func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID, kind sgproto.LastOffsetRequest_Kind) (bool, error) {
+func (b *Broker) MarkConsumed(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
+	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.MarkKind_Consumed)
+}
+
+func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID, kind sgproto.MarkKind) (bool, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
 	p := topic.ChoosePartitionForKey(partitionKey(topicName, partitionName, consumerGroup, consumerName))
 
@@ -83,10 +93,12 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 			err error
 		)
 		switch kind {
-		case sgproto.LastOffsetRequest_Acknowledged:
+		case sgproto.MarkKind_Acknowledged:
 			res, err = n.Acknowledge(ctx, change)
-		case sgproto.LastOffsetRequest_Commited:
+		case sgproto.MarkKind_Commited:
 			res, err = n.Commit(ctx, change)
+		case sgproto.MarkKind_Consumed:
+			res, err = n.MarkConsumed(ctx, change)
 		}
 		if err != nil {
 			return false, err
@@ -95,17 +107,27 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 		return res.Success, nil
 	}
 
+	state := &sgproto.MarkState{
+		Kind: kind,
+	}
+
+	value, err := proto.Marshal(state)
+	if err != nil {
+		return false, err
+	}
+
 	res, err := b.PublishMessage(ctx, &sgproto.Message{
-		Topic:     ConsumerOffsetTopicName,
-		Partition: p.Id,
-		Offset:    offset,
-		Key:       generateConsumerOffsetKey(topicName, partitionName, consumerGroup, consumerName, offset, kind),
-		Value:     []byte{byte(kind)},
+		Topic:         ConsumerOffsetTopicName,
+		Partition:     p.Id,
+		Offset:        offset,
+		Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
+		ClusteringKey: generateClusterKey(offset, kind),
+		Value:         value,
 	})
 	return res != nil, err
 }
 
-func (b *Broker) LastOffset(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, kind sgproto.LastOffsetRequest_Kind) (sandflake.ID, error) {
+func (b *Broker) LastOffset(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, kind sgproto.MarkKind) (sandflake.ID, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
 	pk := partitionKey(topicName, partitionName, consumerGroup, consumerName)
 	p := topic.ChoosePartitionForKey(pk)
@@ -135,6 +157,45 @@ func (b *Broker) LastOffset(ctx context.Context, topicName, partitionName, consu
 	return b.last(p, pk, lastKind)
 }
 
+func (b *Broker) GetMarkStateMessage(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (*sgproto.Message, error) {
+	topic := b.getTopic(ConsumerOffsetTopicName)
+	pk := partitionKey(topicName, partitionName, consumerGroup, consumerName)
+	p := topic.ChoosePartitionForKey(pk)
+
+	n := b.getPartitionLeader(ConsumerOffsetTopicName, p.Id)
+	if n == nil {
+		return nil, ErrNoLeaderFound
+	}
+
+	if n.Name != b.Name() {
+		res, err := n.GetMarkStateMessage(ctx, &sgproto.OffsetChangeRequest{
+			Topic:         topicName,
+			Partition:     partitionName,
+			ConsumerGroup: consumerGroup,
+			ConsumerName:  consumerName,
+			Offset:        offset,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		return res, nil
+	}
+
+	key := generatePrefixConsumerOffsetKey(pk, offset)
+
+	msg, err := p.GetMessage(sandflake.Nil, key, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if msg == nil {
+		return nil, status.Error(codes.NotFound, "mark state not found")
+	}
+
+	return msg, nil
+}
+
 func (b *Broker) last(p *topic.Partition, pk []byte, kind byte) (sandflake.ID, error) {
 	msg, err := p.GetMessage(sandflake.Nil, pk, []byte{kind})
 	if err != nil {
@@ -145,7 +206,7 @@ func (b *Broker) last(p *topic.Partition, pk []byte, kind byte) (sandflake.ID, e
 		return sandflake.Nil, nil
 	}
 
-	if len(msg.Value) != 1 {
+	if len(msg.Value) == 0 {
 		return sandflake.Nil, fmt.Errorf("LastCommitedOffset malformed value '%v'", msg.Value)
 	}
 
@@ -159,8 +220,8 @@ func (b *Broker) isAcknoweldged(ctx context.Context, topicName, partition, consu
 	}
 	pk := partitionKey(topicName, partition, consumerGroup, "NOT SET")
 	p := topic.ChoosePartitionForKey(pk)
-	key := generateConsumerOffsetKey(topicName, partition, consumerGroup, "", offset, sgproto.LastOffsetRequest_Acknowledged)
-	return b.hasKeyInPartition(ctx, ConsumerOffsetTopicName, p, key)
+	clusterKey := generateClusterKey(offset, sgproto.MarkKind_Acknowledged)
+	return b.hasKeyInPartition(ctx, ConsumerOffsetTopicName, p, pk, clusterKey)
 }
 
 func partitionKey(topicName, partitionName, consumerGroup, consumerName string) []byte {
@@ -170,13 +231,12 @@ func partitionKey(topicName, partitionName, consumerGroup, consumerName string) 
 		[]byte(partitionName),
 		[]byte(consumerGroup),
 		// []byte(consumerName),
-	}, []byte{'/'})
+	}, storage.Separator)
 }
 
-func generateConsumerOffsetKey(topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID, kind sgproto.LastOffsetRequest_Kind) []byte {
+func generateClusterKey(offset sandflake.ID, kind sgproto.MarkKind) []byte {
 	return bytes.Join([][]byte{
-		partitionKey(topicName, partitionName, consumerGroup, consumerName),
-		[]byte(offset.String()), // .String() for debugging, remove this later
+		offset.Bytes(),
 		[]byte{byte(kind)},
-	}, []byte{'/'})
+	}, storage.Separator)
 }

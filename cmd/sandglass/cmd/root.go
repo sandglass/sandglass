@@ -44,6 +44,12 @@ var (
 	sandglassColor = color.New(color.Bold, color.FgHiGreen).SprintfFunc()
 )
 
+var (
+	Version = "dev"
+	Commit  = "none"
+	Date    = "unknown"
+)
+
 var cfgFile string
 
 // RootCmd represents the base command when called without any subcommands
@@ -94,6 +100,13 @@ var RootCmd = &cobra.Command{
 
 		fmt.Println(warningColor("WARNING: This code is a very early release, it contains bugs and should not be used in production environments."))
 
+		fmt.Println("")
+		fmt.Println(infoColor("wait for it..."))
+		err = b.WaitForIt()
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		fmt.Println(sandglassColor(`
 ⏳  Sandglass started!
 Beware of the sandstorm.
@@ -136,26 +149,26 @@ func init() {
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "config")
 	RootCmd.PersistentFlags().String("name", "", "name")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "name")
-	RootCmd.PersistentFlags().String("http_port", ":2108", "http addr")
+	RootCmd.PersistentFlags().String("http_port", "2108", "http addr")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "http_port")
-	RootCmd.PersistentFlags().String("grpc_port", ":7170", "grpc addr")
+	RootCmd.PersistentFlags().String("grpc_port", "7170", "grpc addr")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "grpc_port")
-	RootCmd.PersistentFlags().String("gossip_port", ":9900", "gossip addr")
+	RootCmd.PersistentFlags().String("raft_port", "9190", "raft addr")
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "raft_port")
+	RootCmd.PersistentFlags().String("gossip_port", "9900", "gossip addr")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "gossip_port")
 	RootCmd.PersistentFlags().String("advertise_addr", "", "advertise addr")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "advertise_addr")
-	RootCmd.PersistentFlags().String("bind_addr", "", "bind addr")
+	RootCmd.PersistentFlags().String("bind_addr", "0.0.0.0", "bind addr")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "bind_addr")
 	RootCmd.PersistentFlags().String("db_path", "/tmp/sandglassdb", "base directory for data storage")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "db_path")
-	RootCmd.PersistentFlags().StringArrayP("initial_peers", "p", nil, "Inital peers")
+	RootCmd.PersistentFlags().StringSliceP("initial_peers", "p", nil, "Inital peers")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "initial_peers")
 	RootCmd.PersistentFlags().Bool("bootstrap_raft", false, "Bootstrap raft")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "bootstrap_raft")
 	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "Bootstrap raft")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "verbose")
-
-	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -182,8 +195,6 @@ func initConfig() {
 	} else {
 		if err := viper.ReadInConfig(); err == nil {
 			fmt.Println(infoColor("Using config file: %s", viper.ConfigFileUsed()))
-		} else {
-			fmt.Println("err", err)
 		}
 	}
 }

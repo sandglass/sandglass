@@ -26,7 +26,6 @@ func (n *Node) Dial() (err error) {
 	if err != nil {
 		return err
 	}
-	fmt.Println("dialing", n.Name)
 	n.BrokerServiceClient = sgproto.NewBrokerServiceClient(n.conn)
 	n.InternalServiceClient = sgproto.NewInternalServiceClient(n.conn)
 

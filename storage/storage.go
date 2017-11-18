@@ -5,6 +5,8 @@ import (
 	"github.com/celrenheit/sandglass/sgproto"
 )
 
+var Separator = []byte{'/'}
+
 type Storage interface {
 	Get(key []byte) ([]byte, error)
 	Put(key, val []byte) error

@@ -64,23 +64,26 @@ func (t *Partition) String() string {
 	return t.Id
 }
 
-func (t *Partition) getStorageKey(offset sandflake.ID, key []byte) []byte {
+func (t *Partition) getStorageKey(msg *sgproto.Message) []byte {
 	var storekey []byte
 	switch t.topic.Kind {
 	case sgproto.TopicKind_TimerKind:
-		storekey = offset[:]
-	case sgproto.TopicKind_CompactedKind:
-		storekey = key
+		storekey = msg.Offset[:]
+	case sgproto.TopicKind_KVKind:
+		storekey = msg.Key
+		if len(msg.ClusteringKey) > 0 {
+			storekey = joinKeys(msg.Key, msg.ClusteringKey)
+		}
 	default:
 		panic("INVALID STORAGE KIND: " + t.topic.Kind.String())
 	}
-	return scommons.PrependPrefix(scommons.MsgPrefix, storekey)
+	return scommons.PrependPrefix(scommons.ViewPrefix, storekey)
 }
 
 func (s *Partition) GetMessage(offset sandflake.ID, k, suffix []byte) (*sgproto.Message, error) {
 	switch s.topic.Kind {
 	case sgproto.TopicKind_TimerKind:
-		val, err := s.db.Get(scommons.PrependPrefix(scommons.MsgPrefix, offset[:]))
+		val, err := s.db.Get(scommons.PrependPrefix(scommons.ViewPrefix, offset[:]))
 		if err != nil {
 			return nil, err
 		}
@@ -92,8 +95,8 @@ func (s *Partition) GetMessage(offset sandflake.ID, k, suffix []byte) (*sgproto.
 		}
 
 		return &msg, nil
-	case sgproto.TopicKind_CompactedKind:
-		val := s.db.LastKVForPrefix(scommons.PrependPrefix(scommons.MsgPrefix, k), suffix)
+	case sgproto.TopicKind_KVKind:
+		val := s.db.LastKVForPrefix(scommons.PrependPrefix(scommons.ViewPrefix, k), suffix)
 		if val == nil {
 			return nil, nil
 		}
@@ -111,7 +114,7 @@ func (s *Partition) GetMessage(offset sandflake.ID, k, suffix []byte) (*sgproto.
 }
 
 func (t *Partition) PutMessage(msg *sgproto.Message) error {
-	storagekey := t.getStorageKey(msg.Offset, msg.Key)
+	storagekey := t.getStorageKey(msg)
 	if msg.Index == sandflake.Nil {
 		msg.Index = t.NextID()
 	}
@@ -131,28 +134,31 @@ func (t *Partition) PutMessage(msg *sgproto.Message) error {
 		return err
 	}
 
-	t.bf.Add(msg.Key)
-	t.ibf.Add(msg.Key)
+	t.bf.Add(storagekey)
+	t.ibf.Add(storagekey)
 
 	return nil
 }
 
-func (t *Partition) HasKey(key []byte) (bool, error) {
+func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 	switch t.topic.Kind {
-	case sgproto.TopicKind_CompactedKind:
+	case sgproto.TopicKind_KVKind:
 	default:
-		panic("not compacted topic")
+		panic("not kv topic")
 	}
 
-	if t.ibf.Test(key) {
+	pk := joinKeys(key, clusterKey)
+	existKey := scommons.PrependPrefix(scommons.ViewPrefix, pk)
+
+	if t.ibf.Test(existKey) {
 		return true, nil
 	}
 
-	if !t.bf.Test(key) {
+	if !t.bf.Test(existKey) {
 		return false, nil
 	}
 
-	msg, err := t.GetMessage(sandflake.Nil, key, nil)
+	msg, err := t.GetMessage(sandflake.Nil, pk, nil)
 	if err != nil {
 		return false, err
 	}
@@ -165,7 +171,7 @@ func (t *Partition) HasKey(key []byte) (bool, error) {
 }
 
 func (t *Partition) newWALKey(index sandflake.ID, key []byte) []byte {
-	return bytes.Join([][]byte{scommons.WalPrefix, index.Bytes(), key}, []byte("/"))
+	return bytes.Join([][]byte{scommons.WalPrefix, index.Bytes(), key}, storage.Separator)
 }
 
 func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
@@ -177,13 +183,13 @@ func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
 		if msg.Index == sandflake.Nil {
 			msg.Index = t.NextID()
 		}
-		storagekey := t.getStorageKey(msg.Offset, msg.Key)
+		storagekey := t.getStorageKey(msg)
 		val, err := proto.Marshal(msg)
 		if err != nil {
 			return err
 		}
-		t.bf.Add(msg.Key)
-		t.ibf.Add(msg.Key)
+		t.bf.Add(storagekey)
+		t.ibf.Add(storagekey)
 		entries[i] = &storage.Entry{
 			Key:   storagekey,
 			Value: val,
@@ -219,7 +225,7 @@ func (p *Partition) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Message
 			err := fn(msg)
 			return err
 		})
-	case sgproto.TopicKind_CompactedKind:
+	case sgproto.TopicKind_KVKind:
 		it := scommons.NewMessageIterator(p.db, &storage.IterOptions{
 			FetchValues: true,
 			Reverse:     true,
@@ -302,4 +308,11 @@ func (p *Partition) getMessageByStorageKey(k []byte) (*sgproto.Message, error) {
 	}
 
 	return &msg, nil
+}
+
+func joinKeys(key, clusterKey []byte) []byte {
+	return bytes.Join([][]byte{
+		key,
+		clusterKey,
+	}, storage.Separator)
 }

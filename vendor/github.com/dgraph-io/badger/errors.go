@@ -23,10 +23,6 @@ import (
 )
 
 var (
-	// ErrInvalidDir is returned when Badger cannot find the directory
-	// from where it is supposed to load the key-value store.
-	ErrInvalidDir = errors.New("Invalid Dir, directory does not exist")
-
 	// ErrValueLogSize is returned when opt.ValueLogFileSize option is not within the valid
 	// range.
 	ErrValueLogSize = errors.New("Invalid ValueLogFileSize, must be between 1MB and 2GB")
@@ -75,16 +71,19 @@ var (
 	// allowed due to external management of transactions, when using ManagedDB.
 	ErrManagedTxn = errors.New(
 		"Invalid API request. Not allowed to perform this action using ManagedDB")
+
+	// ErrInvalidDump if a data dump made previously cannot be loaded into the database.
+	ErrInvalidDump = errors.New("Data dump cannot be read")
 )
 
-const maxKeySize = 1 << 20
+const maxKeySize = 1 << 16 // Key length can't be more than uint16, as determined by table::header.
 
 func exceedsMaxKeySizeError(key []byte) error {
-	return errors.Errorf("Key with size %d exceeded %dMiB limit. Key:\n%s",
-		len(key), maxKeySize>>20, hex.Dump(key[:1<<10]))
+	return errors.Errorf("Key with size %d exceeded %d limit. Key:\n%s",
+		len(key), maxKeySize, hex.Dump(key[:1<<10]))
 }
 
 func exceedsMaxValueSizeError(value []byte, maxValueSize int64) error {
-	return errors.Errorf("Value with size %d exceeded ValueLogFileSize (%dMiB). Key:\n%s",
-		len(value), maxValueSize>>20, hex.Dump(value[:1<<10]))
+	return errors.Errorf("Value with size %d exceeded ValueLogFileSize (%d). Key:\n%s",
+		len(value), maxValueSize, hex.Dump(value[:1<<10]))
 }

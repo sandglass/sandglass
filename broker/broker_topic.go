@@ -3,11 +3,14 @@ package broker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass/sgproto"
 	"github.com/celrenheit/sandglass/topic"
+	"github.com/hashicorp/serf/serf"
 	"github.com/serialx/hashring"
 )
 
@@ -16,6 +19,7 @@ var (
 	ErrInvalidTopicName       = errors.New("ErrInvalidTopicName")
 	ErrUnableToSelectReplicas = errors.New("ErrUnableToSelectReplicas")
 	ErrTopicNotFound          = errors.New("ErrTopicNotFound")
+	ErrPartitionNotFound      = errors.New("ErrPartitionNotFound")
 	ErrNoPartitionSet         = errors.New("ErrNoPartitionSet")
 	ErrNoControllerSet        = errors.New("ErrNoControllerSet")
 	ErrNoLeaderFound          = errors.New("ErrNoLeaderFound")
@@ -28,7 +32,7 @@ func (b *Broker) watchTopic() error {
 		case <-b.ShutdownCh:
 			return nil
 		case topic := <-b.raft.NewTopicChan():
-			b.Info("[topic watcher] received new topic: %s", topic.Name)
+			b.Debug("[topic watcher] received new topic: %s", topic.Name)
 			// exists := b.topicExists(topic.Name)
 			// if !exists {
 			// 	err := b.setupTopic(topic)
@@ -46,6 +50,7 @@ func (b *Broker) watchTopic() error {
 					b.Debug("error while rearrangeLeadership err=%v", err)
 				}
 			}()
+			b.eventEmitter.Emit("topics:created:"+topic.Name, nil)
 		}
 	}
 }
@@ -94,22 +99,13 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicPar
 
 		replicas, ok := b.selectReplicasForPartition(t, p)
 		if !ok {
-			if params.Name != ConsumerOffsetTopicName { // should we allow this for all topics ?
-				return ErrUnableToSelectReplicas
-			}
-
-			// if we don't have enough replicas we all nodes currently available
-			for _, n := range b.Members() {
-				replicas = append(replicas, n.Name)
-			}
+			return ErrUnableToSelectReplicas
 		}
 
 		p.Replicas = replicas
 		t.Partitions = append(t.Partitions, p)
 	}
-
-	// topicCreatedCh := b.eventEmitter.Once("topics:created:" + t.Name)
-
+	topicCreatedCh := b.eventEmitter.Once("topics:created:" + t.Name)
 	if err := b.raft.CreateTopic(t); err != nil {
 		return err
 	}
@@ -128,11 +124,30 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicPar
 		return err
 	}
 
-	// select {
-	// case <-topicCreatedCh:
-	// case <-time.After(10 * time.Second):
-	// 	return fmt.Errorf("timed out creating topic: %v", t.Name)
-	// }
+	select {
+	case <-topicCreatedCh:
+	case <-time.After(10 * time.Second):
+		return fmt.Errorf("timed out creating topic: %v", t.Name)
+	}
+
+	qry, err := b.cluster.Query("wait-for-topic", []byte(t.Name), &serf.QueryParam{})
+	if err != nil {
+		return err
+	}
+	defer qry.Close()
+
+	members := t.ReplicationFactor
+	acks := 0
+	for !qry.Finished() {
+		resp := <-qry.ResponseCh()
+		if len(resp.Payload) > 0 {
+			acks++
+		}
+	}
+
+	if acks < ((members / 2) + 1) {
+		return fmt.Errorf("unable to have quorum")
+	}
 
 	return nil
 }

@@ -15,10 +15,14 @@ option (gogoproto.unmarshaler_all) = true;
 message Message {
     string topic = 1;
     string partition = 2;
-    bytes index = 3 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
-    bytes offset = 4 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
-    bytes key = 5;
-    bytes value = 6;
+
+    bytes index = 10 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+    bytes offset = 11 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
+
+    bytes key = 20;
+    bytes clusteringKey = 21;
+
+    bytes value = 30;
 }
 
 message DUIDReply {
@@ -27,7 +31,7 @@ message DUIDReply {
 
 enum TopicKind {
     TimerKind = 0;
-    CompactedKind = 1;
+    KVKind = 1;
 }
 
 enum StorageDriver {
@@ -85,6 +89,7 @@ message GetRequest {
     string topic = 1;
     string partition = 2;
     bytes key = 3;
+    bytes clusteringKey = 4;
 }
 
 message ConsumeFromGroupRequest {
@@ -118,21 +123,22 @@ message LastOffsetReply {
     bytes offset = 1 [(gogoproto.customtype) = "github.com/celrenheit/sandflake.ID", (gogoproto.nullable) = false];
 }
 
+enum MarkKind {
+    Unknown = 0;
+    Consumed = 10;
+    NotAcknowledged = 20;
+    Acknowledged = 30;
+    Commited = 40;
+}
+
 message LastOffsetRequest {
     string topic = 1;
     string partition = 2;
     string consumerGroup = 3;
     string consumerName = 4;
     
-    enum Kind {
-        Unknown = 0;
-        Consumed = 10;
-        NotAcknowledged = 20;
-        Acknowledged = 30;
-        Commited = 40;
-    }
 
-    Kind kind = 5;
+    MarkKind kind = 5;
 }
 
 message FetchFromSyncRequest {
@@ -143,6 +149,11 @@ message FetchFromSyncRequest {
 
 message HasResponse {
     bool exists = 1;
+}
+
+message MarkState {
+    MarkKind kind = 1;
+    int32 deliveryCount = 2;
 }
 
 service BrokerService {
@@ -197,6 +208,7 @@ service BrokerService {
             body: "*"
         };
   }
+  
 
   rpc AcknowledgeMessages (MultiOffsetChangeRequest) returns (OffsetChangeReply) {}
 
@@ -227,6 +239,11 @@ service InternalService {
     rpc FetchFromSync (FetchFromSyncRequest) returns (stream Message) {}
 
     rpc LastOffset (LastOffsetRequest) returns (LastOffsetReply) {}
+
+    rpc MarkConsumed (OffsetChangeRequest) returns (OffsetChangeReply) {
+    }
+
+    rpc GetMarkStateMessage (OffsetChangeRequest) returns (Message) {}
 }
 
 // ---------------- Internal (not related to a service) -----------------

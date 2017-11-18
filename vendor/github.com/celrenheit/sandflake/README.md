@@ -48,7 +48,7 @@ fmt.Println(id)
 * 24 bit: sequence number
 * 24 bit: randomness
 
-Sandflake ids do not need to wait some milliseconds for the next id if time goes backwards, it can just generate new ones and random bytes at the end should avoid any possible conflict with previous ids. In this case, the order is not guaranteed anymore. However, with Go 1.9's monotonic clock this should not be an issue anymore.
+Sandflake ids do not need to wait some milliseconds for the next id if time goes backwards, it can just generate new ones and random bytes at the end should avoid any possible conflict with previous ids. In this case, the order is not guaranteed anymore.
 
 Likewise, for future manually generated ids, the order is not guaranteed.
 

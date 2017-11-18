@@ -44,11 +44,11 @@ func TestTimerStorage(t *testing.T) {
 	require.Equal(t, string(value), string(gotMsg.Value))
 }
 
-func TestCompactedStorage(t *testing.T) {
+func TestKVStorage(t *testing.T) {
 	p := &Partition{
 		Id: "test",
 		topic: &Topic{
-			Kind: sgproto.TopicKind_CompactedKind,
+			Kind: sgproto.TopicKind_KVKind,
 		},
 	}
 	dir, err := ioutil.TempDir("", "")
@@ -79,7 +79,7 @@ func TestLastMessage(t *testing.T) {
 	p := &Partition{
 		Id: "test",
 		topic: &Topic{
-			Kind: sgproto.TopicKind_CompactedKind,
+			Kind: sgproto.TopicKind_KVKind,
 		},
 	}
 	dir, err := ioutil.TempDir("", "")
@@ -102,7 +102,7 @@ func TestLastMessage(t *testing.T) {
 	gotKey := p.LastWALEntry()
 	require.Nil(t, err)
 	require.NotNil(t, gotKey)
-	require.Equal(t, string(key), string(gotKey[len(scommons.WalPrefix)+1+sandflake.Size+1+len(scommons.MsgPrefix)+1:]))
+	require.Equal(t, string(key), string(gotKey[len(scommons.WalPrefix)+1+sandflake.Size+1+len(scommons.ViewPrefix)+1:]))
 
 	gotMsg, err := p.LastMessage()
 	require.Nil(t, err)

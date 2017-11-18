@@ -19,9 +19,9 @@ func NewMessageIterator(s storage.Storage, opts *storage.IterOptions) storage.Me
 func (i *messageIter) Rewind() *sgproto.Message {
 	i.iter.Rewind()
 	if !i.opts.Reverse {
-		i.iter.Seek(MsgPrefix)
+		i.iter.Seek(ViewPrefix)
 	} else {
-		i.iter.Seek(PrependPrefix(MsgPrefix, []byte{'~', '~'}))
+		i.iter.Seek(PrependPrefix(ViewPrefix, []byte{'~', '~'}))
 	}
 
 	if i.Valid() {
@@ -32,7 +32,7 @@ func (i *messageIter) Rewind() *sgproto.Message {
 }
 
 func (i *messageIter) Seek(id sandflake.ID) *sgproto.Message {
-	i.iter.Seek(PrependPrefix(MsgPrefix, id[:]))
+	i.iter.Seek(PrependPrefix(ViewPrefix, id[:]))
 	if i.Valid() {
 		return i.getCurrent()
 	}
@@ -41,11 +41,11 @@ func (i *messageIter) Seek(id sandflake.ID) *sgproto.Message {
 }
 
 func (i *messageIter) Valid() bool {
-	return i.iter.ValidForPrefix(MsgPrefix)
+	return i.iter.ValidForPrefix(ViewPrefix)
 }
 
 func (i *messageIter) ValidForPrefix(prefix []byte) bool {
-	return i.iter.ValidForPrefix(PrependPrefix(MsgPrefix, prefix))
+	return i.iter.ValidForPrefix(PrependPrefix(ViewPrefix, prefix))
 }
 
 func (i *messageIter) Next() *sgproto.Message {
