@@ -69,7 +69,7 @@ func (t *Partition) getStorageKey(msg *sgproto.Message) []byte {
 	switch t.topic.Kind {
 	case sgproto.TopicKind_TimerKind:
 		storekey = msg.Offset[:]
-	case sgproto.TopicKind_CompactedKind:
+	case sgproto.TopicKind_KVKind:
 		storekey = msg.Key
 		if len(msg.ClusteringKey) > 0 {
 			storekey = joinKeys(msg.Key, msg.ClusteringKey)
@@ -95,7 +95,7 @@ func (s *Partition) GetMessage(offset sandflake.ID, k, suffix []byte) (*sgproto.
 		}
 
 		return &msg, nil
-	case sgproto.TopicKind_CompactedKind:
+	case sgproto.TopicKind_KVKind:
 		val := s.db.LastKVForPrefix(scommons.PrependPrefix(scommons.ViewPrefix, k), suffix)
 		if val == nil {
 			return nil, nil
@@ -142,9 +142,9 @@ func (t *Partition) PutMessage(msg *sgproto.Message) error {
 
 func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 	switch t.topic.Kind {
-	case sgproto.TopicKind_CompactedKind:
+	case sgproto.TopicKind_KVKind:
 	default:
-		panic("not compacted topic")
+		panic("not kv topic")
 	}
 
 	pk := joinKeys(key, clusterKey)
@@ -225,7 +225,7 @@ func (p *Partition) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Message
 			err := fn(msg)
 			return err
 		})
-	case sgproto.TopicKind_CompactedKind:
+	case sgproto.TopicKind_KVKind:
 		it := scommons.NewMessageIterator(p.db, &storage.IterOptions{
 			FetchValues: true,
 			Reverse:     true,

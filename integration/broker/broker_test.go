@@ -78,14 +78,14 @@ func TestSandglass(t *testing.T) {
 	require.Equal(t, 1000, count)
 }
 
-func TestCompactedTopic(t *testing.T) {
+func TestKVTopic(t *testing.T) {
 	n := 3
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
-		Kind:              sgproto.TopicKind_CompactedKind,
+		Kind:              sgproto.TopicKind_KVKind,
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
@@ -365,14 +365,14 @@ func getTopicFromBroker(b *broker.Broker, topic string) *topic.Topic {
 	return nil
 }
 
-func BenchmarkCompactedTopicGet(b *testing.B) {
+func BenchmarkKVTopicGet(b *testing.B) {
 	n := 3
 	brokers, destroyFn := makeNBrokers(b, n)
 	defer destroyFn()
 
 	createTopicParams := &sgproto.CreateTopicParams{
 		Name:              "payments",
-		Kind:              sgproto.TopicKind_CompactedKind,
+		Kind:              sgproto.TopicKind_KVKind,
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}

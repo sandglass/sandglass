@@ -516,7 +516,7 @@
       "type": "string",
       "enum": [
         "TimerKind",
-        "CompactedKind"
+        "KVKind"
       ],
       "default": "TimerKind"
     },

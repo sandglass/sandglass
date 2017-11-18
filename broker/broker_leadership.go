@@ -47,7 +47,7 @@ func (b *Broker) monitorLeadership() error {
 						b.Debug("creating %s topic", ConsumerOffsetTopicName)
 						err := b.CreateTopic(context.TODO(), &sgproto.CreateTopicParams{
 							Name:              ConsumerOffsetTopicName,
-							Kind:              sgproto.TopicKind_CompactedKind,
+							Kind:              sgproto.TopicKind_KVKind,
 							NumPartitions:     50,
 							ReplicationFactor: 3,
 							// StorageDriver:     sgproto.StorageDriver_Badger,

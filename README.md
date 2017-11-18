@@ -117,7 +117,7 @@ There is two kinds of topics:
    * Time ordered using [sandflake IDs](https://github.com/celrenheit/sandflake)
    * Can produce messages in the future
 
-* Compacted (might change the name for this):
+* KV:
    * Fixed number of partitions (set up-front, cannot change)
    * Behaves like a distributed key value store
 
@@ -142,7 +142,7 @@ A message is composed of the following fields:
         index   <- position in the WAL
 
         offset  <- position in the message log for timer topics
-        key     <- position in the message log for key for compacted topics
+        key     <- position in the message log for key for kv topics
 
         value   <- your payload
 

@@ -95,7 +95,7 @@ func (t *Topic) ChoosePartitionForKey(key []byte) *Partition {
 	switch t.Kind {
 	case sgproto.TopicKind_TimerKind:
 		panic(fmt.Sprintf("not for timer kind %v %v", t.Name, t.Partitions))
-	case sgproto.TopicKind_CompactedKind:
+	case sgproto.TopicKind_KVKind:
 		id = key
 	}
 
@@ -108,7 +108,7 @@ func (t *Topic) ChoosePartition(msg *sgproto.Message) *Partition {
 	switch t.Kind {
 	case sgproto.TopicKind_TimerKind:
 		id = msg.Offset.Bytes()
-	case sgproto.TopicKind_CompactedKind:
+	case sgproto.TopicKind_KVKind:
 		id = msg.Key
 	}
 

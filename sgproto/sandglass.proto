@@ -31,7 +31,7 @@ message DUIDReply {
 
 enum TopicKind {
     TimerKind = 0;
-    CompactedKind = 1;
+    KVKind = 1;
 }
 
 enum StorageDriver {
