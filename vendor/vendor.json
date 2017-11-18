@@ -82,6 +82,12 @@
 			"revisionTime": "2017-11-16T06:21:28Z"
 		},
 		{
+			"checksumSHA1": "l740V+w+C8mDie7oAvgZgALp/vI=",
+			"path": "github.com/dgryski/go-jump",
+			"revision": "e1f439676b570800a863c37b78d1f868f51a85fc",
+			"revisionTime": "2017-04-09T06:50:14Z"
+		},
+		{
 			"checksumSHA1": "p5z5hdUt68Z3tK7Is+yLGrCNzoA=",
 			"path": "github.com/fatih/color",
 			"revision": "5df930a27be2502f99b292b7cc09ebad4d0891f4",
