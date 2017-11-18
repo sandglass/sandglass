@@ -79,7 +79,7 @@ func (s *StorageCommons) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Me
 	}
 
 	for ; it.Valid(); m = it.Next() {
-		if !m.Offset.Before(max) {
+		if m.Offset.After(max) {
 			break
 		}
 

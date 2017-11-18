@@ -50,7 +50,7 @@ func (b *Broker) monitorLeadership() error {
 							Kind:              sgproto.TopicKind_CompactedKind,
 							NumPartitions:     50,
 							ReplicationFactor: 3,
-							StorageDriver:     sgproto.StorageDriver_Badger,
+							// StorageDriver:     sgproto.StorageDriver_Badger,
 						})
 						if err != nil {
 							return err

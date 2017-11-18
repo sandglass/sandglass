@@ -198,10 +198,17 @@ func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.P
 	return p.HasKey(key, clusterKey)
 }
 
-func generateConsumerOffsetKey(partitionKey []byte, offset sandflake.ID, kind sgproto.LastOffsetRequest_Kind) []byte {
+func generateConsumerOffsetKey(partitionKey []byte, offset sandflake.ID, kind sgproto.MarkKind) []byte {
 	return bytes.Join([][]byte{
 		partitionKey,
 		[]byte(offset.String()), // .String() for debugging, remove this later
 		[]byte{byte(kind)},
+	}, []byte{'/'})
+}
+
+func generatePrefixConsumerOffsetKey(partitionKey []byte, offset sandflake.ID) []byte {
+	return bytes.Join([][]byte{
+		partitionKey,
+		[]byte(offset.String()), // .String() for debugging, remove this later
 	}, []byte{'/'})
 }

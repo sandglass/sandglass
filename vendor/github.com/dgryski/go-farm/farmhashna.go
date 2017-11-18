@@ -99,10 +99,10 @@ func hashLen33to64(s []byte) uint64 {
 func naHash64(s []byte) uint64 {
 	slen := len(s)
 	var seed uint64 = 81
-	if slen <= 16 {
-		return hashLen0to16(s)
-	}
 	if slen <= 32 {
+		if slen <= 16 {
+			return hashLen0to16(s)
+		}
 		return hashLen17to32(s)
 	}
 	if slen <= 64 {

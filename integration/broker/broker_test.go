@@ -161,12 +161,12 @@ func TestACK(t *testing.T) {
 	require.True(t, ok)
 
 	got, err := b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
-		sgproto.LastOffsetRequest_Commited)
+		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
 	require.Equal(t, sandflake.Nil, got)
 
 	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
-		sgproto.LastOffsetRequest_Acknowledged)
+		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
 
@@ -176,12 +176,12 @@ func TestACK(t *testing.T) {
 	require.True(t, ok)
 
 	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
-		sgproto.LastOffsetRequest_Commited)
+		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
 	require.Equal(t, offset2, got)
 
 	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
-		sgproto.LastOffsetRequest_Acknowledged)
+		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
 }
@@ -266,10 +266,6 @@ func TestConsume(t *testing.T) {
 	require.Equal(t, 20, count)
 	require.Equal(t, want, got)
 
-	ok, err := b.Commit(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", got)
-	require.True(t, ok)
-	require.Nil(t, err)
-
 	count = 0
 	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
 		count++
@@ -277,6 +273,17 @@ func TestConsume(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, 0, count)
+
+	broker.RedeliveryTimeout = 10 * time.Millisecond // this should trigger redelivery
+	time.Sleep(20 * time.Millisecond)
+
+	count = 0
+	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+		count++
+		return nil
+	})
+	require.Nil(t, err)
+	require.Equal(t, 20, count)
 }
 
 func TestSyncRequest(t *testing.T) {

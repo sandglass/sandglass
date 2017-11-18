@@ -107,16 +107,6 @@ const (
 // DialOption configures how we set up the connection.
 type DialOption func(*dialOptions)
 
-// UseCompressor returns a CallOption which sets the compressor used when sending the request.
-// If WithCompressor is set, UseCompressor has higher priority.
-// This API is EXPERIMENTAL.
-func UseCompressor(name string) CallOption {
-	return beforeCall(func(c *callInfo) error {
-		c.compressorType = name
-		return nil
-	})
-}
-
 // WithWriteBufferSize lets you set the size of write buffer, this determines how much data can be batched
 // before doing a write on the wire.
 func WithWriteBufferSize(s int) DialOption {
@@ -168,18 +158,26 @@ func WithCodec(c Codec) DialOption {
 	}
 }
 
-// WithCompressor returns a DialOption which sets a CompressorGenerator for generating message
-// compressor. It has lower priority than the compressor set by RegisterCompressor.
-// This function is deprecated.
+// WithCompressor returns a DialOption which sets a Compressor to use for
+// message compression. It has lower priority than the compressor set by
+// the UseCompressor CallOption.
+//
+// Deprecated: use UseCompressor instead.
 func WithCompressor(cp Compressor) DialOption {
 	return func(o *dialOptions) {
 		o.cp = cp
 	}
 }
 
-// WithDecompressor returns a DialOption which sets a DecompressorGenerator for generating
-// message decompressor. It has higher priority than the decompressor set by RegisterCompressor.
-// This function is deprecated.
+// WithDecompressor returns a DialOption which sets a Decompressor to use for
+// incoming message decompression.  If incoming response messages are encoded
+// using the decompressor's Type(), it will be used.  Otherwise, the message
+// encoding will be used to look up the compressor registered via
+// encoding.RegisterCompressor, which will then be used to decompress the
+// message.  If no compressor is registered for the encoding, an Unimplemented
+// status error will be returned.
+//
+// Deprecated: use encoding.RegisterCompressor instead.
 func WithDecompressor(dc Decompressor) DialOption {
 	return func(o *dialOptions) {
 		o.dc = dc
@@ -645,8 +643,6 @@ func (cc *ClientConn) handleResolvedAddrs(addrs []resolver.Address, err error) {
 
 // switchBalancer starts the switching from current balancer to the balancer with name.
 func (cc *ClientConn) switchBalancer(name string) {
-	cc.mu.Lock()
-	defer cc.mu.Unlock()
 	if cc.conns == nil {
 		return
 	}
@@ -820,6 +816,9 @@ func (cc *ClientConn) handleServiceConfig(js string) error {
 	cc.mu.Lock()
 	cc.scRaw = js
 	cc.sc = sc
+	if sc.LB != nil {
+		cc.switchBalancer(*sc.LB)
+	}
 	cc.mu.Unlock()
 	return nil
 }
