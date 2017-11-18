@@ -94,6 +94,10 @@ func (c *ConsumerGroup) consumeLoop() {
 
 	if !lastCommited.Equal(from) {
 		group.Go(func() error {
+			var (
+				lastMessage *sgproto.Message
+				committed   = false
+			)
 			return c.broker.FetchRange(context.TODO(), c.topic, c.partition, lastCommited, from, func(m *sgproto.Message) error {
 				msg, err := c.broker.GetMarkStateMessage(context.TODO(), c.topic, c.partition, c.name, "", m.Offset)
 				if err != nil {
@@ -110,6 +114,20 @@ func (c *ConsumerGroup) consumeLoop() {
 						return err
 					}
 				}
+
+				// advance commit offset
+				// if we only got acked messages before
+				if state.Kind != sgproto.MarkKind_Acknowledged {
+					if !committed && lastMessage != nil {
+						// we might commit in a goroutine, we can redo this the next time we consume
+						_, err := c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, "", lastMessage.Offset)
+						if err != nil {
+							c.broker.Debug("unable to commit")
+						}
+					}
+					committed = true
+				}
+				lastMessage = m
 
 				if shouldRedeliver(m.Index, state) {
 					msgCh <- m // deliver
