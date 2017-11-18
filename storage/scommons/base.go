@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	MsgPrefix = []byte("m")
-	WalPrefix = []byte("w")
+	ViewPrefix = []byte("v")
+	WalPrefix  = []byte("w")
 )
 
 type StorageCommons struct {

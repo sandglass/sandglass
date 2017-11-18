@@ -77,13 +77,13 @@ func (t *Partition) getStorageKey(msg *sgproto.Message) []byte {
 	default:
 		panic("INVALID STORAGE KIND: " + t.topic.Kind.String())
 	}
-	return scommons.PrependPrefix(scommons.MsgPrefix, storekey)
+	return scommons.PrependPrefix(scommons.ViewPrefix, storekey)
 }
 
 func (s *Partition) GetMessage(offset sandflake.ID, k, suffix []byte) (*sgproto.Message, error) {
 	switch s.topic.Kind {
 	case sgproto.TopicKind_TimerKind:
-		val, err := s.db.Get(scommons.PrependPrefix(scommons.MsgPrefix, offset[:]))
+		val, err := s.db.Get(scommons.PrependPrefix(scommons.ViewPrefix, offset[:]))
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +96,7 @@ func (s *Partition) GetMessage(offset sandflake.ID, k, suffix []byte) (*sgproto.
 
 		return &msg, nil
 	case sgproto.TopicKind_CompactedKind:
-		val := s.db.LastKVForPrefix(scommons.PrependPrefix(scommons.MsgPrefix, k), suffix)
+		val := s.db.LastKVForPrefix(scommons.PrependPrefix(scommons.ViewPrefix, k), suffix)
 		if val == nil {
 			return nil, nil
 		}
@@ -148,7 +148,7 @@ func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 	}
 
 	pk := joinKeys(key, clusterKey)
-	existKey := scommons.PrependPrefix(scommons.MsgPrefix, pk)
+	existKey := scommons.PrependPrefix(scommons.ViewPrefix, pk)
 
 	if t.ibf.Test(existKey) {
 		return true, nil

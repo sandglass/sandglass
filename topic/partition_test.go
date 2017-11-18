@@ -102,7 +102,7 @@ func TestLastMessage(t *testing.T) {
 	gotKey := p.LastWALEntry()
 	require.Nil(t, err)
 	require.NotNil(t, gotKey)
-	require.Equal(t, string(key), string(gotKey[len(scommons.WalPrefix)+1+sandflake.Size+1+len(scommons.MsgPrefix)+1:]))
+	require.Equal(t, string(key), string(gotKey[len(scommons.WalPrefix)+1+sandflake.Size+1+len(scommons.ViewPrefix)+1:]))
 
 	gotMsg, err := p.LastMessage()
 	require.Nil(t, err)
