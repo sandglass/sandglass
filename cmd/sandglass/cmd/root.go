@@ -44,6 +44,12 @@ var (
 	sandglassColor = color.New(color.Bold, color.FgHiGreen).SprintfFunc()
 )
 
+var (
+	Version = "dev"
+	Commit  = "none"
+	Date    = "unknown"
+)
+
 var cfgFile string
 
 // RootCmd represents the base command when called without any subcommands
@@ -163,8 +169,6 @@ func init() {
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "bootstrap_raft")
 	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "Bootstrap raft")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "verbose")
-
-	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -191,8 +195,6 @@ func initConfig() {
 	} else {
 		if err := viper.ReadInConfig(); err == nil {
 			fmt.Println(infoColor("Using config file: %s", viper.ConfigFileUsed()))
-		} else {
-			fmt.Println("err", err)
 		}
 	}
 }

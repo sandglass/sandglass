@@ -12,19 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package cmd
 
-import "github.com/celrenheit/sandglass/cmd/sandctl/cmd"
+import (
+	"fmt"
 
-var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
+	"github.com/celrenheit/sandglass/cmd/cmdcommon"
+	"github.com/spf13/cobra"
 )
 
-func main() {
-	cmd.Version = version
-	cmd.Commit = commit
-	cmd.Date = date
-	cmd.Execute()
+// versionCmd represents the version command
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "display sandglass versions",
+	Long:  `display sandglass versions`,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println(cmdcommon.DisplayVersion("sandglass", Version, Commit, Date))
+	},
+}
+
+func init() {
+	RootCmd.AddCommand(versionCmd)
 }

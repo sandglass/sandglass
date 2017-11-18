@@ -34,6 +34,12 @@ var (
 	cli     *client.Client
 )
 
+var (
+	Version = "dev"
+	Commit  = "none"
+	Date    = "unknown"
+)
+
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "sandctl",
@@ -49,8 +55,10 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	if err := cli.Close(); err != nil {
-		log.Fatalf("error while closing connection: %v", err)
+	if cli != nil {
+		if err := cli.Close(); err != nil {
+			log.Fatalf("error while closing connection: %v", err)
+		}
 	}
 }
 
