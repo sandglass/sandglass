@@ -153,6 +153,7 @@ message HasResponse {
 
 message MarkState {
     MarkKind kind = 1;
+    int32 deliveryCount = 2;
 }
 
 service BrokerService {
