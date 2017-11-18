@@ -273,6 +273,17 @@ func TestConsume(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, 0, count)
+
+	broker.RedeliveryTimeout = 10 * time.Millisecond // this should trigger redelivery
+	time.Sleep(20 * time.Millisecond)
+
+	count = 0
+	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+		count++
+		return nil
+	})
+	require.Nil(t, err)
+	require.Equal(t, 20, count)
 }
 
 func TestSyncRequest(t *testing.T) {

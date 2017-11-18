@@ -15,6 +15,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var (
+	RedeliveryTimeout = 10 * time.Second
+)
+
 type ConsumerGroup struct {
 	broker    *Broker
 	topic     string
@@ -78,7 +82,6 @@ func (c *ConsumerGroup) consumeLoop() {
 		c.broker.Debug("got error when fetching last committed offset: %v ", err)
 		return
 	}
-	var _ = lastCommited // TODO: advance comitted cursor
 
 	from, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.MarkKind_Consumed)
 	if err != nil {
@@ -92,11 +95,6 @@ func (c *ConsumerGroup) consumeLoop() {
 	if !lastCommited.Equal(from) {
 		group.Go(func() error {
 			return c.broker.FetchRange(context.TODO(), c.topic, c.partition, lastCommited, from, func(m *sgproto.Message) error {
-				// skip the first if it is the same as the starting point
-				if from == m.Offset {
-					return nil
-				}
-
 				msg, err := c.broker.GetMarkStateMessage(context.TODO(), c.topic, c.partition, c.name, "", m.Offset)
 				if err != nil {
 					s, ok := status.FromError(err)
@@ -105,13 +103,28 @@ func (c *ConsumerGroup) consumeLoop() {
 					}
 				}
 
-				redeliver, err := shouldRedeliver(msg)
-				if err != nil {
-					return err
+				var state sgproto.MarkState
+				if msg != nil {
+					err := proto.Unmarshal(msg.Value, &state)
+					if err != nil {
+						return err
+					}
 				}
 
-				if redeliver {
-					msgCh <- m
+				if shouldRedeliver(m.Index, state) {
+					msgCh <- m // deliver
+
+					if state.Kind != sgproto.MarkKind_Unknown {
+						state.DeliveryCount++
+						msg.Value, err = proto.Marshal(&state)
+						if err != nil {
+							return err
+						}
+
+						if _, err := c.broker.PublishMessage(context.TODO(), msg); err != nil {
+							return err
+						}
+					}
 				}
 
 				return nil
@@ -176,29 +189,19 @@ loop:
 	}
 }
 
-func shouldRedeliver(msg *sgproto.Message) (bool, error) {
-	if msg == nil {
-		return false, nil
-	}
-
-	var state sgproto.MarkState
-	err := proto.Unmarshal(msg.Value, &state)
-	if err != nil {
-		return false, err
-	}
-
+func shouldRedeliver(index sandflake.ID, state sgproto.MarkState) bool {
 	switch state.Kind {
 	case sgproto.MarkKind_NotAcknowledged:
-		return true, nil
-	case sgproto.MarkKind_Consumed: // inflight
-		return msg.Index.Time().Add(10 * time.Second).Before(time.Now().UTC()), nil
+		return true
+	case sgproto.MarkKind_Consumed, sgproto.MarkKind_Unknown: // inflight
+		return index.Time().Add(RedeliveryTimeout).Before(time.Now().UTC())
 	case sgproto.MarkKind_Acknowledged, sgproto.MarkKind_Commited:
-		return false, nil
+		return false
 	default:
 		panic("unknown markkind: " + state.Kind.String())
 	}
 
-	return false, nil
+	return false
 }
 
 func (c *ConsumerGroup) removeConsumer(name string) bool {
