@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass/storage"
 )
 
 func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGroup, consumerName string, fn func(msg *sgproto.Message) error) error {
@@ -80,7 +81,7 @@ func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGrou
 }
 
 func (b *Broker) getConsumerGroup(topicName, partition string, name string) *ConsumerGroup {
-	key := strings.Join([]string{topicName, partition, name}, "/")
+	key := strings.Join([]string{topicName, partition, name}, string(storage.Separator))
 	c := b.getConsumer(key)
 	if c != nil {
 		return c

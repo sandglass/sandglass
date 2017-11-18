@@ -104,15 +104,15 @@ func (t *Topic) ChoosePartitionForKey(key []byte) *Partition {
 }
 
 func (t *Topic) ChoosePartition(msg *sgproto.Message) *Partition {
-	var id string
+	var id []byte
 	switch t.Kind {
 	case sgproto.TopicKind_TimerKind:
-		id = msg.Offset.String()
+		id = msg.Offset.Bytes()
 	case sgproto.TopicKind_CompactedKind:
-		id = string(msg.Key)
+		id = msg.Key
 	}
 
-	idx := sgutils.HashString(id, len(t.Partitions))
+	idx := sgutils.Hash(id, len(t.Partitions))
 	return t.Partitions[idx]
 }
 

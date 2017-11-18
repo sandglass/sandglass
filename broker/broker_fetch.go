@@ -10,6 +10,7 @@ import (
 
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/topic"
 	"github.com/grpc/grpc-go/status"
 	"golang.org/x/sync/errgroup"
@@ -201,14 +202,14 @@ func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.P
 func generateConsumerOffsetKey(partitionKey []byte, offset sandflake.ID, kind sgproto.MarkKind) []byte {
 	return bytes.Join([][]byte{
 		partitionKey,
-		[]byte(offset.String()), // .String() for debugging, remove this later
+		offset.Bytes(),
 		[]byte{byte(kind)},
-	}, []byte{'/'})
+	}, storage.Separator)
 }
 
 func generatePrefixConsumerOffsetKey(partitionKey []byte, offset sandflake.ID) []byte {
 	return bytes.Join([][]byte{
 		partitionKey,
-		[]byte(offset.String()), // .String() for debugging, remove this later
-	}, []byte{'/'})
+		offset.Bytes(),
+	}, storage.Separator)
 }

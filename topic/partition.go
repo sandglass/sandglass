@@ -171,7 +171,7 @@ func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 }
 
 func (t *Partition) newWALKey(index sandflake.ID, key []byte) []byte {
-	return bytes.Join([][]byte{scommons.WalPrefix, index.Bytes(), key}, []byte("/"))
+	return bytes.Join([][]byte{scommons.WalPrefix, index.Bytes(), key}, storage.Separator)
 }
 
 func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
@@ -314,5 +314,5 @@ func joinKeys(key, clusterKey []byte) []byte {
 	return bytes.Join([][]byte{
 		key,
 		clusterKey,
-	}, []byte{'/'})
+	}, storage.Separator)
 }

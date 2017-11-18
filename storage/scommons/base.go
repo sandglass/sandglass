@@ -118,5 +118,5 @@ func (s *StorageCommons) ForEachKey(min []byte, fn func(k []byte) error) error {
 }
 
 func PrependPrefix(prefix, key []byte) []byte {
-	return bytes.Join([][]byte{prefix, key}, []byte("/"))
+	return bytes.Join([][]byte{prefix, key}, storage.Separator)
 }

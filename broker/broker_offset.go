@@ -12,6 +12,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/topic"
 )
 
@@ -230,12 +231,12 @@ func partitionKey(topicName, partitionName, consumerGroup, consumerName string) 
 		[]byte(partitionName),
 		[]byte(consumerGroup),
 		// []byte(consumerName),
-	}, []byte{'/'})
+	}, storage.Separator)
 }
 
 func generateClusterKey(offset sandflake.ID, kind sgproto.MarkKind) []byte {
 	return bytes.Join([][]byte{
-		[]byte(offset.String()), // .String() for debugging, remove this later
+		offset.Bytes(),
 		[]byte{byte(kind)},
-	}, []byte{'/'})
+	}, storage.Separator)
 }
