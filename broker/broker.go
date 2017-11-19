@@ -46,18 +46,19 @@ func init() {
 }
 
 type Config struct {
-	Name          string      `yaml:"name,omitempty"`
-	DCName        string      `yaml:"dc_name,omitempty"`
-	BindAddr      string      `yaml:"bind_addr,omitempty"`
-	AdvertiseAddr string      `yaml:"advertise_addr,omitempty"`
-	DBPath        string      `yaml:"db_path,omitempty"`
-	GossipPort    string      `yaml:"gossip_port,omitempty"`
-	HTTPPort      string      `yaml:"http_port,omitempty"`
-	GRPCPort      string      `yaml:"grpc_port,omitempty"`
-	RaftPort      string      `yaml:"raft_port,omitempty"`
-	InitialPeers  []string    `yaml:"initial_peers,omitempty"`
-	BootstrapRaft bool        `yaml:"bootstrap_raft,omitempty"`
-	LoggingLevel  *logy.Level `yaml:"-"`
+	Name                    string      `yaml:"name,omitempty"`
+	DCName                  string      `yaml:"dc_name,omitempty"`
+	BindAddr                string      `yaml:"bind_addr,omitempty"`
+	AdvertiseAddr           string      `yaml:"advertise_addr,omitempty"`
+	DBPath                  string      `yaml:"db_path,omitempty"`
+	GossipPort              string      `yaml:"gossip_port,omitempty"`
+	HTTPPort                string      `yaml:"http_port,omitempty"`
+	GRPCPort                string      `yaml:"grpc_port,omitempty"`
+	RaftPort                string      `yaml:"raft_port,omitempty"`
+	InitialPeers            []string    `yaml:"initial_peers,omitempty"`
+	BootstrapRaft           bool        `yaml:"bootstrap_raft,omitempty"`
+	LoggingLevel            *logy.Level `yaml:"-"`
+	OffsetReplicationFactor int         `yaml:"-"`
 }
 
 type Broker struct {

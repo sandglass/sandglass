@@ -49,10 +49,11 @@ func (b *Broker) monitorLeadership() error {
 							Name:              ConsumerOffsetTopicName,
 							Kind:              sgproto.TopicKind_KVKind,
 							NumPartitions:     50,
-							ReplicationFactor: 3,
+							ReplicationFactor: int32(b.conf.OffsetReplicationFactor),
 							// StorageDriver:     sgproto.StorageDriver_Badger,
 						})
 						if err != nil {
+							b.Debug("error while creating %v topic err=%v", ConsumerOffsetTopicName, err)
 							return err
 						}
 						return nil
@@ -60,7 +61,7 @@ func (b *Broker) monitorLeadership() error {
 
 					err := backoff.Retry(operation, backoff.NewExponentialBackOff())
 					if err != nil {
-						b.Fatal("error while creating %v topic err=%v", ConsumerOffsetTopicName, err)
+						b.Fatal("backoff error while creating %v topic err=%v", ConsumerOffsetTopicName, err)
 					}
 				}
 				b.rearrangePartitionsLeadership()

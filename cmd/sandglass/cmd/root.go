@@ -59,16 +59,17 @@ var RootCmd = &cobra.Command{
 	Long:  `Launch the server`,
 	Run: func(cmd *cobra.Command, args []string) {
 		conf := broker.Config{
-			Name:          viper.GetString("name"),
-			BindAddr:      viper.GetString("bind_addr"),
-			AdvertiseAddr: viper.GetString("advertise_addr"),
-			DBPath:        viper.GetString("db_path"),
-			GossipPort:    viper.GetString("gossip_port"),
-			HTTPPort:      viper.GetString("http_port"),
-			GRPCPort:      viper.GetString("grpc_port"),
-			RaftPort:      viper.GetString("raft_port"),
-			InitialPeers:  viper.GetStringSlice("initial_peers"),
-			BootstrapRaft: viper.GetBool("bootstrap_raft"),
+			Name:                    viper.GetString("name"),
+			BindAddr:                viper.GetString("bind_addr"),
+			AdvertiseAddr:           viper.GetString("advertise_addr"),
+			DBPath:                  viper.GetString("db_path"),
+			GossipPort:              viper.GetString("gossip_port"),
+			HTTPPort:                viper.GetString("http_port"),
+			GRPCPort:                viper.GetString("grpc_port"),
+			RaftPort:                viper.GetString("raft_port"),
+			InitialPeers:            viper.GetStringSlice("initial_peers"),
+			BootstrapRaft:           viper.GetBool("bootstrap_raft"),
+			OffsetReplicationFactor: viper.GetInt("offset_replication_factor"),
 		}
 
 		if viper.GetBool("verbose") {
@@ -169,6 +170,8 @@ func init() {
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "bootstrap_raft")
 	RootCmd.PersistentFlags().BoolP("verbose", "v", false, "Bootstrap raft")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "verbose")
+	RootCmd.PersistentFlags().Int("offset_replication_factor", 3, "Bootstrap raft")
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "offset_replication_factor")
 }
 
 // initConfig reads in config file and ENV variables if set.
