@@ -69,15 +69,6 @@ func (t *Topic) initPartition(p *Partition) error {
 	return nil
 }
 
-func (t *Topic) AddPartition(p *Partition) error {
-	err := t.initPartition(p)
-	if err != nil {
-		return err
-	}
-	t.Partitions = append(t.Partitions, p)
-	return nil
-}
-
 func (t *Topic) ListPartitions() []*Partition { return t.Partitions }
 
 func (t *Topic) GetPartition(id string) *Partition {
@@ -178,14 +169,4 @@ func (t *Topic) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Message) er
 	}
 
 	return group.Wait()
-}
-
-func (t *Topic) getPartition(id string) *Partition {
-	for _, p := range t.Partitions {
-		if p.Id == id {
-			return p
-		}
-	}
-
-	return nil
 }

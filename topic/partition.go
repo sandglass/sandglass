@@ -113,33 +113,6 @@ func (s *Partition) GetMessage(offset sandflake.ID, k, suffix []byte) (*sgproto.
 	}
 }
 
-func (t *Partition) PutMessage(msg *sgproto.Message) error {
-	storagekey := t.getStorageKey(msg)
-	if msg.Index == sandflake.Nil {
-		msg.Index = t.NextID()
-	}
-
-	val, err := proto.Marshal(msg)
-	if err != nil {
-		return err
-	}
-
-	entries := []*storage.Entry{
-		{Key: storagekey, Value: val},                                 // msg
-		{Key: t.newWALKey(msg.Index, storagekey), Value: []byte("X")}, // wal
-	}
-
-	err = t.db.BatchPut(entries)
-	if err != nil {
-		return err
-	}
-
-	t.bf.Add(storagekey)
-	t.ibf.Add(storagekey)
-
-	return nil
-}
-
 func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 	switch t.topic.Kind {
 	case sgproto.TopicKind_KVKind:
@@ -174,8 +147,17 @@ func (t *Partition) newWALKey(index sandflake.ID, key []byte) []byte {
 	return bytes.Join([][]byte{scommons.WalPrefix, index.Bytes(), key}, storage.Separator)
 }
 
+func (t *Partition) PutMessage(msg *sgproto.Message) error {
+	return t.BatchPutMessages([]*sgproto.Message{msg})
+}
+
 func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
-	entries := make([]*storage.Entry, len(msgs))
+	if len(msgs) == 0 {
+		return nil
+	}
+
+	dataEntries := make([]*storage.Entry, len(msgs))
+	walEntries := make([]*storage.Entry, len(msgs))
 	for i, msg := range msgs {
 		if msg.Offset == sandflake.Nil {
 			return ErrNoKeySet
@@ -190,25 +172,19 @@ func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
 		}
 		t.bf.Add(storagekey)
 		t.ibf.Add(storagekey)
-		entries[i] = &storage.Entry{
+		dataEntries[i] = &storage.Entry{
 			Key:   storagekey,
+			Value: val,
+		}
+		walEntries[i] = &storage.Entry{
+			Key:   t.newWALKey(msg.Index, storagekey),
 			Value: val,
 		}
 	}
 
-	if len(entries) == 0 {
-		return nil
-	}
-
-	err := t.db.BatchPut(entries)
-	if err != nil {
-		return err
-	}
-
-	for i, e := range entries {
-		e.Key = t.newWALKey(msgs[i].Index, e.Key)
-		e.Value = nil
-	}
+	entries := make([]*storage.Entry, 2*len(msgs))
+	copy(entries[:len(msgs)], dataEntries)
+	copy(entries[len(msgs):], walEntries)
 
 	return t.db.BatchPut(entries)
 }
@@ -278,17 +254,17 @@ func (p *Partition) LastWALEntry() []byte {
 }
 
 func (p *Partition) LastMessage() (*sgproto.Message, error) {
-	key := p.db.LastKeyForPrefix(scommons.WalPrefix)
-	if key == nil {
+	value := p.db.LastKVForPrefix(scommons.WalPrefix, nil)
+	if len(value) == 0 {
 		return nil, nil
 	}
 
-	if len(key) == 0 {
-		panic("empty wal key")
+	var msg sgproto.Message
+	if err := proto.Unmarshal(value, &msg); err != nil {
+		return nil, err
 	}
 
-	key = key[len(scommons.WalPrefix)+1+sandflake.Size+1:]
-	return p.getMessageByStorageKey(key)
+	return &msg, nil
 }
 
 func (p *Partition) getMessageByStorageKey(k []byte) (*sgproto.Message, error) {

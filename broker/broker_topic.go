@@ -55,15 +55,6 @@ func (b *Broker) watchTopic() error {
 	}
 }
 
-func (b *Broker) setupTopic(topic *topic.Topic) error {
-	err := topic.InitStore(b.conf.DBPath)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicParams) error {
 	if params.Name == "" {
 		return ErrInvalidTopicName
