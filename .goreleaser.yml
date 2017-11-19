@@ -3,7 +3,7 @@ project_name: sandglass
 builds:
   - main: cmd/sandglass/main.go
     binary: sandglass
-    ldflags: -extldflags "-static"
+    ldflags: -extldflags "-static" -X main.version={{.Version}} -X main.tag={{.Tag}} -X main.date={{.Date}} -X main.commit={{.Commit}}
     flags: -a -tags netgo
     goos:
       - windows
@@ -13,7 +13,7 @@ builds:
       - amd64
   - main: cmd/sandctl/main.go
     binary: sandctl
-    ldflags: -extldflags "-static"
+    ldflags: -extldflags "-static" -X main.version={{.Version}} -X main.tag={{.Tag}} -X main.date={{.Date}} -X main.commit={{.Commit}}
     flags: -a -tags netgo
     goos:
       - windows
