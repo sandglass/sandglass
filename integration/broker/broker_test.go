@@ -21,10 +21,10 @@ import (
 	"os"
 
 	"github.com/celrenheit/sandflake"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/broker"
 	"github.com/celrenheit/sandglass/logy"
 	"github.com/celrenheit/sandglass/server"
-	"github.com/celrenheit/sandglass/sgproto"
 	"github.com/stretchr/testify/require"
 )
 

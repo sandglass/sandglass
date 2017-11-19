@@ -27,7 +27,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/celrenheit/sandflake"
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/spf13/cobra"
 )
 

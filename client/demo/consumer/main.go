@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/celrenheit/sandflake"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/client"
-	"github.com/celrenheit/sandglass/sgproto"
 )
 
 func main() {

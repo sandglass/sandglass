@@ -2,7 +2,7 @@ package storage
 
 import (
 	"github.com/celrenheit/sandflake"
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 )
 
 type Iterator interface {

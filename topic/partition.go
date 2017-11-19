@@ -9,7 +9,8 @@ import (
 	"github.com/tylertreat/BoomFilters"
 
 	"github.com/celrenheit/sandflake"
-	"github.com/celrenheit/sandglass/sgproto"
+
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/sgutils"
 	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/storage/badger"

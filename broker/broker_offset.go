@@ -11,7 +11,7 @@ import (
 	"github.com/celrenheit/sandflake"
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/topic"
 )

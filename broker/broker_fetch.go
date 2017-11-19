@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/celrenheit/sandflake"
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/topic"
 	"github.com/grpc/grpc-go/status"

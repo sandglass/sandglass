@@ -11,7 +11,7 @@ import (
 	"github.com/celrenheit/sandflake"
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"golang.org/x/sync/errgroup"
 )
 

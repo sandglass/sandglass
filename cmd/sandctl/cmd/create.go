@@ -25,7 +25,7 @@ import (
 
 	"github.com/celrenheit/sandglass/cmd/cmdcommon"
 
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/spf13/cobra"
 )
 

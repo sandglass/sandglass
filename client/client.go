@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"google.golang.org/grpc"
 )
 

@@ -27,7 +27,7 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/celrenheit/sandglass/logy"
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/topic"
 	"github.com/celrenheit/sandglass/watchy"
 )
