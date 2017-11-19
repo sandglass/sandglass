@@ -130,25 +130,26 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicPar
 		return fmt.Errorf("timed out creating topic: %v", t.Name)
 	}
 
-	qry, err := b.cluster.Query("wait-for-topic", []byte(t.Name), &serf.QueryParam{})
-	if err != nil {
-		return err
-	}
-	defer qry.Close()
+	if t.ReplicationFactor > 1 {
+		qry, err := b.cluster.Query("wait-for-topic", []byte(t.Name), &serf.QueryParam{})
+		if err != nil {
+			return err
+		}
+		defer qry.Close()
 
-	members := t.ReplicationFactor
-	acks := 0
-	for !qry.Finished() {
-		resp := <-qry.ResponseCh()
-		if len(resp.Payload) > 0 {
-			acks++
+		members := t.ReplicationFactor
+		acks := 0
+		for !qry.Finished() {
+			resp := <-qry.ResponseCh()
+			if len(resp.Payload) > 0 {
+				acks++
+			}
+		}
+
+		if acks < ((members / 2) + 1) {
+			return fmt.Errorf("unable to have quorum")
 		}
 	}
-
-	if acks < ((members / 2) + 1) {
-		return fmt.Errorf("unable to have quorum")
-	}
-
 	return nil
 }
 
