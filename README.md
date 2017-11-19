@@ -30,7 +30,7 @@ For other platforms, you can grab binaries [here](https://github.com/celrenheit/
 First, let's launch sandglass server:
 
 ```shell
-$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node1.yaml
+$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node1.yaml --offset_replication_factor 1
 ```
 
 In a second terminal window, create a _emails_ topic:
