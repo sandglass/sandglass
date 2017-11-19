@@ -547,17 +547,18 @@ var logger = log.New(os.Stdout, "", log.LstdFlags)
 func newBroker(tb testing.TB, i int, dc, bind_addr, adv_addr, gossip_port, grpc_port, http_port, raft_port, basepath string) *broker.Broker {
 	lvl := logy.INFO
 	conf := &broker.Config{
-		Name:          "broker" + strconv.Itoa(i),
-		DCName:        dc,
-		BindAddr:      bind_addr,
-		AdvertiseAddr: adv_addr,
-		DBPath:        basepath,
-		GossipPort:    gossip_port,
-		GRPCPort:      grpc_port,
-		HTTPPort:      http_port,
-		RaftPort:      raft_port,
-		BootstrapRaft: i == 0,
-		LoggingLevel:  &lvl,
+		Name:                    "broker" + strconv.Itoa(i),
+		DCName:                  dc,
+		BindAddr:                bind_addr,
+		AdvertiseAddr:           adv_addr,
+		DBPath:                  basepath,
+		GossipPort:              gossip_port,
+		GRPCPort:                grpc_port,
+		HTTPPort:                http_port,
+		RaftPort:                raft_port,
+		BootstrapRaft:           i == 0,
+		LoggingLevel:            &lvl,
+		OffsetReplicationFactor: 2,
 	}
 	fmt.Printf("conf: %+v\n", conf)
 	fmt.Printf("basepath: %+v\n", basepath)
