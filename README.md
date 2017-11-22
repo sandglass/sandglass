@@ -1,6 +1,22 @@
-# Sandglass [![Build Status](https://img.shields.io/travis/celrenheit/sandglass.svg?style=flat-square)](https://travis-ci.org/celrenheit/sandglass) [![GoDoc](https://img.shields.io/badge/godoc-reference-5272B4.svg?style=flat-square)](https://godoc.org/github.com/celrenheit/sandglass/broker) [![License](https://img.shields.io/badge/license-apache-blue.svg?style=flat-square)](LICENSE) [![Go Report Card](https://goreportcard.com/badge/github.com/celrenheit/sandglass?style=flat-square)](https://goreportcard.com/report/github.com/celrenheit/sandglass)
-
+<p align="center">
+  <img alt="Sandglass Logo" src="https://raw.githubusercontent.com/celrenheit/gifs/master/sandglass/brand%2Blogo-sm.png"  />
+</p>
+<p align="center">
 Sandglass is a distributed, horizontally scalable, persistent, time ordered message queue. It was developed to support asynchronous tasks and message scheduling which makes it suitable for usage as a task queue.
+</p>
+
+<p align="center">
+    <a href="https://github.com/celrenheit/sandglass/releases/latest">
+        <img alt="Release" src="https://img.shields.io/github/release/celrenheit/sandglass.svg?style=flat-square">
+    </a>
+    <a href="https://travis-ci.org/celrenheit/sandglass">
+        <img alt="Build Status" src="https://img.shields.io/travis/celrenheit/sandglass.svg?style=flat-square">
+    </a>
+    <a href="LICENSE">
+        <img alt="License" src="https://img.shields.io/badge/license-apache-blue.svg?style=flat-square">
+    </a>
+</p>
+
 
 ## Features
 
