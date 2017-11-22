@@ -53,7 +53,7 @@ var consumeCmd = &cobra.Command{
 		msgCh := make(chan *sgproto.Message)
 		if cmd.Flag("partition").Changed {
 			group.Go(func() error {
-				consume(msgCh, topic, viper.GetString("partition"), consumerGroup, consumerName, viper.GetBool("follow"), viper.GetBool("commit"))
+				consume(msgCh, topic, viper.GetString("partition"), consumerGroup, consumerName, viper.GetBool("follow"), viper.GetBool("ack"))
 				return nil
 			})
 		} else {
@@ -65,7 +65,7 @@ var consumeCmd = &cobra.Command{
 			for _, part := range partitions {
 				part := part
 				group.Go(func() error {
-					consume(msgCh, topic, part, consumerGroup, consumerName, viper.GetBool("follow"), viper.GetBool("commit"))
+					consume(msgCh, topic, part, consumerGroup, consumerName, viper.GetBool("follow"), viper.GetBool("ack"))
 					return nil
 				})
 			}
@@ -92,7 +92,7 @@ func init() {
 	consumeCmd.Flags().String("consumer-name", "", "Consumer name (default: random)")
 	consumeCmd.Flags().Duration("poll-interval", 50*time.Millisecond, "Poll interval")
 	consumeCmd.Flags().BoolP("follow", "f", false, "Consumer name (default: random)")
-	consumeCmd.Flags().Bool("commit", true, "Commit after consumption")
+	consumeCmd.Flags().Bool("ack", true, "Ack messages (batching 10k messages)")
 
 	cmdcommon.BindViper(consumeCmd.Flags(),
 		"partition",
@@ -100,11 +100,11 @@ func init() {
 		"consumer-name",
 		"poll-interval",
 		"follow",
-		"commit",
+		"ack",
 	)
 }
 
-func consume(msgCh chan *sgproto.Message, topic, partition, group, name string, follow, commit bool) {
+func consume(msgCh chan *sgproto.Message, topic, partition, group, name string, follow, ack bool) {
 	ctx := context.Background()
 	consumer := cli.NewConsumer(topic, partition, group, name)
 
@@ -117,9 +117,11 @@ FOLLOW:
 	var msg *sgproto.Message
 	offsets := []sandflake.ID{}
 	for msg = range consumeCh {
-		offsets = append(offsets, msg.Offset)
+		if ack {
+			offsets = append(offsets, msg.Offset)
+		}
 		msgCh <- msg
-		if len(offsets) == 1000 {
+		if ack && len(offsets) == 1000 {
 			err = consumer.AcknowledgeMessages(context.Background(), offsets)
 			if err != nil {
 				panic(err)
@@ -129,13 +131,8 @@ FOLLOW:
 		}
 	}
 
-	err = consumer.AcknowledgeMessages(context.Background(), offsets)
-	if err != nil {
-		panic(err)
-	}
-
-	if msg != nil && commit {
-		err := consumer.Commit(ctx, msg)
+	if ack && len(offsets) > 0 {
+		err = consumer.AcknowledgeMessages(context.Background(), offsets)
 		if err != nil {
 			panic(err)
 		}
