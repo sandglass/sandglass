@@ -20,6 +20,7 @@ func (b *Broker) Acknowledge(ctx context.Context, topicName, partitionName, cons
 	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.MarkKind_Acknowledged)
 }
 
+// FIXME: share same code between AcknowledgeMessages a AcknowledgeMessage
 func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets []sandflake.ID) error {
 	topic := b.getTopic(ConsumerOffsetTopicName)
 	p := topic.ChoosePartitionForKey(partitionKey(topicName, partitionName, consumerGroup, consumerName))
@@ -49,13 +50,22 @@ func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionNa
 
 	msgs := []*sgproto.Message{}
 	for _, offset := range offsets {
+		state := &sgproto.MarkState{
+			Kind: sgproto.MarkKind_Acknowledged,
+		}
+
+		value, err := proto.Marshal(state)
+		if err != nil {
+			return err
+		}
+
 		msgs = append(msgs, &sgproto.Message{
 			Topic:         ConsumerOffsetTopicName,
 			Partition:     p.Id,
 			Offset:        offset,
 			Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
 			ClusteringKey: generateClusterKey(offset, sgproto.MarkKind_Acknowledged),
-			Value:         []byte{byte(sgproto.MarkKind_Acknowledged)},
+			Value:         value,
 		})
 	}
 
