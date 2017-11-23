@@ -27,6 +27,12 @@
 			"revisionTime": "2017-11-14T22:55:05Z"
 		},
 		{
+			"checksumSHA1": "u23DUEiD/Pr3zl2yrc5Okims2r4=",
+			"path": "github.com/celrenheit/sandglass-client/go/sg",
+			"revision": "e0d13f1e93aca4de634b6069c77f26fbdebe6185",
+			"revisionTime": "2017-11-23T21:36:37Z"
+		},
+		{
 			"checksumSHA1": "eUMYhy446KGCUIt0P9OaOLCOmdo=",
 			"path": "github.com/celrenheit/sandglass-grpc/go/sgproto",
 			"revision": "5d04631133dd8230ad23e1e03eda1d87f43e14b0",
