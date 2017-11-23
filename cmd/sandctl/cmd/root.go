@@ -20,8 +20,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/celrenheit/sandglass/client"
-
+	"github.com/celrenheit/sandglass-client/go/sg"
 	"github.com/celrenheit/sandglass/cmd/cmdcommon"
 
 	homedir "github.com/mitchellh/go-homedir"
@@ -31,7 +30,7 @@ import (
 
 var (
 	cfgFile string
-	cli     *client.Client
+	cli     *sg.Client
 )
 
 var (
@@ -106,8 +105,8 @@ func initConfig() {
 
 func createConnection() {
 	var err error
-	cli, err = client.New(
-		client.WithAddresses(viper.GetStringSlice("addrs")...),
+	cli, err = sg.NewClient(
+		sg.WithAddresses(viper.GetStringSlice("addrs")...),
 	)
 	if err != nil {
 		log.Fatal(err)
