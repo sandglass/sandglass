@@ -3,6 +3,8 @@ package sg
 import (
 	"context"
 
+	"google.golang.org/grpc/metadata"
+
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"google.golang.org/grpc"
 )
@@ -75,13 +77,23 @@ func (c *Client) ListPartitions(ctx context.Context, topic string) ([]string, er
 	return res.Partitions, nil
 }
 
-func (c *Client) ProduceMessage(ctx context.Context, msg *sgproto.Message) error {
-	_, err := c.client.Publish(ctx, msg)
+func (c *Client) ProduceMessage(ctx context.Context, topic, partition string, msg *sgproto.Message) error {
+	_, err := c.client.Publish(ctx, &sgproto.ProduceMessageRequest{
+		Topic:     topic,
+		Partition: partition,
+		Messages:  []*sgproto.Message{msg},
+	})
 	return err
 }
 
-func (c *Client) ProduceMessageCh(ctx context.Context) (chan<- *sgproto.Message, <-chan error) {
+func (c *Client) ProduceMessageCh(ctx context.Context, topic, partition string) (chan<- *sgproto.Message, <-chan error) {
 	errCh := make(chan error, 1)
+
+	md := metadata.MD{}
+	md["topic"] = []string{topic}
+	md["partition"] = []string{partition}
+	ctx = metadata.NewOutgoingContext(ctx, md)
+
 	stream, err := c.client.PublishMessagesStream(ctx)
 	if err != nil {
 		errCh <- err
