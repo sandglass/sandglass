@@ -107,10 +107,10 @@ func (t *Topic) ChoosePartition(msg *sgproto.Message) *Partition {
 	return t.Partitions[idx]
 }
 
-func (t *Topic) PutMessage(msg *sgproto.Message) error {
+func (t *Topic) PutMessage(partition string, msg *sgproto.Message) error {
 	var p *Partition
-	if msg.Partition != "" {
-		p = t.GetPartition(msg.Partition)
+	if partition != "" {
+		p = t.GetPartition(partition)
 	} else {
 		p = t.ChoosePartition(msg)
 	}

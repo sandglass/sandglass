@@ -48,7 +48,10 @@ func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionNa
 		return nil
 	}
 
-	msgs := []*sgproto.Message{}
+	produceRequest := &sgproto.ProduceMessageRequest{
+		Topic:     ConsumerOffsetTopicName,
+		Partition: p.Id,
+	}
 	for _, offset := range offsets {
 		state := &sgproto.MarkState{
 			Kind: sgproto.MarkKind_Acknowledged,
@@ -59,9 +62,7 @@ func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionNa
 			return err
 		}
 
-		msgs = append(msgs, &sgproto.Message{
-			Topic:         ConsumerOffsetTopicName,
-			Partition:     p.Id,
+		produceRequest.Messages = append(produceRequest.Messages, &sgproto.Message{
 			Offset:        offset,
 			Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
 			ClusteringKey: generateClusterKey(offset, sgproto.MarkKind_Acknowledged),
@@ -69,7 +70,8 @@ func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionNa
 		})
 	}
 
-	return b.PublishMessages(ctx, msgs)
+	_, err := b.Publish(ctx, produceRequest)
+	return err
 }
 
 func (b *Broker) Commit(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
@@ -126,13 +128,17 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 		return false, err
 	}
 
-	res, err := b.PublishMessage(ctx, &sgproto.Message{
-		Topic:         ConsumerOffsetTopicName,
-		Partition:     p.Id,
-		Offset:        offset,
-		Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
-		ClusteringKey: generateClusterKey(offset, kind),
-		Value:         value,
+	res, err := b.Publish(ctx, &sgproto.ProduceMessageRequest{
+		Topic:     ConsumerOffsetTopicName,
+		Partition: p.Id,
+		Messages: []*sgproto.Message{
+			{
+				Offset:        offset,
+				Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
+				ClusteringKey: generateClusterKey(offset, kind),
+				Value:         value,
+			},
+		},
 	})
 	return res != nil, err
 }

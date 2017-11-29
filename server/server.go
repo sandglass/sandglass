@@ -8,9 +8,9 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/broker"
 	"github.com/celrenheit/sandglass/logy"
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 )
 
