@@ -69,7 +69,7 @@ func request_BrokerService_GetTopic_0(ctx context.Context, marshaler runtime.Mar
 }
 
 func request_BrokerService_Publish_0(ctx context.Context, marshaler runtime.Marshaler, client BrokerServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq Message
+	var protoReq ProduceMessageRequest
 	var metadata runtime.ServerMetadata
 
 	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
@@ -104,7 +104,7 @@ var (
 )
 
 func request_BrokerService_Publish_1(ctx context.Context, marshaler runtime.Marshaler, client BrokerServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq Message
+	var protoReq ProduceMessageRequest
 	var metadata runtime.ServerMetadata
 
 	var (
