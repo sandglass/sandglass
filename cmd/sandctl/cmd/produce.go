@@ -36,7 +36,10 @@ var produceCmd = &cobra.Command{
 		if len(args) < 1 {
 			log.Fatal("you should select one topic")
 		}
-		topic := args[0]
+		var (
+			topic     = args[0]
+			partition = viper.GetString("partition")
+		)
 
 		var data []byte
 		switch {
@@ -55,12 +58,10 @@ var produceCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), viper.GetDuration("timeout"))
 		defer cancel()
 
-		msgCh, errCh := cli.ProduceMessageCh(ctx)
+		msgCh, errCh := cli.ProduceMessageCh(ctx, topic, partition)
 		for i := 0; i < viper.GetInt("number"); i++ {
 			msg := &sgproto.Message{
-				Topic:     topic,
-				Partition: viper.GetString("partition"),
-				Value:     data,
+				Value: data,
 			}
 
 			select {
