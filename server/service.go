@@ -50,11 +50,11 @@ func (s *service) GetTopic(ctx context.Context, req *sgproto.GetTopicParams) (*s
 	}, nil
 }
 
-func (s *service) Publish(ctx context.Context, req *sgproto.ProduceMessageRequest) (*sgproto.PublishResponse, error) {
-	return s.broker.Publish(ctx, req)
+func (s *service) Produce(ctx context.Context, req *sgproto.ProduceMessageRequest) (*sgproto.ProduceResponse, error) {
+	return s.broker.Produce(ctx, req)
 }
 
-func (s *service) PublishMessagesStream(stream sgproto.BrokerService_PublishMessagesStreamServer) error {
+func (s *service) ProduceMessagesStream(stream sgproto.BrokerService_ProduceMessagesStreamServer) error {
 	const n = 10000
 	ctx := stream.Context()
 	md, ok := metadata.FromIncomingContext(ctx)
@@ -89,7 +89,7 @@ func (s *service) PublishMessagesStream(stream sgproto.BrokerService_PublishMess
 		messages = append(messages, msg)
 		if len(messages) >= n {
 			start := time.Now()
-			if _, err := s.broker.Publish(ctx, &sgproto.ProduceMessageRequest{
+			if _, err := s.broker.Produce(ctx, &sgproto.ProduceMessageRequest{
 				Topic:     topic,
 				Partition: partition,
 				Messages:  messages,
@@ -102,7 +102,7 @@ func (s *service) PublishMessagesStream(stream sgproto.BrokerService_PublishMess
 	}
 
 	if len(messages) > 0 {
-		_, err := s.broker.Publish(ctx, &sgproto.ProduceMessageRequest{
+		_, err := s.broker.Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     topic,
 			Partition: partition,
 			Messages:  messages,

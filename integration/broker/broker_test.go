@@ -61,7 +61,7 @@ func TestSandglass(t *testing.T) {
 	}
 
 	for i := 0; i < 1000; i++ {
-		_, err := brokers[0].Publish(ctx, &sgproto.ProduceMessageRequest{
+		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic: "payments",
 			Messages: []*sgproto.Message{
 				{
@@ -105,7 +105,7 @@ func TestKVTopic(t *testing.T) {
 	}
 
 	for i := 0; i < 1000; i++ {
-		_, err := brokers[0].Publish(ctx, &sgproto.ProduceMessageRequest{
+		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic: "payments",
 			Messages: []*sgproto.Message{
 				{
@@ -229,7 +229,7 @@ func TestConsume(t *testing.T) {
 	var ids []sandflake.ID
 	for i := 0; i < 30; i++ {
 		want = gen.Next()
-		_, err := brokers[0].Publish(ctx, &sgproto.ProduceMessageRequest{
+		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     "payments",
 			Partition: topic.Partitions[0].Id,
 			Messages: []*sgproto.Message{
@@ -259,7 +259,7 @@ func TestConsume(t *testing.T) {
 	require.Equal(t, want, got)
 
 	for i := 0; i < 20; i++ {
-		res, err := brokers[0].Publish(ctx, &sgproto.ProduceMessageRequest{
+		res, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     "payments",
 			Partition: topic.Partitions[0].Id,
 			Messages: []*sgproto.Message{
@@ -334,7 +334,7 @@ func TestSyncRequest(t *testing.T) {
 	var lastPublishedID sandflake.ID
 	for i := 0; i < 5; i++ {
 		lastPublishedID = gen.Next()
-		_, err := brokers[0].Publish(ctx, &sgproto.ProduceMessageRequest{
+		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     "payments",
 			Partition: part.Id,
 			Messages: []*sgproto.Message{
@@ -409,7 +409,7 @@ func BenchmarkKVTopicGet(b *testing.B) {
 	}
 
 	for i := 0; i < 30; i++ {
-		_, err := brokers[0].Publish(ctx, &sgproto.ProduceMessageRequest{
+		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic: "payments",
 			Messages: []*sgproto.Message{
 				{
@@ -461,7 +461,7 @@ func BenchmarkConsume(b *testing.B) {
 
 	N := 1000
 	for i := 0; i < N; i++ {
-		_, err := brokers[0].Publish(ctx, &sgproto.ProduceMessageRequest{
+		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     "payments",
 			Partition: payments.Partitions[0].Id,
 			Messages: []*sgproto.Message{

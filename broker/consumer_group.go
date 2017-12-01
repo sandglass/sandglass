@@ -143,7 +143,7 @@ func (c *ConsumerGroup) consumeLoop() {
 							return err
 						}
 
-						if _, err := c.broker.Publish(context.TODO(), &sgproto.ProduceMessageRequest{
+						if _, err := c.broker.Produce(context.TODO(), &sgproto.ProduceMessageRequest{
 							Topic:     c.topic,
 							Partition: c.partition,
 							Messages:  []*sgproto.Message{msg},

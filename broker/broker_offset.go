@@ -70,7 +70,7 @@ func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionNa
 		})
 	}
 
-	_, err := b.Publish(ctx, produceRequest)
+	_, err := b.Produce(ctx, produceRequest)
 	return err
 }
 
@@ -128,7 +128,7 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 		return false, err
 	}
 
-	res, err := b.Publish(ctx, &sgproto.ProduceMessageRequest{
+	res, err := b.Produce(ctx, &sgproto.ProduceMessageRequest{
 		Topic:     ConsumerOffsetTopicName,
 		Partition: p.Id,
 		Messages: []*sgproto.Message{

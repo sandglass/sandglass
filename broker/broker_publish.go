@@ -15,7 +15,7 @@ var (
 	ErrNoKeySet = errors.New("ErrNoKeySet")
 )
 
-func (b *Broker) Publish(ctx context.Context, req *sgproto.ProduceMessageRequest) (*sgproto.PublishResponse, error) {
+func (b *Broker) Produce(ctx context.Context, req *sgproto.ProduceMessageRequest) (*sgproto.ProduceResponse, error) {
 	b.Debug("PublishMessage: %+v\n", req)
 	t := b.getTopic(req.Topic)
 	if t == nil {
@@ -37,11 +37,11 @@ func (b *Broker) Publish(ctx context.Context, req *sgproto.ProduceMessageRequest
 	}
 
 	if leader.Name != b.Name() {
-		return leader.Publish(ctx, req)
+		return leader.Produce(ctx, req)
 	}
 
 	// FIXME: this is shit, should be after Put
-	res := &sgproto.PublishResponse{}
+	res := &sgproto.ProduceResponse{}
 	for _, msg := range req.Messages {
 		if msg.Offset == sandflake.Nil {
 			msg.Offset = b.idgen.Next()
