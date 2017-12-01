@@ -68,7 +68,7 @@ func request_BrokerService_GetTopic_0(ctx context.Context, marshaler runtime.Mar
 
 }
 
-func request_BrokerService_Publish_0(ctx context.Context, marshaler runtime.Marshaler, client BrokerServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_BrokerService_Produce_0(ctx context.Context, marshaler runtime.Marshaler, client BrokerServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq ProduceMessageRequest
 	var metadata runtime.ServerMetadata
 
@@ -94,16 +94,16 @@ func request_BrokerService_Publish_0(ctx context.Context, marshaler runtime.Mars
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "topic", err)
 	}
 
-	msg, err := client.Publish(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.Produce(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
 
 var (
-	filter_BrokerService_Publish_1 = &utilities.DoubleArray{Encoding: map[string]int{"topic": 0, "partition": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
+	filter_BrokerService_Produce_1 = &utilities.DoubleArray{Encoding: map[string]int{"topic": 0, "partition": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
 )
 
-func request_BrokerService_Publish_1(ctx context.Context, marshaler runtime.Marshaler, client BrokerServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_BrokerService_Produce_1(ctx context.Context, marshaler runtime.Marshaler, client BrokerServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq ProduceMessageRequest
 	var metadata runtime.ServerMetadata
 
@@ -136,11 +136,11 @@ func request_BrokerService_Publish_1(ctx context.Context, marshaler runtime.Mars
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "partition", err)
 	}
 
-	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_BrokerService_Publish_1); err != nil {
+	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_BrokerService_Produce_1); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := client.Publish(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.Produce(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
@@ -575,7 +575,7 @@ func RegisterBrokerServiceHandler(ctx context.Context, mux *runtime.ServeMux, co
 
 	})
 
-	mux.Handle("POST", pattern_BrokerService_Publish_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_BrokerService_Produce_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		if cn, ok := w.(http.CloseNotifier); ok {
@@ -593,18 +593,18 @@ func RegisterBrokerServiceHandler(ctx context.Context, mux *runtime.ServeMux, co
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_BrokerService_Publish_0(rctx, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_BrokerService_Produce_0(rctx, inboundMarshaler, client, req, pathParams)
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_BrokerService_Publish_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_BrokerService_Produce_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
-	mux.Handle("POST", pattern_BrokerService_Publish_1, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_BrokerService_Produce_1, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		if cn, ok := w.(http.CloseNotifier); ok {
@@ -622,14 +622,14 @@ func RegisterBrokerServiceHandler(ctx context.Context, mux *runtime.ServeMux, co
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_BrokerService_Publish_1(rctx, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_BrokerService_Produce_1(rctx, inboundMarshaler, client, req, pathParams)
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_BrokerService_Publish_1(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_BrokerService_Produce_1(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -815,9 +815,9 @@ var (
 
 	pattern_BrokerService_GetTopic_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"topics", "name"}, ""))
 
-	pattern_BrokerService_Publish_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"topics", "topic"}, ""))
+	pattern_BrokerService_Produce_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"topics", "topic"}, ""))
 
-	pattern_BrokerService_Publish_1 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1, 1, 0, 4, 1, 5, 2}, []string{"topics", "topic", "partition"}, ""))
+	pattern_BrokerService_Produce_1 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1, 1, 0, 4, 1, 5, 2}, []string{"topics", "topic", "partition"}, ""))
 
 	pattern_BrokerService_ConsumeFromGroup_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1, 1, 0, 4, 1, 5, 2}, []string{"topics", "topic", "partition"}, ""))
 
@@ -837,9 +837,9 @@ var (
 
 	forward_BrokerService_GetTopic_0 = runtime.ForwardResponseMessage
 
-	forward_BrokerService_Publish_0 = runtime.ForwardResponseMessage
+	forward_BrokerService_Produce_0 = runtime.ForwardResponseMessage
 
-	forward_BrokerService_Publish_1 = runtime.ForwardResponseMessage
+	forward_BrokerService_Produce_1 = runtime.ForwardResponseMessage
 
 	forward_BrokerService_ConsumeFromGroup_0 = runtime.ForwardResponseStream
 
