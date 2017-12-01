@@ -3,6 +3,8 @@ package scommons
 import (
 	"bytes"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/storage"
@@ -91,9 +93,9 @@ func (s *StorageCommons) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Me
 	return nil
 }
 
-func (s *StorageCommons) ForEachKey(min []byte, fn func(k []byte) error) error {
+func (s *StorageCommons) ForEachWALEntry(min []byte, fn func(msg *sgproto.Message) error) error {
 	it := s.Iter(&storage.IterOptions{
-		FetchValues: false,
+		FetchValues: true,
 	})
 	defer it.Close()
 
@@ -107,9 +109,14 @@ func (s *StorageCommons) ForEachKey(min []byte, fn func(k []byte) error) error {
 	}
 
 	for ; it.ValidForPrefix(WalPrefix); it.Next() {
-		key := it.Item().Key
+		value := it.Item().Value
 
-		if err := fn(key); err != nil {
+		var msg sgproto.Message
+		if err := proto.Unmarshal(value, &msg); err != nil {
+			return err
+		}
+
+		if err := fn(&msg); err != nil {
 			return err
 		}
 	}

@@ -78,7 +78,9 @@ type Address struct {
 	// Type is the type of this address.
 	Type AddressType
 	// ServerName is the name of this address.
-	// It's the name of the grpc load balancer, which will be used for authentication.
+	//
+	// e.g. if Type is GRPCLB, ServerName should be the name of the remote load
+	// balancer, not the name of the backend.
 	ServerName string
 	// Metadata is the information associated with Addr, which may be used
 	// to make load balancing decision.
@@ -128,8 +130,10 @@ type ResolveNowOption struct{}
 // Resolver watches for the updates on the specified target.
 // Updates include address updates and service config updates.
 type Resolver interface {
-	// ResolveNow will be called by gRPC to try to resolve the target name again.
-	// It's just a hint, resolver can ignore this if it's not necessary.
+	// ResolveNow will be called by gRPC to try to resolve the target name
+	// again. It's just a hint, resolver can ignore this if it's not necessary.
+	//
+	// It could be called multiple times concurrently.
 	ResolveNow(ResolveNowOption)
 	// Close closes the resolver.
 	Close()

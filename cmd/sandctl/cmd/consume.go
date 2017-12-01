@@ -76,9 +76,8 @@ var consumeCmd = &cobra.Command{
 			close(msgCh)
 		}()
 
-		fmt.Printf("PARTITION\tOFFSET\tPAYLOAD\n")
 		for msg := range msgCh {
-			fmt.Printf("%s\t%s\t%s\n", msg.Partition, msg.Offset, string(msg.Value))
+			fmt.Printf(string(msg.Value))
 		}
 
 	},

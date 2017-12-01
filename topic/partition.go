@@ -235,19 +235,7 @@ func (p *Partition) Iter() storage.MessageIterator {
 }
 
 func (p *Partition) RangeFromWAL(min []byte, fn func(*sgproto.Message) error) error {
-	return p.db.ForEachKey(min, func(k []byte) error {
-		if len(k) == 0 {
-			panic("empty wal key")
-		}
-
-		k = k[len(scommons.WalPrefix)+1+sandflake.Size+1:]
-		msg, err := p.getMessageByStorageKey(k)
-		if err != nil {
-			return err
-		}
-
-		return fn(msg)
-	})
+	return p.db.ForEachWALEntry(min, fn)
 }
 
 func (p *Partition) LastWALEntry() []byte {

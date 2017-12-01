@@ -5,13 +5,15 @@ import (
 	"io"
 	"time"
 
+	"google.golang.org/grpc/metadata"
+
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/celrenheit/sandflake"
-	"github.com/celrenheit/sandglass/broker"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
+	"github.com/celrenheit/sandglass/broker"
 )
 
 type service struct {
@@ -48,21 +50,33 @@ func (s *service) GetTopic(ctx context.Context, req *sgproto.GetTopicParams) (*s
 	}, nil
 }
 
-func (s *service) Publish(ctx context.Context, msg *sgproto.Message) (*sgproto.DUIDReply, error) {
-	id, err := s.broker.PublishMessage(ctx, msg)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sgproto.DUIDReply{
-		Id: *id,
-	}, nil
+func (s *service) Produce(ctx context.Context, req *sgproto.ProduceMessageRequest) (*sgproto.ProduceResponse, error) {
+	return s.broker.Produce(ctx, req)
 }
 
-func (s *service) PublishMessagesStream(stream sgproto.BrokerService_PublishMessagesStreamServer) error {
+func (s *service) ProduceMessagesStream(stream sgproto.BrokerService_ProduceMessagesStreamServer) error {
 	const n = 10000
-	messages := make([]*sgproto.Message, 0)
 	ctx := stream.Context()
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return fmt.Errorf("no metadata")
+	}
+
+	var topic, partition string
+
+	if mds, ok := md["topic"]; ok && len(mds) > 0 {
+		topic = mds[0]
+	}
+
+	if mds, ok := md["partition"]; ok && len(mds) > 0 {
+		partition = mds[0]
+	}
+
+	if topic == "" {
+		return fmt.Errorf("topic metadata should be set")
+	}
+
+	messages := make([]*sgproto.Message, 0)
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {
@@ -75,7 +89,11 @@ func (s *service) PublishMessagesStream(stream sgproto.BrokerService_PublishMess
 		messages = append(messages, msg)
 		if len(messages) >= n {
 			start := time.Now()
-			if err := s.broker.PublishMessages(ctx, messages); err != nil {
+			if _, err := s.broker.Produce(ctx, &sgproto.ProduceMessageRequest{
+				Topic:     topic,
+				Partition: partition,
+				Messages:  messages,
+			}); err != nil {
 				return err
 			}
 			fmt.Println("Publish Messages took:", time.Since(start))
@@ -84,43 +102,48 @@ func (s *service) PublishMessagesStream(stream sgproto.BrokerService_PublishMess
 	}
 
 	if len(messages) > 0 {
-		return s.broker.PublishMessages(ctx, messages)
+		_, err := s.broker.Produce(ctx, &sgproto.ProduceMessageRequest{
+			Topic:     topic,
+			Partition: partition,
+			Messages:  messages,
+		})
+		return err
 	}
 
 	return nil
 }
 
-func (s *service) StoreMessageLocally(ctx context.Context, msg *sgproto.Message) (*sgproto.StoreLocallyReply, error) {
-	err := s.broker.StoreMessageLocally(msg)
-	if err != nil {
-		return nil, err
-	}
-	return &sgproto.StoreLocallyReply{}, nil
-}
+// func (s *service) StoreMessageLocally(ctx context.Context, msg *sgproto.Message) (*sgproto.StoreLocallyReply, error) {
+// 	err := s.broker.StoreMessageLocally(msg)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &sgproto.StoreLocallyReply{}, nil
+// }
 
-func (s *service) StoreMessagesStream(stream sgproto.BrokerService_StoreMessagesStreamServer) error {
-	const n = 10000
-	messages := make([]*sgproto.Message, 0)
-	for {
-		msg, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
+// func (s *service) StoreMessagesStream(stream sgproto.BrokerService_StoreMessagesStreamServer) error {
+// 	const n = 10000
+// 	messages := make([]*sgproto.Message, 0)
+// 	for {
+// 		msg, err := stream.Recv()
+// 		if err == io.EOF {
+// 			break
+// 		}
+// 		if err != nil {
+// 			return err
+// 		}
 
-		messages = append(messages, msg)
-		if len(messages) >= n {
-			if err := s.broker.StoreMessages(messages); err != nil {
-				return err
-			}
-			messages = messages[:0]
-		}
-	}
+// 		messages = append(messages, msg)
+// 		if len(messages) >= n {
+// 			if err := s.broker.StoreMessages(messages); err != nil {
+// 				return err
+// 			}
+// 			messages = messages[:0]
+// 		}
+// 	}
 
-	return s.broker.StoreMessages(messages)
-}
+// 	return s.broker.StoreMessages(messages)
+// }
 
 func (s *service) FetchFrom(req *sgproto.FetchFromRequest, stream sgproto.BrokerService_FetchFromServer) error {
 	return s.broker.FetchRange(stream.Context(), req.Topic, req.Partition, req.From, sandflake.MaxID, func(msg *sgproto.Message) error {

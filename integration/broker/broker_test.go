@@ -61,9 +61,13 @@ func TestSandglass(t *testing.T) {
 	}
 
 	for i := 0; i < 1000; i++ {
-		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
+		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic: "payments",
-			Value: []byte(strconv.Itoa(i)),
+			Messages: []*sgproto.Message{
+				{
+					Value: []byte(strconv.Itoa(i)),
+				},
+			},
 		})
 		require.Nil(t, err)
 	}
@@ -101,10 +105,14 @@ func TestKVTopic(t *testing.T) {
 	}
 
 	for i := 0; i < 1000; i++ {
-		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
+		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic: "payments",
-			Key:   []byte("my_key"),
-			Value: []byte(strconv.Itoa(i)),
+			Messages: []*sgproto.Message{
+				{
+					Key:   []byte("my_key"),
+					Value: []byte(strconv.Itoa(i)),
+				},
+			},
 		})
 		require.Nil(t, err)
 	}
@@ -221,11 +229,16 @@ func TestConsume(t *testing.T) {
 	var ids []sandflake.ID
 	for i := 0; i < 30; i++ {
 		want = gen.Next()
-		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
+		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     "payments",
-			Offset:    want,
 			Partition: topic.Partitions[0].Id,
-			Value:     []byte(strconv.Itoa(i)),
+			Messages: []*sgproto.Message{
+				{
+					Offset: want,
+					Key:    []byte("my_key"),
+					Value:  []byte(strconv.Itoa(i)),
+				},
+			},
 		})
 		require.Nil(t, err)
 		ids = append(ids, want)
@@ -246,13 +259,17 @@ func TestConsume(t *testing.T) {
 	require.Equal(t, want, got)
 
 	for i := 0; i < 20; i++ {
-		res, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
+		res, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     "payments",
 			Partition: topic.Partitions[0].Id,
-			Value:     []byte(strconv.Itoa(i)),
+			Messages: []*sgproto.Message{
+				{
+					Value: []byte(strconv.Itoa(i)),
+				},
+			},
 		})
 		require.Nil(t, err)
-		want = *res
+		want = res.Offsets[len(res.Offsets)-1]
 	}
 
 	fmt.Println("-----------------------------")
@@ -317,11 +334,15 @@ func TestSyncRequest(t *testing.T) {
 	var lastPublishedID sandflake.ID
 	for i := 0; i < 5; i++ {
 		lastPublishedID = gen.Next()
-		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
+		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     "payments",
 			Partition: part.Id,
-			Offset:    lastPublishedID,
-			Value:     []byte(strconv.Itoa(i)),
+			Messages: []*sgproto.Message{
+				{
+					Offset: lastPublishedID,
+					Value:  []byte(strconv.Itoa(i)),
+				},
+			},
 		})
 		require.Nil(t, err)
 	}
@@ -388,10 +409,14 @@ func BenchmarkKVTopicGet(b *testing.B) {
 	}
 
 	for i := 0; i < 30; i++ {
-		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
+		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic: "payments",
-			Key:   []byte("my_key"),
-			Value: []byte(strconv.Itoa(i)),
+			Messages: []*sgproto.Message{
+				{
+					Key:   []byte("my_key"),
+					Value: []byte(strconv.Itoa(i)),
+				},
+			},
 		})
 		require.Nil(b, err)
 	}
@@ -436,10 +461,15 @@ func BenchmarkConsume(b *testing.B) {
 
 	N := 1000
 	for i := 0; i < N; i++ {
-		_, err := brokers[0].PublishMessage(ctx, &sgproto.Message{
+		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     "payments",
 			Partition: payments.Partitions[0].Id,
-			Value:     []byte(strconv.Itoa(i)),
+			Messages: []*sgproto.Message{
+				{
+					Key:   []byte("my_key"),
+					Value: []byte(strconv.Itoa(i)),
+				},
+			},
 		})
 		require.Nil(b, err)
 	}
