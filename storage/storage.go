@@ -17,7 +17,7 @@ type Storage interface {
 	LastKVForPrefix(prefix, suffix []byte) []byte
 	ForEach(fn func(msg *sgproto.Message) error) error
 	ForRange(min, max sandflake.ID, fn func(msg *sgproto.Message) error) error
-	ForEachKey(min []byte, fn func(k []byte) error) error
+	ForEachWALEntry(min []byte, fn func(msg *sgproto.Message) error) error
 }
 
 type Entry struct {
