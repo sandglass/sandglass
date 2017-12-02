@@ -43,7 +43,7 @@ var createCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), viper.GetDuration("timeout"))
 		defer cancel()
 
-		err := cli.CreateTopic(ctx, &sgproto.CreateTopicParams{
+		_, err := client.CreateTopic(ctx, &sgproto.CreateTopicParams{
 			Name:              name,
 			ReplicationFactor: int32(viper.GetInt("replication_factor")),
 			NumPartitions:     int32(viper.GetInt("num_partitions")),

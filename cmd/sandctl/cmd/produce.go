@@ -20,9 +20,10 @@ import (
 	"io/ioutil"
 	"log"
 
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
+
 	"github.com/celrenheit/sandglass/cmd/cmdcommon"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -58,20 +59,35 @@ var produceCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), viper.GetDuration("timeout"))
 		defer cancel()
 
-		msgCh, errCh := cli.ProduceMessageCh(ctx, topic, partition)
-		for i := 0; i < viper.GetInt("number"); i++ {
-			msg := &sgproto.Message{
-				Value: data,
-			}
+		produce := func(msgs []*sgproto.Message) error {
+			_, err := client.Produce(ctx, &sgproto.ProduceMessageRequest{
+				Topic:     topic,
+				Partition: partition,
+				Messages:  msgs,
+			})
+			return err
+		}
 
-			select {
-			case msgCh <- msg:
-			case err := <-errCh:
+		batchSize := 10000
+		messages := make([]*sgproto.Message, 0, batchSize)
+		for i := 0; i < viper.GetInt("number"); i++ {
+			messages = append(messages, &sgproto.Message{
+				Value: data,
+			})
+
+			if len(messages) == batchSize {
+				if err := produce(messages); err != nil {
+					panic(err)
+				}
+				messages = messages[:0]
+			}
+		}
+
+		if len(messages) > 0 {
+			if err := produce(messages); err != nil {
 				panic(err)
 			}
 		}
-		close(msgCh)
-		<-errCh
 
 		fmt.Println("OK")
 	},

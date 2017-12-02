@@ -17,6 +17,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"time"
 
@@ -57,12 +58,14 @@ var consumeCmd = &cobra.Command{
 				return nil
 			})
 		} else {
-			partitions, err := cli.ListPartitions(context.Background(), topic)
+			t, err := client.GetTopic(context.Background(), &sgproto.GetTopicParams{
+				Name: topic,
+			})
 			if err != nil {
 				panic(err)
 			}
 
-			for _, part := range partitions {
+			for _, part := range t.Partitions {
 				part := part
 				group.Go(func() error {
 					consume(msgCh, topic, part, consumerGroup, consumerName, viper.GetBool("follow"), viper.GetBool("ack"))
@@ -77,7 +80,7 @@ var consumeCmd = &cobra.Command{
 		}()
 
 		for msg := range msgCh {
-			fmt.Printf(string(msg.Value))
+			fmt.Println(string(msg.Value))
 		}
 
 	},
@@ -105,23 +108,47 @@ func init() {
 
 func consume(msgCh chan *sgproto.Message, topic, partition, group, name string, follow, ack bool) {
 	ctx := context.Background()
-	consumer := cli.NewConsumer(topic, partition, group, name)
 
 FOLLOW:
-	consumeCh, err := consumer.Consume(ctx)
+
+	stream, err := client.ConsumeFromGroup(ctx, &sgproto.ConsumeFromGroupRequest{
+		Topic:             topic,
+		Partition:         partition,
+		ConsumerGroupName: group,
+		ConsumerName:      name,
+	})
 	if err != nil {
 		panic(err)
 	}
 
-	var msg *sgproto.Message
+	ackFn := func(offsets []sandflake.ID) error {
+		_, err := client.AcknowledgeMessages(context.Background(), &sgproto.MultiOffsetChangeRequest{
+			Topic:         topic,
+			Partition:     partition,
+			ConsumerGroup: group,
+			ConsumerName:  name,
+			Offsets:       offsets,
+		})
+		return err
+	}
+
 	offsets := []sandflake.ID{}
-	for msg = range consumeCh {
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			panic(err)
+		}
+
+		msgCh <- msg
+
 		if ack {
 			offsets = append(offsets, msg.Offset)
 		}
-		msgCh <- msg
+
 		if ack && len(offsets) == 1000 {
-			err = consumer.AcknowledgeMessages(context.Background(), offsets)
+			err := ackFn(offsets)
 			if err != nil {
 				panic(err)
 			}
@@ -131,7 +158,7 @@ FOLLOW:
 	}
 
 	if ack && len(offsets) > 0 {
-		err = consumer.AcknowledgeMessages(context.Background(), offsets)
+		err := ackFn(offsets)
 		if err != nil {
 			panic(err)
 		}

@@ -20,8 +20,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/celrenheit/sandglass-client/go/sg"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
+
 	"github.com/celrenheit/sandglass/cmd/cmdcommon"
+	"google.golang.org/grpc"
 
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -30,7 +32,8 @@ import (
 
 var (
 	cfgFile string
-	cli     *sg.Client
+	conn    *grpc.ClientConn
+	client  sgproto.BrokerServiceClient
 )
 
 var (
@@ -54,8 +57,8 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	if cli != nil {
-		if err := cli.Close(); err != nil {
+	if conn != nil {
+		if err := conn.Close(); err != nil {
 			log.Fatalf("error while closing connection: %v", err)
 		}
 	}
@@ -105,10 +108,16 @@ func initConfig() {
 
 func createConnection() {
 	var err error
-	cli, err = sg.NewClient(
-		sg.WithAddresses(viper.GetStringSlice("addrs")...),
-	)
-	if err != nil {
-		log.Fatal(err)
+	for _, addr := range viper.GetStringSlice("addrs") {
+		conn, err = grpc.Dial(addr, grpc.WithInsecure())
+		if err == nil {
+			break
+		}
 	}
+
+	if conn == nil {
+		log.Fatal("no addrs found")
+	}
+
+	client = sgproto.NewBrokerServiceClient(conn)
 }
