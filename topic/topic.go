@@ -1,6 +1,7 @@
 package topic
 
 import (
+	"math/rand"
 	"path/filepath"
 	"sync"
 
@@ -104,6 +105,11 @@ func (t *Topic) ChoosePartition(msg *sgproto.Message) *Partition {
 	}
 
 	idx := sgutils.Hash(id, len(t.Partitions))
+	return t.Partitions[idx]
+}
+
+func (t *Topic) ChooseRandomPartition() *Partition {
+	idx := rand.Int() % len(t.Partitions)
 	return t.Partitions[idx]
 }
 
