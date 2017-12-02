@@ -105,7 +105,7 @@ func (c *ConsumerGroup) consumeLoop() {
 				To:        from,
 			}
 
-			return c.broker.FetchRange(context.TODO(), req, func(m *sgproto.Message) error {
+			err := c.broker.FetchRange(context.TODO(), req, func(m *sgproto.Message) error {
 				if m.Offset.Equal(lastCommited) { // skip first item, since it is already committed
 					return nil
 				}
@@ -162,6 +162,18 @@ func (c *ConsumerGroup) consumeLoop() {
 
 				return nil
 			})
+			if err != nil {
+				return err
+			}
+
+			if !committed && lastMessage != nil {
+				_, err = c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, "", lastMessage.Offset)
+				if err != nil {
+					c.broker.Debug("unable to commit")
+				}
+			}
+
+			return nil
 		})
 	}
 	group.Go(func() error {
