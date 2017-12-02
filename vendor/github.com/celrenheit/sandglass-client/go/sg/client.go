@@ -78,7 +78,7 @@ func (c *Client) ListPartitions(ctx context.Context, topic string) ([]string, er
 }
 
 func (c *Client) ProduceMessage(ctx context.Context, topic, partition string, msg *sgproto.Message) error {
-	_, err := c.client.Publish(ctx, &sgproto.ProduceMessageRequest{
+	_, err := c.client.Produce(ctx, &sgproto.ProduceMessageRequest{
 		Topic:     topic,
 		Partition: partition,
 		Messages:  []*sgproto.Message{msg},
@@ -94,7 +94,7 @@ func (c *Client) ProduceMessageCh(ctx context.Context, topic, partition string) 
 	md["partition"] = []string{partition}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	stream, err := c.client.PublishMessagesStream(ctx)
+	stream, err := c.client.ProduceMessagesStream(ctx)
 	if err != nil {
 		errCh <- err
 		return nil, errCh

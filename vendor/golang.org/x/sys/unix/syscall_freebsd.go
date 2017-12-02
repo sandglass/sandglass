@@ -485,6 +485,7 @@ func Uname(uname *Utsname) error {
 //sys	Fstatfs(fd int, stat *Statfs_t) (err error)
 //sys	Fsync(fd int) (err error)
 //sys	Ftruncate(fd int, length int64) (err error)
+//sys	Getdents(fd int, buf []byte) (n int, err error)
 //sys	Getdirentries(fd int, buf []byte, basep *uintptr) (n int, err error)
 //sys	Getdtablesize() (size int)
 //sysnb	Getegid() (egid int)
