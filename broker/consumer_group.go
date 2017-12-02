@@ -98,7 +98,14 @@ func (c *ConsumerGroup) consumeLoop() {
 				lastMessage *sgproto.Message
 				committed   = false
 			)
-			return c.broker.FetchRange(context.TODO(), c.topic, c.partition, lastCommited, from, func(m *sgproto.Message) error {
+			req := &sgproto.FetchRangeRequest{
+				Topic:     c.topic,
+				Partition: c.partition,
+				From:      lastCommited,
+				To:        from,
+			}
+
+			return c.broker.FetchRange(context.TODO(), req, func(m *sgproto.Message) error {
 				if m.Offset.Equal(lastCommited) { // skip first item, since it is already committed
 					return nil
 				}
@@ -159,7 +166,14 @@ func (c *ConsumerGroup) consumeLoop() {
 	}
 	group.Go(func() error {
 		now := sandflake.NewID(time.Now().UTC(), sandflake.MaxID.WorkerID(), sandflake.MaxID.Sequence(), sandflake.MaxID.RandomBytes())
-		return c.broker.FetchRange(context.TODO(), c.topic, c.partition, from, now, func(m *sgproto.Message) error {
+		req := &sgproto.FetchRangeRequest{
+			Topic:     c.topic,
+			Partition: c.partition,
+			From:      from,
+			To:        now,
+		}
+
+		return c.broker.FetchRange(context.TODO(), req, func(m *sgproto.Message) error {
 			// skip the first if it is the same as the starting point
 			if from == m.Offset {
 				return nil

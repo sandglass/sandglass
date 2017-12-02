@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"sync"
 
 	"google.golang.org/grpc/codes"
 
@@ -13,103 +12,44 @@ import (
 	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/topic"
 	"github.com/grpc/grpc-go/status"
-	"golang.org/x/sync/errgroup"
 )
 
-func (b *Broker) FetchRange(ctx context.Context, topicName, partition string, from, to sandflake.ID, fn func(msg *sgproto.Message) error) error {
-	topic := b.getTopic(topicName)
+func (b *Broker) FetchRange(ctx context.Context, req *sgproto.FetchRangeRequest, fn func(msg *sgproto.Message) error) error {
+	topic := b.getTopic(req.Topic)
 	if topic == nil {
 		return ErrTopicNotFound
 	}
 
-	if partition != "" {
-		leader := b.getPartitionLeader(topic.Name, partition)
-		if leader.Name != b.Name() {
-			stream, err := leader.FetchRange(ctx, &sgproto.FetchRangeRequest{
-				Topic:     topicName,
-				Partition: partition,
-				From:      from,
-				To:        to,
-			})
+	if req.Partition == "" {
+		return ErrNoPartitionSet
+	}
+
+	leader := b.getPartitionLeader(topic.Name, req.Partition)
+	if leader.Name != b.Name() {
+		stream, err := leader.FetchRange(ctx, req)
+		if err != nil {
+			return err
+		}
+
+		for {
+			msg, err := stream.Recv()
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				return err
+			}
+
+			err = fn(msg)
 			if err != nil {
 				return err
 			}
-
-			for {
-				msg, err := stream.Recv()
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					return err
-				}
-
-				err = fn(msg)
-				if err != nil {
-					return err
-				}
-			}
-
-			return nil
 		}
 
-		p := topic.GetPartition(partition)
-		return p.ForRange(from, to, fn)
+		return nil
 	}
 
-	var group errgroup.Group
-	var mu sync.Mutex
-
-	for _, p := range topic.Partitions {
-		p := p
-		n := b.getPartitionLeader(topic.Name, p.Id)
-		if n.Name == b.Name() {
-			b.Debug("fetching locally %v", p.Id)
-			group.Go(func() error {
-				err := p.ForRange(from, to, func(msg *sgproto.Message) error {
-					mu.Lock()
-					err := fn(msg)
-					mu.Unlock()
-					return err
-				})
-				b.Debug("done locally: %+v %v\n", p.Id, err)
-
-				return err
-			})
-			continue
-		}
-
-		b.Debug("fetching remotely %v from %v", n.Name, p.Id)
-		group.Go(func() error {
-			stream, err := n.FetchRange(ctx, &sgproto.FetchRangeRequest{
-				Topic:     topicName,
-				Partition: p.Id,
-				From:      from,
-				To:        to,
-			})
-			if err != nil {
-				return err
-			}
-
-			for {
-				msg, err := stream.Recv()
-				if err == io.EOF {
-					break
-				} else if err != nil {
-					return err
-				}
-
-				mu.Lock()
-				err = fn(msg)
-				mu.Unlock()
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-	}
-
-	return group.Wait()
+	p := topic.GetPartition(req.Partition)
+	return p.ForRange(req.From, req.To, fn)
 }
 
 func (b *Broker) FetchFromSync(topicName, partition string, from []byte, fn func(msg *sgproto.Message) error) error {

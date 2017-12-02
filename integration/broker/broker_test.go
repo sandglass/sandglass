@@ -60,9 +60,11 @@ func TestSandglass(t *testing.T) {
 		require.Len(t, brokers[i].Topics(), 2)
 	}
 
+	part := getTopicFromBroker(brokers[0], "payments").Partitions[0].Id
 	for i := 0; i < 1000; i++ {
 		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
-			Topic: "payments",
+			Topic:     "payments",
+			Partition: part,
 			Messages: []*sgproto.Message{
 				{
 					Value: []byte(strconv.Itoa(i)),
@@ -73,7 +75,13 @@ func TestSandglass(t *testing.T) {
 	}
 
 	var count int
-	err = brokers[0].FetchRange(ctx, "payments", "", sandflake.Nil, sandflake.MaxID, func(keymsg *sgproto.Message) error {
+	req := &sgproto.FetchRangeRequest{
+		Topic:     "payments",
+		Partition: part,
+		From:      sandflake.Nil,
+		To:        sandflake.MaxID,
+	}
+	err = brokers[0].FetchRange(ctx, req, func(keymsg *sgproto.Message) error {
 		count++
 		return nil
 	})
@@ -104,9 +112,11 @@ func TestKVTopic(t *testing.T) {
 		require.Len(t, brokers[i].Topics(), 2)
 	}
 
+	part := getTopicFromBroker(brokers[0], "payments").Partitions[0].Id
 	for i := 0; i < 1000; i++ {
 		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
-			Topic: "payments",
+			Topic:     "payments",
+			Partition: part,
 			Messages: []*sgproto.Message{
 				{
 					Key:   []byte("my_key"),
@@ -118,7 +128,13 @@ func TestKVTopic(t *testing.T) {
 	}
 
 	var count int
-	err = brokers[0].FetchRange(ctx, "payments", "", sandflake.Nil, sandflake.MaxID, func(msg *sgproto.Message) error {
+	req := &sgproto.FetchRangeRequest{
+		Topic:     "payments",
+		Partition: part,
+		From:      sandflake.Nil,
+		To:        sandflake.MaxID,
+	}
+	err = brokers[0].FetchRange(ctx, req, func(msg *sgproto.Message) error {
 		require.Equal(t, "my_key", string(msg.Key))
 		count++
 		return nil
@@ -127,7 +143,7 @@ func TestKVTopic(t *testing.T) {
 
 	require.Equal(t, 1, count)
 
-	msg, err := brokers[0].Get(ctx, "payments", "", []byte("my_key"))
+	msg, err := brokers[0].Get(ctx, "payments", part, []byte("my_key"))
 	require.NoError(t, err)
 	require.Equal(t, "999", string(msg.Value))
 }

@@ -5,13 +5,14 @@ import (
 	"io"
 	"time"
 
+	"github.com/celrenheit/sandflake"
+
 	"google.golang.org/grpc/metadata"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/broker"
 )
@@ -146,13 +147,20 @@ func (s *service) ProduceMessagesStream(stream sgproto.BrokerService_ProduceMess
 // }
 
 func (s *service) FetchFrom(req *sgproto.FetchFromRequest, stream sgproto.BrokerService_FetchFromServer) error {
-	return s.broker.FetchRange(stream.Context(), req.Topic, req.Partition, req.From, sandflake.MaxID, func(msg *sgproto.Message) error {
+	partitionReq := &sgproto.FetchRangeRequest{
+		Topic:     req.Topic,
+		Partition: req.Partition,
+		From:      req.From,
+		To:        sandflake.MaxID,
+	}
+
+	return s.broker.FetchRange(stream.Context(), partitionReq, func(msg *sgproto.Message) error {
 		return stream.Send(msg)
 	})
 }
 
 func (s *service) FetchRange(req *sgproto.FetchRangeRequest, stream sgproto.BrokerService_FetchRangeServer) error {
-	return s.broker.FetchRange(stream.Context(), req.Topic, req.Partition, req.From, req.To, func(msg *sgproto.Message) error {
+	return s.broker.FetchRange(stream.Context(), req, func(msg *sgproto.Message) error {
 		return stream.Send(msg)
 	})
 }
