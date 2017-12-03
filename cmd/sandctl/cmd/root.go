@@ -24,6 +24,7 @@ import (
 
 	"github.com/celrenheit/sandglass/cmd/cmdcommon"
 	"google.golang.org/grpc"
+	_ "google.golang.org/grpc/encoding/gzip"
 
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -109,7 +110,11 @@ func initConfig() {
 func createConnection() {
 	var err error
 	for _, addr := range viper.GetStringSlice("addrs") {
-		conn, err = grpc.Dial(addr, grpc.WithInsecure())
+		conn, err = grpc.Dial(addr, grpc.WithInsecure(),
+			grpc.WithDefaultCallOptions(
+				grpc.UseCompressor("gzip"),
+			),
+		)
 		if err == nil {
 			break
 		}

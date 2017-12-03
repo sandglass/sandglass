@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"google.golang.org/grpc"
+	_ "google.golang.org/grpc/encoding/gzip"
 
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/broker"
