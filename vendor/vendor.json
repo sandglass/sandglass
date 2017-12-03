@@ -439,10 +439,10 @@
 			"revisionTime": "2017-04-13T08:50:28Z"
 		},
 		{
-			"checksumSHA1": "1n4oNbhkuymbgrf7O5SeFje1BT0=",
+			"checksumSHA1": "/ICf5iFSPIBKvhxW8EqqwbiZ62U=",
 			"path": "github.com/spf13/cobra",
-			"revision": "b1ec2ce1ad4e6e09b859c2420ecf3230275e58b7",
-			"revisionTime": "2017-12-01T21:37:16Z"
+			"revision": "86783686cade7a5ea7f5306d461d91841c7a6b3d",
+			"revisionTime": "2017-12-02T17:59:49Z"
 		},
 		{
 			"checksumSHA1": "suLj1G8Vd//a/a3sUEKz/ROalz0=",
@@ -633,6 +633,12 @@
 		{
 			"checksumSHA1": "9DImIDqmAMPO24loHJ77UVJTDxQ=",
 			"path": "google.golang.org/grpc/encoding",
+			"revision": "cd563b81ec334abe62cda34a33b8640ea67ef5ba",
+			"revisionTime": "2017-12-01T23:32:05Z"
+		},
+		{
+			"checksumSHA1": "rClNulqEaJSfKg8ZyQHkH1muwS4=",
+			"path": "google.golang.org/grpc/encoding/gzip",
 			"revision": "cd563b81ec334abe62cda34a33b8640ea67ef5ba",
 			"revisionTime": "2017-12-01T23:32:05Z"
 		},
