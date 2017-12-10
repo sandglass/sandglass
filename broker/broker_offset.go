@@ -20,6 +20,10 @@ func (b *Broker) Acknowledge(ctx context.Context, topicName, partitionName, cons
 	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.MarkKind_Acknowledged)
 }
 
+func (b *Broker) NotAcknowledge(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
+	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.MarkKind_NotAcknowledged)
+}
+
 // FIXME: share same code between AcknowledgeMessages a AcknowledgeMessage
 func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets []sandflake.ID) error {
 	topic := b.getTopic(ConsumerOffsetTopicName)

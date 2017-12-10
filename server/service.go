@@ -201,6 +201,13 @@ func (s *service) Acknowledge(ctx context.Context, req *sgproto.OffsetChangeRequ
 	}, err
 }
 
+func (s *service) NotAcknowledge(ctx context.Context, req *sgproto.OffsetChangeRequest) (*sgproto.OffsetChangeReply, error) {
+	ok, err := s.broker.NotAcknowledge(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
+	return &sgproto.OffsetChangeReply{
+		Success: ok,
+	}, err
+}
+
 func (s *service) AcknowledgeMessages(ctx context.Context, req *sgproto.MultiOffsetChangeRequest) (*sgproto.OffsetChangeReply, error) {
 	err := s.broker.AcknowledgeMessages(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offsets)
 	if err != nil {
