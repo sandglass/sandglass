@@ -102,6 +102,15 @@ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master
 
 and repeat the same steps described above for another topic and increasing the replication factor to 2.
 
+## Motivation
+
+As previously asked (#4), the purpose of this project might not seem clear. In short, there is two goals. 
+
+The first is to be able to track each message individually (i.e. not using a single commit offset) to make suitable for asynchronous tasks.
+
+The second is the ability to schedule messages to be consumed in the future. This make it suitable for retries.
+
+
 ## Clients
 
 ### Go
@@ -297,6 +306,14 @@ A message is composed of the following fields:
         key and clusteringKey       <- position in the view log for key for kv topics (key is used for partitioning)
 
         value                       <- your payload
+
+### Offset Tracking
+
+Sandglass is responsible for maintaining two offsets for each consumer group: 
+* Commited: the offset below which all messages have been ACKed
+* Consumed: the last consumed message
+
+When consuming sandglass starts from the last commited until the last consumed message to check the redelivery of messages. And from the last consumed offset until the last produced message to deliver the new messages. These two actions are done in parallel.
 
 ## Contributing
 
