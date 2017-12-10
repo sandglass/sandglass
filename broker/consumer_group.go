@@ -159,9 +159,8 @@ func (c *ConsumerGroup) consumeLoop() {
 						}
 
 						if _, err := c.broker.Produce(context.TODO(), &sgproto.ProduceMessageRequest{
-							Topic:     c.topic,
-							Partition: c.partition,
-							Messages:  []*sgproto.Message{msg},
+							Topic:    ConsumerOffsetTopicName,
+							Messages: []*sgproto.Message{msg},
 						}); err != nil {
 							return err
 						}
