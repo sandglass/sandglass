@@ -115,6 +115,7 @@ func (c *ConsumerGroup) consumeLoop() {
 			i := 0
 			err := c.broker.FetchRange(context.TODO(), req, func(m *sgproto.Message) error {
 				if m.Offset.Equal(lastCommited) { // skip first item, since it is already committed
+					lastMessage = m
 					return nil
 				}
 				i++
@@ -140,7 +141,9 @@ func (c *ConsumerGroup) consumeLoop() {
 				if !committed && lastMessage != nil {
 					if state.Kind != sgproto.MarkKind_Acknowledged {
 						// we might commit in a goroutine, we can redo this the next time we consume
-						commit(lastMessage.Offset)
+						if !lastMessage.Offset.Equal(lastCommited) {
+							commit(lastMessage.Offset)
+						}
 						committed = true
 					} else if i%10000 == 0 {
 						go commit(lastMessage.Offset)
@@ -237,7 +240,7 @@ loop:
 		}
 	}
 
-	if m != nil {
+	if m != nil && !m.Offset.Equal(from) {
 		_, err := c.broker.MarkConsumed(context.TODO(), c.topic, c.partition, c.name, "REMOVE THIS", m.Offset)
 		if err != nil {
 			c.broker.Debug("unable to mark as consumed: %v", err)
