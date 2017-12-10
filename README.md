@@ -29,10 +29,12 @@ Sandglass is a distributed, horizontally scalable, persistent, time ordered mess
     - [Installation](#installation-1)
     - [Documentation](#documentation)
     - [Usage](#usage)
+      - [Producer](#producer)
+      - [Consumer](#consumer)
   - [Java, Python, Node.js, Ruby](#java-python-nodejs-ruby)
 - [Architecture](#architecture)
   - [General](#general)
-  - [Topics](#topics)
+  - [Topic](#topic)
 - [Contributing](#contributing)
 - [License](#license)
 
