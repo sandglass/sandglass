@@ -98,8 +98,10 @@ type dialOptions struct {
 	// This is to support v1 balancer.
 	balancerBuilder balancer.Builder
 	// This is to support grpclb.
-	resolverBuilder  resolver.Builder
-	waitForHandshake bool
+	resolverBuilder resolver.Builder
+	// Custom user options for resolver.Build.
+	resolverBuildUserOptions interface{}
+	waitForHandshake         bool
 }
 
 const (
@@ -220,6 +222,14 @@ func WithBalancerBuilder(b balancer.Builder) DialOption {
 func withResolverBuilder(b resolver.Builder) DialOption {
 	return func(o *dialOptions) {
 		o.resolverBuilder = b
+	}
+}
+
+// WithResolverUserOptions returns a DialOption which sets the UserOptions
+// field of resolver's BuildOption.
+func WithResolverUserOptions(userOpt interface{}) DialOption {
+	return func(o *dialOptions) {
+		o.resolverBuildUserOptions = userOpt
 	}
 }
 
@@ -689,7 +699,7 @@ func (cc *ClientConn) switchBalancer(name string) {
 		return
 	}
 
-	if cc.curBalancerName == name {
+	if strings.ToLower(cc.curBalancerName) == strings.ToLower(name) {
 		return
 	}
 
