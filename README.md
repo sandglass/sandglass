@@ -106,12 +106,11 @@ and repeat the same steps described above for another topic and increasing the r
 
 ## Motivation
 
-As previously asked (#4), the purpose of this project might not seem clear. In short, there is two goals. 
+As previously asked ([#4](https://github.com/celrenheit/sandglass/issues/4)), the purpose of this project might not seem clear. In short, there is two goals. 
 
 The first is to be able to track each message individually (i.e. not using a single commit offset) to make suitable for asynchronous tasks.
 
 The second is the ability to schedule messages to be consumed in the future. This make it suitable for retries.
-
 
 ## Clients
 
