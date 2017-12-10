@@ -95,7 +95,7 @@ sandctl consume emails
 
 Add a second node to the cluster:
 ```shell
-$ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node2.yaml
+sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node2.yaml
 ```
 
 and repeat the same steps described above for another topic and increasing the replication factor to 2.
@@ -117,7 +117,7 @@ The documentation is available on [godoc](https://godoc.org/github.com/celrenhei
 
 #### Usage
 
-* Producer
+##### Producer
 
 ```go
 // Let's first create a client by providing adresses of nodes in the sandglass cluster
@@ -139,7 +139,41 @@ if err != nil {
 }
 ```
 
-* Consumer
+##### Consumer
+
+
+1. High-level
+
+```go
+// Let's first create a client by providing adresses of nodes in the sandglass cluster
+client, err := sg.NewClient(
+    sg.WithAddresses(":7170"),
+)
+if err != nil {
+    panic(err)
+}
+defer client.Close()
+
+mux := sg.NewMux()
+mux.SubscribeFunc("emails", func(msg *sgproto.Message) error {
+    // handle message
+    log.Printf("received: %s\n", string(msg.Value))
+    return nil
+})
+
+m := &sg.MuxManager{
+    Client:               c,
+    Mux:                  mux,
+    ReFetchSleepDuration: dur,
+}
+
+err = m.Start()
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+2. Low level
 
 ```go
 // Let's first create a client by providing adresses of nodes in the sandglass cluster
@@ -232,7 +266,7 @@ Check the raw generated code available on https://github.com/celrenheit/sandglas
 ```
 
 
-### Topics
+### Topic
 
 There is two kinds of topics:
 * Timer:
@@ -248,26 +282,19 @@ There is two kinds of topics:
 A topic has a number of partitions.
 Data is written into a single partition. Either the destination partition is specified by the producer. Otherwise, we fallback to choosing the destination partition using a consistent hashing algorithm.
 
-Each produced message to a partition writes a message to a Write Ahead Log (WAL) and to the message log.
+Each produced message to a partition writes a message to a Write Ahead Log (WAL) and to the View Log (VL).
 The WAL is used for the replication logic, it is sorted in the order each message was produced.
-The message log is used for message comsumption, it is mainly sorted by time (please refer to [sandflake ids](https://github.com/celrenheit/sandflake) for the exact composition)
-
-The content of the message is stored in the message log and not in the WAL (only the keys are important). This way the message log is used for fast consumption avoiding random reads. 
-
-This will probably change in order to have the WAL as the only source of truth instead of storing the content in the message log. This of course will have an impact because we are transfering random reads to the consumption path. Utlimately, we are going to have to store the content of the message in both logs for better performance at the cost of disk space.
+The View Log is used for message comsumption, it is mainly sorted by time (please refer to [sandflake ids](https://github.com/celrenheit/sandflake) for the exact composition) for a Timer topics and by keys for KV topics.
 
 
 A message is composed of the following fields:
 
-        topic
-        partition
+        index                       <- position in the WAL
 
-        index   <- position in the WAL
+        offset                      <- position in the view log for timer topics
+        key and clusteringKey       <- position in the view log for key for kv topics (key is used for partitioning)
 
-        offset  <- position in the message log for timer topics
-        key     <- position in the message log for key for kv topics
-
-        value   <- your payload
+        value                       <- your payload
 
 ## Contributing
 
