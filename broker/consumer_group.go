@@ -11,7 +11,7 @@ import (
 	"github.com/celrenheit/sandflake"
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -98,10 +98,27 @@ func (c *ConsumerGroup) consumeLoop() {
 				lastMessage *sgproto.Message
 				committed   = false
 			)
-			return c.broker.FetchRange(context.TODO(), c.topic, c.partition, lastCommited, from, func(m *sgproto.Message) error {
+			req := &sgproto.FetchRangeRequest{
+				Topic:     c.topic,
+				Partition: c.partition,
+				From:      lastCommited,
+				To:        from,
+			}
+
+			commit := func(offset sandflake.ID) {
+				_, err := c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, "", lastMessage.Offset)
+				if err != nil {
+					c.broker.Debug("unable to commit")
+				}
+			}
+
+			i := 0
+			err := c.broker.FetchRange(context.TODO(), req, func(m *sgproto.Message) error {
 				if m.Offset.Equal(lastCommited) { // skip first item, since it is already committed
+					lastMessage = m
 					return nil
 				}
+				i++
 
 				msg, err := c.broker.GetMarkStateMessage(context.TODO(), c.topic, c.partition, c.name, "", m.Offset)
 				if err != nil {
@@ -121,15 +138,16 @@ func (c *ConsumerGroup) consumeLoop() {
 
 				// advance commit offset
 				// if we only got acked messages before
-				if state.Kind != sgproto.MarkKind_Acknowledged {
-					if !committed && lastMessage != nil {
+				if !committed && lastMessage != nil {
+					if state.Kind != sgproto.MarkKind_Acknowledged {
 						// we might commit in a goroutine, we can redo this the next time we consume
-						_, err := c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, "", lastMessage.Offset)
-						if err != nil {
-							c.broker.Debug("unable to commit")
+						if !lastMessage.Offset.Equal(lastCommited) {
+							commit(lastMessage.Offset)
 						}
+						committed = true
+					} else if i%10000 == 0 {
+						go commit(lastMessage.Offset)
 					}
-					committed = true
 				}
 				lastMessage = m
 
@@ -143,7 +161,10 @@ func (c *ConsumerGroup) consumeLoop() {
 							return err
 						}
 
-						if _, err := c.broker.PublishMessage(context.TODO(), msg); err != nil {
+						if _, err := c.broker.Produce(context.TODO(), &sgproto.ProduceMessageRequest{
+							Topic:    ConsumerOffsetTopicName,
+							Messages: []*sgproto.Message{msg},
+						}); err != nil {
 							return err
 						}
 					}
@@ -151,11 +172,27 @@ func (c *ConsumerGroup) consumeLoop() {
 
 				return nil
 			})
+			if err != nil {
+				return err
+			}
+
+			if !committed && lastMessage != nil {
+				commit(lastMessage.Offset)
+			}
+
+			return nil
 		})
 	}
 	group.Go(func() error {
 		now := sandflake.NewID(time.Now().UTC(), sandflake.MaxID.WorkerID(), sandflake.MaxID.Sequence(), sandflake.MaxID.RandomBytes())
-		return c.broker.FetchRange(context.TODO(), c.topic, c.partition, from, now, func(m *sgproto.Message) error {
+		req := &sgproto.FetchRangeRequest{
+			Topic:     c.topic,
+			Partition: c.partition,
+			From:      from,
+			To:        now,
+		}
+
+		return c.broker.FetchRange(context.TODO(), req, func(m *sgproto.Message) error {
 			// skip the first if it is the same as the starting point
 			if from == m.Offset {
 				return nil
@@ -203,7 +240,7 @@ loop:
 		}
 	}
 
-	if m != nil {
+	if m != nil && !m.Offset.Equal(from) {
 		_, err := c.broker.MarkConsumed(context.TODO(), c.topic, c.partition, c.name, "REMOVE THIS", m.Offset)
 		if err != nil {
 			c.broker.Debug("unable to mark as consumed: %v", err)

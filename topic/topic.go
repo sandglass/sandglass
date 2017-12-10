@@ -1,13 +1,14 @@
 package topic
 
 import (
+	"math/rand"
 	"path/filepath"
 	"sync"
 
 	"fmt"
 
 	"github.com/celrenheit/sandflake"
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/sgutils"
 	"golang.org/x/sync/errgroup"
 )
@@ -69,15 +70,6 @@ func (t *Topic) initPartition(p *Partition) error {
 	return nil
 }
 
-func (t *Topic) AddPartition(p *Partition) error {
-	err := t.initPartition(p)
-	if err != nil {
-		return err
-	}
-	t.Partitions = append(t.Partitions, p)
-	return nil
-}
-
 func (t *Topic) ListPartitions() []*Partition { return t.Partitions }
 
 func (t *Topic) GetPartition(id string) *Partition {
@@ -116,10 +108,15 @@ func (t *Topic) ChoosePartition(msg *sgproto.Message) *Partition {
 	return t.Partitions[idx]
 }
 
-func (t *Topic) PutMessage(msg *sgproto.Message) error {
+func (t *Topic) ChooseRandomPartition() *Partition {
+	idx := rand.Int() % len(t.Partitions)
+	return t.Partitions[idx]
+}
+
+func (t *Topic) PutMessage(partition string, msg *sgproto.Message) error {
 	var p *Partition
-	if msg.Partition != "" {
-		p = t.GetPartition(msg.Partition)
+	if partition != "" {
+		p = t.GetPartition(partition)
 	} else {
 		p = t.ChoosePartition(msg)
 	}
@@ -178,14 +175,4 @@ func (t *Topic) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Message) er
 	}
 
 	return group.Wait()
-}
-
-func (t *Topic) getPartition(id string) *Partition {
-	for _, p := range t.Partitions {
-		if p.Id == id {
-			return p
-		}
-	}
-
-	return nil
 }

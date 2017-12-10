@@ -20,9 +20,10 @@ import (
 	"io/ioutil"
 	"log"
 
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
+
 	"github.com/celrenheit/sandglass/cmd/cmdcommon"
 
-	"github.com/celrenheit/sandglass/sgproto"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -36,7 +37,10 @@ var produceCmd = &cobra.Command{
 		if len(args) < 1 {
 			log.Fatal("you should select one topic")
 		}
-		topic := args[0]
+		var (
+			topic     = args[0]
+			partition = viper.GetString("partition")
+		)
 
 		var data []byte
 		switch {
@@ -55,22 +59,35 @@ var produceCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), viper.GetDuration("timeout"))
 		defer cancel()
 
-		msgCh, errCh := cli.ProduceMessageCh(ctx)
-		for i := 0; i < viper.GetInt("number"); i++ {
-			msg := &sgproto.Message{
+		produce := func(msgs []*sgproto.Message) error {
+			_, err := client.Produce(ctx, &sgproto.ProduceMessageRequest{
 				Topic:     topic,
-				Partition: viper.GetString("partition"),
-				Value:     data,
-			}
+				Partition: partition,
+				Messages:  msgs,
+			})
+			return err
+		}
 
-			select {
-			case msgCh <- msg:
-			case err := <-errCh:
+		batchSize := 10000
+		messages := make([]*sgproto.Message, 0, batchSize)
+		for i := 0; i < viper.GetInt("number"); i++ {
+			messages = append(messages, &sgproto.Message{
+				Value: data,
+			})
+
+			if len(messages) == batchSize {
+				if err := produce(messages); err != nil {
+					panic(err)
+				}
+				messages = messages[:0]
+			}
+		}
+
+		if len(messages) > 0 {
+			if err := produce(messages); err != nil {
 				panic(err)
 			}
 		}
-		close(msgCh)
-		<-errCh
 
 		fmt.Println("OK")
 	},

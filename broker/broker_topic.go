@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/celrenheit/sandflake"
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/topic"
 	"github.com/hashicorp/serf/serf"
 	"github.com/serialx/hashring"
@@ -53,15 +53,6 @@ func (b *Broker) watchTopic() error {
 			b.eventEmitter.Emit("topics:created:"+topic.Name, nil)
 		}
 	}
-}
-
-func (b *Broker) setupTopic(topic *topic.Topic) error {
-	err := topic.InitStore(b.conf.DBPath)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicParams) error {

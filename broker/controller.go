@@ -8,11 +8,6 @@ import (
 	"github.com/celrenheit/sandglass"
 )
 
-func (b *Broker) hasController() bool {
-	leader := b.raft.Leader()
-	return leader != "" && b.getNodeByRaftAddr(leader) != nil
-}
-
 func (b *Broker) IsController() bool {
 	return b.raft.Leader() == b.currentNode.RAFTAddr
 }

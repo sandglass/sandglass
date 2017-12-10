@@ -3,7 +3,7 @@ package sandglass
 import (
 	"fmt"
 
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/hashicorp/serf/serf"
 	"google.golang.org/grpc"
 )

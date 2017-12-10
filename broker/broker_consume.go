@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/storage"
 )
 

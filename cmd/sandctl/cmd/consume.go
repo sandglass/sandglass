@@ -17,6 +17,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"time"
 
@@ -27,7 +28,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/celrenheit/sandflake"
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/spf13/cobra"
 )
 
@@ -53,19 +54,21 @@ var consumeCmd = &cobra.Command{
 		msgCh := make(chan *sgproto.Message)
 		if cmd.Flag("partition").Changed {
 			group.Go(func() error {
-				consume(msgCh, topic, viper.GetString("partition"), consumerGroup, consumerName, viper.GetBool("follow"), viper.GetBool("commit"))
+				consume(msgCh, topic, viper.GetString("partition"), consumerGroup, consumerName, viper.GetBool("follow"), viper.GetBool("ack"))
 				return nil
 			})
 		} else {
-			partitions, err := cli.ListPartitions(context.Background(), topic)
+			t, err := client.GetTopic(context.Background(), &sgproto.GetTopicParams{
+				Name: topic,
+			})
 			if err != nil {
 				panic(err)
 			}
 
-			for _, part := range partitions {
+			for _, part := range t.Partitions {
 				part := part
 				group.Go(func() error {
-					consume(msgCh, topic, part, consumerGroup, consumerName, viper.GetBool("follow"), viper.GetBool("commit"))
+					consume(msgCh, topic, part, consumerGroup, consumerName, viper.GetBool("follow"), viper.GetBool("ack"))
 					return nil
 				})
 			}
@@ -76,9 +79,8 @@ var consumeCmd = &cobra.Command{
 			close(msgCh)
 		}()
 
-		fmt.Printf("PARTITION\tOFFSET\tPAYLOAD\n")
 		for msg := range msgCh {
-			fmt.Printf("%s\t%s\t%s\n", msg.Partition, msg.Offset, string(msg.Value))
+			fmt.Println(string(msg.Value))
 		}
 
 	},
@@ -92,7 +94,7 @@ func init() {
 	consumeCmd.Flags().String("consumer-name", "", "Consumer name (default: random)")
 	consumeCmd.Flags().Duration("poll-interval", 50*time.Millisecond, "Poll interval")
 	consumeCmd.Flags().BoolP("follow", "f", false, "Consumer name (default: random)")
-	consumeCmd.Flags().Bool("commit", true, "Commit after consumption")
+	consumeCmd.Flags().Bool("ack", true, "Ack messages (batching 10k messages)")
 
 	cmdcommon.BindViper(consumeCmd.Flags(),
 		"partition",
@@ -100,27 +102,53 @@ func init() {
 		"consumer-name",
 		"poll-interval",
 		"follow",
-		"commit",
+		"ack",
 	)
 }
 
-func consume(msgCh chan *sgproto.Message, topic, partition, group, name string, follow, commit bool) {
+func consume(msgCh chan *sgproto.Message, topic, partition, group, name string, follow, ack bool) {
 	ctx := context.Background()
-	consumer := cli.NewConsumer(topic, partition, group, name)
 
 FOLLOW:
-	consumeCh, err := consumer.Consume(ctx)
+
+	stream, err := client.ConsumeFromGroup(ctx, &sgproto.ConsumeFromGroupRequest{
+		Topic:             topic,
+		Partition:         partition,
+		ConsumerGroupName: group,
+		ConsumerName:      name,
+	})
 	if err != nil {
 		panic(err)
 	}
 
-	var msg *sgproto.Message
+	ackFn := func(offsets []sandflake.ID) error {
+		_, err := client.AcknowledgeMessages(context.Background(), &sgproto.MultiOffsetChangeRequest{
+			Topic:         topic,
+			Partition:     partition,
+			ConsumerGroup: group,
+			ConsumerName:  name,
+			Offsets:       offsets,
+		})
+		return err
+	}
+
 	offsets := []sandflake.ID{}
-	for msg = range consumeCh {
-		offsets = append(offsets, msg.Offset)
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			panic(err)
+		}
+
 		msgCh <- msg
-		if len(offsets) == 1000 {
-			err = consumer.AcknowledgeMessages(context.Background(), offsets)
+
+		if ack {
+			offsets = append(offsets, msg.Offset)
+		}
+
+		if ack && len(offsets) == 1000 {
+			err := ackFn(offsets)
 			if err != nil {
 				panic(err)
 			}
@@ -129,13 +157,8 @@ FOLLOW:
 		}
 	}
 
-	err = consumer.AcknowledgeMessages(context.Background(), offsets)
-	if err != nil {
-		panic(err)
-	}
-
-	if msg != nil && commit {
-		err := consumer.Commit(ctx, msg)
+	if ack && len(offsets) > 0 {
+		err := ackFn(offsets)
 		if err != nil {
 			panic(err)
 		}

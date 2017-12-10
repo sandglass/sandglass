@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/sgutils"
 	"github.com/cenkalti/backoff"
 

@@ -1,4 +1,4 @@
-package client
+package sg
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/celrenheit/sandflake"
 
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 )
 
 type Consumer struct {

@@ -11,7 +11,7 @@ import (
 	"github.com/celrenheit/sandflake"
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/celrenheit/sandglass/sgproto"
+	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/topic"
 )
@@ -20,6 +20,11 @@ func (b *Broker) Acknowledge(ctx context.Context, topicName, partitionName, cons
 	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.MarkKind_Acknowledged)
 }
 
+func (b *Broker) NotAcknowledge(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
+	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.MarkKind_NotAcknowledged)
+}
+
+// FIXME: share same code between AcknowledgeMessages a AcknowledgeMessage
 func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets []sandflake.ID) error {
 	topic := b.getTopic(ConsumerOffsetTopicName)
 	p := topic.ChoosePartitionForKey(partitionKey(topicName, partitionName, consumerGroup, consumerName))
@@ -47,19 +52,30 @@ func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionNa
 		return nil
 	}
 
-	msgs := []*sgproto.Message{}
+	produceRequest := &sgproto.ProduceMessageRequest{
+		Topic:     ConsumerOffsetTopicName,
+		Partition: p.Id,
+	}
 	for _, offset := range offsets {
-		msgs = append(msgs, &sgproto.Message{
-			Topic:         ConsumerOffsetTopicName,
-			Partition:     p.Id,
+		state := &sgproto.MarkState{
+			Kind: sgproto.MarkKind_Acknowledged,
+		}
+
+		value, err := proto.Marshal(state)
+		if err != nil {
+			return err
+		}
+
+		produceRequest.Messages = append(produceRequest.Messages, &sgproto.Message{
 			Offset:        offset,
 			Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
 			ClusteringKey: generateClusterKey(offset, sgproto.MarkKind_Acknowledged),
-			Value:         []byte{byte(sgproto.MarkKind_Acknowledged)},
+			Value:         value,
 		})
 	}
 
-	return b.PublishMessages(ctx, msgs)
+	_, err := b.Produce(ctx, produceRequest)
+	return err
 }
 
 func (b *Broker) Commit(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
@@ -95,6 +111,8 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 		switch kind {
 		case sgproto.MarkKind_Acknowledged:
 			res, err = n.Acknowledge(ctx, change)
+		case sgproto.MarkKind_NotAcknowledged:
+			res, err = n.NotAcknowledge(ctx, change)
 		case sgproto.MarkKind_Commited:
 			res, err = n.Commit(ctx, change)
 		case sgproto.MarkKind_Consumed:
@@ -116,13 +134,17 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 		return false, err
 	}
 
-	res, err := b.PublishMessage(ctx, &sgproto.Message{
-		Topic:         ConsumerOffsetTopicName,
-		Partition:     p.Id,
-		Offset:        offset,
-		Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
-		ClusteringKey: generateClusterKey(offset, kind),
-		Value:         value,
+	res, err := b.Produce(ctx, &sgproto.ProduceMessageRequest{
+		Topic:     ConsumerOffsetTopicName,
+		Partition: p.Id,
+		Messages: []*sgproto.Message{
+			{
+				Offset:        offset,
+				Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
+				ClusteringKey: generateClusterKey(offset, kind),
+				Value:         value,
+			},
+		},
 	})
 	return res != nil, err
 }

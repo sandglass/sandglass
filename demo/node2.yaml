@@ -1,11 +1,11 @@
 name: node2
-bind_addr: 0.0.0.0
-# advertise_addr: 0.0.0.0
+bind_addr: 127.0.0.1
+advertise_addr: 127.0.0.1
 db_path: /tmp/node2
 gossip_port: 9901
 http_port: 3108
 grpc_port: 7171
 raft_port: 9191
 initial_peers:
-  - 0.0.0.0:9900
-  - 0.0.0.0:9902
+  - 127.0.0.1:9900
+  - 127.0.0.1:9902
