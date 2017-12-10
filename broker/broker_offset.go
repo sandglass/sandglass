@@ -111,6 +111,8 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 		switch kind {
 		case sgproto.MarkKind_Acknowledged:
 			res, err = n.Acknowledge(ctx, change)
+		case sgproto.MarkKind_NotAcknowledged:
+			res, err = n.NotAcknowledge(ctx, change)
 		case sgproto.MarkKind_Commited:
 			res, err = n.Commit(ctx, change)
 		case sgproto.MarkKind_Consumed:
