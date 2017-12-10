@@ -24,6 +24,7 @@ Sandglass is a distributed, horizontally scalable, persistent, time ordered mess
 - [Features](#features)
 - [Installation](#installation)
 - [Getting started](#getting-started)
+- [Motivation](#motivation)
 - [Clients](#clients)
   - [Go](#go)
     - [Installation](#installation-1)
@@ -35,6 +36,7 @@ Sandglass is a distributed, horizontally scalable, persistent, time ordered mess
 - [Architecture](#architecture)
   - [General](#general)
   - [Topic](#topic)
+  - [Offset Tracking](#offset-tracking)
 - [Contributing](#contributing)
 - [License](#license)
 
