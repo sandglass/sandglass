@@ -143,7 +143,7 @@ defer client.Close()
 
 // Now we produce a new message
 // Notice the empty string "" in the 3th argument, meaning let sandglass choose a random partition
-err := client.Produce(context.Background(), "payments", "", &sgproto.Message{
+err := client.Produce(context.Background(), "emails", "", &sgproto.Message{
     Value: []byte("Hello, Sandglass!"),
 })
 if err != nil {
@@ -226,8 +226,8 @@ if err != nil {
 // we are choosing only one partition for demo purposes
 partition := partitions[0]
 
-// Create a new consumer using consumer group payments-sender and consumer name consumer1
-consumer := c.NewConsumer(topic, partition, "payments-sender", "consumer1")
+// Create a new consumer using consumer group emails-sender and consumer name consumer1
+consumer := c.NewConsumer(topic, partition, "emails-sender", "consumer1")
 
 // and consume messages
 msgCh, err := consumer.Consume(context.Background())
