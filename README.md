@@ -155,7 +155,7 @@ In order to produce message in the future, you need to specify a custom offset:
 
 ```go
 inOneHour := time.Now().Add(1 * time.Hour)
-gen := sandflake.NewFixedTimeGenerator(oneweekFromNow)
+gen := sandflake.NewFixedTimeGenerator(inOneHour)
 
 msg := &sgproto.Message{
 	Offset: gen.Next(),
