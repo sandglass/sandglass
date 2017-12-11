@@ -151,6 +151,25 @@ if err != nil {
 }
 ```
 
+In order to produce message in the future, you need to specify a custom offset:
+
+```go
+inOneHour := time.Now().Add(1 * time.Hour)
+gen := sandflake.NewFixedTimeGenerator(oneweekFromNow)
+
+msg := &sgproto.Message{
+	Offset: gen.Next(),
+	Value:  []byte("Hello"),
+}
+
+err := client.ProduceMessage(context.Background(), "emails", "", msg)
+if err != nil {
+	return err
+}
+```
+
+This will produce a message that will be available for consumption in 1h.
+
 ##### Consumer
 
 
