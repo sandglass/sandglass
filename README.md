@@ -218,7 +218,7 @@ defer client.Close()
 
 
 // Listing partitions in order to choose one to consume from
-partitions, err := c.ListPartitions(context.Background(), topic)
+partitions, err := client.ListPartitions(context.Background(), topic)
 if err != nil {
     panic(err)
 }
@@ -227,7 +227,7 @@ if err != nil {
 partition := partitions[0]
 
 // Create a new consumer using consumer group emails-sender and consumer name consumer1
-consumer := c.NewConsumer(topic, partition, "emails-sender", "consumer1")
+consumer := client.NewConsumer(topic, partition, "emails-sender", "consumer1")
 
 // and consume messages
 msgCh, err := consumer.Consume(context.Background())
