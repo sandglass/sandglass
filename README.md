@@ -37,6 +37,7 @@ Sandglass is a distributed, horizontally scalable, persistent, time ordered mess
   - [General](#general)
   - [Topic](#topic)
   - [Offset Tracking](#offset-tracking)
+  - [Technologies used](#technologies-used)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -334,6 +335,14 @@ Sandglass is responsible for maintaining two offsets for each consumer group:
 * Consumed: the last consumed message
 
 When consuming sandglass starts from the last commited until the last consumed message to check the redelivery of messages. And from the last consumed offset until the last produced message to deliver the new messages. These two actions are done in parallel.
+
+### Technologies used
+
+* Leader Election: [hashicorp/raft](https://github.com/hashicorp/raft)
+* Persitance: [RocksDB](http://rocksdb.org/) or [Badger](https://github.com/dgraph-io/badger) 
+* Communication: [GRPC](https://grpc.io)
+* Gossip: [Serf](https://github.com/hashicorp/serf)
+* and many more
 
 ## Contributing
 
