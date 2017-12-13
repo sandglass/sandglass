@@ -203,6 +203,9 @@ func initConfig() {
 }
 
 func isURL(u string) bool {
-	_, err := url.ParseRequestURI(u)
-	return err == nil
+	p, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	return p.Scheme == "http" || p.Scheme == "https"
 }
