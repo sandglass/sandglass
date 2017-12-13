@@ -24,6 +24,7 @@ Sandglass is a distributed, horizontally scalable, persistent, time ordered mess
 - [Features](#features)
 - [Installation](#installation)
 - [Getting started](#getting-started)
+- [Documentation](#documentation)
 - [Motivation](#motivation)
 - [Clients](#clients)
   - [Go](#go)
@@ -112,6 +113,15 @@ As previously asked ([#4](https://github.com/celrenheit/sandglass/issues/4)), th
 The first is to be able to track each message individually (i.e. not using a single commit offset) to make suitable for asynchronous tasks.
 
 The second is the ability to schedule messages to be consumed in the future. This make it suitable for retries.
+
+## Documentation
+
+> Documentation is a work in progress and still lacking.
+
+* [API docs](https://docs.sandglass.stream/)
+* Overview - TODO
+* Clients development guides - TODO
+* Documentation the different ways of starting a cluster
 
 ## Clients
 
