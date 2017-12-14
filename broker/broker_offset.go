@@ -27,7 +27,7 @@ func (b *Broker) NotAcknowledge(ctx context.Context, topicName, partitionName, c
 // FIXME: share same code between AcknowledgeMessages a AcknowledgeMessage
 func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets []sandflake.ID) error {
 	topic := b.getTopic(ConsumerOffsetTopicName)
-	p := topic.ChoosePartitionForKey(partitionKey(topicName, partitionName, consumerGroup, consumerName))
+	p := topic.ChoosePartitionForKey(partitionKey(topicName, partitionName, consumerGroup))
 
 	n := b.getPartitionLeader(ConsumerOffsetTopicName, p.Id)
 	if n == nil {
@@ -68,7 +68,7 @@ func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionNa
 
 		produceRequest.Messages = append(produceRequest.Messages, &sgproto.Message{
 			Offset:        offset,
-			Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
+			Key:           partitionKey(topicName, partitionName, consumerGroup),
 			ClusteringKey: generateClusterKey(offset, sgproto.MarkKind_Acknowledged),
 			Value:         value,
 		})
@@ -88,7 +88,7 @@ func (b *Broker) MarkConsumed(ctx context.Context, topicName, partitionName, con
 
 func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID, kind sgproto.MarkKind) (bool, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
-	p := topic.ChoosePartitionForKey(partitionKey(topicName, partitionName, consumerGroup, consumerName))
+	p := topic.ChoosePartitionForKey(partitionKey(topicName, partitionName, consumerGroup))
 
 	n := b.getPartitionLeader(ConsumerOffsetTopicName, p.Id)
 	if n == nil {
@@ -140,7 +140,7 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 		Messages: []*sgproto.Message{
 			{
 				Offset:        offset,
-				Key:           partitionKey(topicName, partitionName, consumerGroup, consumerName),
+				Key:           partitionKey(topicName, partitionName, consumerGroup),
 				ClusteringKey: generateClusterKey(offset, kind),
 				Value:         value,
 			},
@@ -151,7 +151,7 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 
 func (b *Broker) LastOffset(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, kind sgproto.MarkKind) (sandflake.ID, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
-	pk := partitionKey(topicName, partitionName, consumerGroup, consumerName)
+	pk := partitionKey(topicName, partitionName, consumerGroup)
 	p := topic.ChoosePartitionForKey(pk)
 
 	n := b.getPartitionLeader(ConsumerOffsetTopicName, p.Id)
@@ -181,7 +181,7 @@ func (b *Broker) LastOffset(ctx context.Context, topicName, partitionName, consu
 
 func (b *Broker) GetMarkStateMessage(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (*sgproto.Message, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
-	pk := partitionKey(topicName, partitionName, consumerGroup, consumerName)
+	pk := partitionKey(topicName, partitionName, consumerGroup)
 	p := topic.ChoosePartitionForKey(pk)
 
 	n := b.getPartitionLeader(ConsumerOffsetTopicName, p.Id)
@@ -240,19 +240,18 @@ func (b *Broker) isAcknoweldged(ctx context.Context, topicName, partition, consu
 	if topic == nil {
 		return false, ErrTopicNotFound
 	}
-	pk := partitionKey(topicName, partition, consumerGroup, "NOT SET")
+	pk := partitionKey(topicName, partition, consumerGroup)
 	p := topic.ChoosePartitionForKey(pk)
 	clusterKey := generateClusterKey(offset, sgproto.MarkKind_Acknowledged)
 	return b.hasKeyInPartition(ctx, ConsumerOffsetTopicName, p, pk, clusterKey)
 }
 
-func partitionKey(topicName, partitionName, consumerGroup, consumerName string) []byte {
+func partitionKey(topicName, partitionName, consumerGroup string) []byte {
 	return bytes.Join([][]byte{
 		[]byte("offsets"),
 		[]byte(topicName),
 		[]byte(partitionName),
 		[]byte(consumerGroup),
-		// []byte(consumerName),
 	}, storage.Separator)
 }
 

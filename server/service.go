@@ -114,38 +114,6 @@ func (s *service) ProduceMessagesStream(stream sgproto.BrokerService_ProduceMess
 	return nil
 }
 
-// func (s *service) StoreMessageLocally(ctx context.Context, msg *sgproto.Message) (*sgproto.StoreLocallyReply, error) {
-// 	err := s.broker.StoreMessageLocally(msg)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return &sgproto.StoreLocallyReply{}, nil
-// }
-
-// func (s *service) StoreMessagesStream(stream sgproto.BrokerService_StoreMessagesStreamServer) error {
-// 	const n = 10000
-// 	messages := make([]*sgproto.Message, 0)
-// 	for {
-// 		msg, err := stream.Recv()
-// 		if err == io.EOF {
-// 			break
-// 		}
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		messages = append(messages, msg)
-// 		if len(messages) >= n {
-// 			if err := s.broker.StoreMessages(messages); err != nil {
-// 				return err
-// 			}
-// 			messages = messages[:0]
-// 		}
-// 	}
-
-// 	return s.broker.StoreMessages(messages)
-// }
-
 func (s *service) FetchFrom(req *sgproto.FetchFromRequest, stream sgproto.BrokerService_FetchFromServer) error {
 	partitionReq := &sgproto.FetchRangeRequest{
 		Topic:     req.Topic,

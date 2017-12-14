@@ -138,7 +138,6 @@ func (b *Broker) Stop(ctx context.Context) error {
 			return
 		}
 
-		// closing connection to etcd
 		err := b.raft.Stop()
 		if err != nil {
 			b.Debug("error while stopping raft: %v", err)

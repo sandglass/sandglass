@@ -15,7 +15,7 @@ func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGrou
 		return ErrTopicNotFound
 	}
 
-	pk := partitionKey(topicName, partition, consumerGroup, consumerName)
+	pk := partitionKey(topicName, partition, consumerGroup)
 	offsetPartition := offsetTopic.ChoosePartitionForKey(pk)
 	if offsetPartition == nil {
 		return ErrPartitionNotFound

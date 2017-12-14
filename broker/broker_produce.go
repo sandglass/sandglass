@@ -28,7 +28,7 @@ func (b *Broker) Produce(ctx context.Context, req *sgproto.ProduceMessageRequest
 			return nil, fmt.Errorf("unknown partition '%s'", req.Partition)
 		}
 	} else { // choose one
-		p = t.ChooseRandomPartition() // FIXME: choose randomly
+		p = t.ChooseRandomPartition()
 	}
 
 	leader := b.getPartitionLeader(req.Topic, p.Id)
