@@ -326,7 +326,7 @@ Data is written into a single partition. Either the destination partition is spe
 
 Each produced message to a partition writes a message to a Write Ahead Log (WAL) and to the View Log (VL).
 The WAL is used for the replication logic, it is sorted in the order each message was produced.
-The View Log is used for message comsumption, it is mainly sorted by time (please refer to [sandflake ids](https://github.com/celrenheit/sandflake) for the exact composition) for a Timer topics and by keys for KV topics.
+The View Log is used for message consumption, it is mainly sorted by time (please refer to [sandflake ids](https://github.com/celrenheit/sandflake) for the exact composition) for a Timer topics and by keys for KV topics.
 
 
 A message is composed of the following fields:
