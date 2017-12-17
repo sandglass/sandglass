@@ -158,8 +158,8 @@ func (c *ConsumerGroup) consumeLoop() {
 
 					// those calls should be batched
 					if state.Kind == sgproto.MarkKind_Unknown {
-						// TODO: Should this be nacked?
-						_, err := c.broker.NotAcknowledge(context.Background(), c.topic, c.partition, c.name, "NOT SET", m.Offset)
+						// TODO: Should we mark this consumed?
+						_, err := c.broker.MarkConsumed(context.Background(), c.topic, c.partition, c.name, "NOT SET", m.Offset)
 						if err != nil {
 							c.broker.Debug("error while acking message for the first redilvery", err)
 							return err
@@ -181,7 +181,7 @@ func (c *ConsumerGroup) consumeLoop() {
 						// TODO: Should handle this in higher level method
 						t := c.broker.GetTopic(ConsumerOffsetTopicName)
 						p := t.ChoosePartitionForKey(msg.Key)
-						msg.ClusteringKey = generateClusterKey(msg.Offset, state.Kind)
+						msg.ClusteringKey = generateClusterKey(m.Offset, state.Kind)
 
 						if _, err := c.broker.Produce(context.TODO(), &sgproto.ProduceMessageRequest{
 							Topic:     ConsumerOffsetTopicName,
@@ -276,7 +276,7 @@ func shouldRedeliver(index sandflake.ID, state sgproto.MarkState) bool {
 	case sgproto.MarkKind_NotAcknowledged:
 		return true
 	case sgproto.MarkKind_Consumed, sgproto.MarkKind_Unknown: // inflight
-		return index.Time().Add(RedeliveryTimeout).Before(time.Now().UTC())
+		return index.Time().Add(time.Duration(state.DeliveryCount) * RedeliveryTimeout).Before(time.Now().UTC())
 	case sgproto.MarkKind_Acknowledged, sgproto.MarkKind_Commited:
 		return false
 	default:
