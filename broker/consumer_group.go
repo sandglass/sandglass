@@ -16,7 +16,9 @@ import (
 )
 
 var (
-	RedeliveryTimeout = 10 * time.Second
+	// TODO: make these variables configurable
+	RedeliveryTimeout  = 10 * time.Second
+	MaxRedeliveryCount = 5
 )
 
 type ConsumerGroup struct {
@@ -154,16 +156,37 @@ func (c *ConsumerGroup) consumeLoop() {
 				if shouldRedeliver(m.Index, state) {
 					msgCh <- m // deliver
 
-					if state.Kind != sgproto.MarkKind_Unknown {
+					// those calls should be batched
+					if state.Kind == sgproto.MarkKind_Unknown {
+						// TODO: Should this be nacked?
+						_, err := c.broker.NotAcknowledge(context.Background(), c.topic, c.partition, c.name, "NOT SET", m.Offset)
+						if err != nil {
+							c.broker.Debug("error while acking message for the first redilvery", err)
+							return err
+						}
+					} else {
 						state.DeliveryCount++
+
+						if int(state.DeliveryCount) >= MaxRedeliveryCount {
+							// Mark the message as ACKed
+							// TODO: produce this a dead letter queue
+							state.Kind = sgproto.MarkKind_Acknowledged
+						}
+
 						msg.Value, err = proto.Marshal(&state)
 						if err != nil {
 							return err
 						}
 
+						// TODO: Should handle this in higher level method
+						t := c.broker.GetTopic(ConsumerOffsetTopicName)
+						p := t.ChoosePartitionForKey(msg.Key)
+						msg.ClusteringKey = generateClusterKey(msg.Offset, state.Kind)
+
 						if _, err := c.broker.Produce(context.TODO(), &sgproto.ProduceMessageRequest{
-							Topic:    ConsumerOffsetTopicName,
-							Messages: []*sgproto.Message{msg},
+							Topic:     ConsumerOffsetTopicName,
+							Partition: p.Id,
+							Messages:  []*sgproto.Message{msg},
 						}); err != nil {
 							return err
 						}
