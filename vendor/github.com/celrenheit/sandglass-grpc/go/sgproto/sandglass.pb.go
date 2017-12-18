@@ -20,9 +20,9 @@
 		FetchRangeRequest
 		GetRequest
 		ConsumeFromGroupRequest
-		OffsetChangeRequest
-		MultiOffsetChangeRequest
-		OffsetChangeReply
+		MarkRequest
+		MarkResponse
+		GetMarkRequest
 		LastOffsetReply
 		LastOffsetRequest
 		FetchFromSyncRequest
@@ -450,7 +450,70 @@ func (m *ConsumeFromGroupRequest) GetConsumerName() string {
 	return ""
 }
 
-type OffsetChangeRequest struct {
+type MarkRequest struct {
+	Topic         string                               `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
+	Partition     string                               `protobuf:"bytes,2,opt,name=partition,proto3" json:"partition,omitempty"`
+	ConsumerGroup string                               `protobuf:"bytes,3,opt,name=consumerGroup,proto3" json:"consumerGroup,omitempty"`
+	ConsumerName  string                               `protobuf:"bytes,4,opt,name=consumerName,proto3" json:"consumerName,omitempty"`
+	Offsets       []github_com_celrenheit_sandflake.ID `protobuf:"bytes,5,rep,name=offsets,customtype=github.com/celrenheit/sandflake.ID" json:"offsets"`
+	State         *MarkState                           `protobuf:"bytes,6,opt,name=state" json:"state,omitempty"`
+}
+
+func (m *MarkRequest) Reset()                    { *m = MarkRequest{} }
+func (*MarkRequest) ProtoMessage()               {}
+func (*MarkRequest) Descriptor() ([]byte, []int) { return fileDescriptorSandglass, []int{12} }
+
+func (m *MarkRequest) GetTopic() string {
+	if m != nil {
+		return m.Topic
+	}
+	return ""
+}
+
+func (m *MarkRequest) GetPartition() string {
+	if m != nil {
+		return m.Partition
+	}
+	return ""
+}
+
+func (m *MarkRequest) GetConsumerGroup() string {
+	if m != nil {
+		return m.ConsumerGroup
+	}
+	return ""
+}
+
+func (m *MarkRequest) GetConsumerName() string {
+	if m != nil {
+		return m.ConsumerName
+	}
+	return ""
+}
+
+func (m *MarkRequest) GetState() *MarkState {
+	if m != nil {
+		return m.State
+	}
+	return nil
+}
+
+type MarkResponse struct {
+	Success bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+}
+
+func (m *MarkResponse) Reset()                    { *m = MarkResponse{} }
+func (*MarkResponse) ProtoMessage()               {}
+func (*MarkResponse) Descriptor() ([]byte, []int) { return fileDescriptorSandglass, []int{13} }
+
+func (m *MarkResponse) GetSuccess() bool {
+	if m != nil {
+		return m.Success
+	}
+	return false
+}
+
+type GetMarkRequest struct {
 	Topic         string                             `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
 	Partition     string                             `protobuf:"bytes,2,opt,name=partition,proto3" json:"partition,omitempty"`
 	ConsumerGroup string                             `protobuf:"bytes,3,opt,name=consumerGroup,proto3" json:"consumerGroup,omitempty"`
@@ -458,93 +521,36 @@ type OffsetChangeRequest struct {
 	Offset        github_com_celrenheit_sandflake.ID `protobuf:"bytes,5,opt,name=offset,proto3,customtype=github.com/celrenheit/sandflake.ID" json:"offset"`
 }
 
-func (m *OffsetChangeRequest) Reset()                    { *m = OffsetChangeRequest{} }
-func (*OffsetChangeRequest) ProtoMessage()               {}
-func (*OffsetChangeRequest) Descriptor() ([]byte, []int) { return fileDescriptorSandglass, []int{12} }
+func (m *GetMarkRequest) Reset()                    { *m = GetMarkRequest{} }
+func (*GetMarkRequest) ProtoMessage()               {}
+func (*GetMarkRequest) Descriptor() ([]byte, []int) { return fileDescriptorSandglass, []int{14} }
 
-func (m *OffsetChangeRequest) GetTopic() string {
+func (m *GetMarkRequest) GetTopic() string {
 	if m != nil {
 		return m.Topic
 	}
 	return ""
 }
 
-func (m *OffsetChangeRequest) GetPartition() string {
+func (m *GetMarkRequest) GetPartition() string {
 	if m != nil {
 		return m.Partition
 	}
 	return ""
 }
 
-func (m *OffsetChangeRequest) GetConsumerGroup() string {
+func (m *GetMarkRequest) GetConsumerGroup() string {
 	if m != nil {
 		return m.ConsumerGroup
 	}
 	return ""
 }
 
-func (m *OffsetChangeRequest) GetConsumerName() string {
+func (m *GetMarkRequest) GetConsumerName() string {
 	if m != nil {
 		return m.ConsumerName
 	}
 	return ""
-}
-
-type MultiOffsetChangeRequest struct {
-	Topic         string                               `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
-	Partition     string                               `protobuf:"bytes,2,opt,name=partition,proto3" json:"partition,omitempty"`
-	ConsumerGroup string                               `protobuf:"bytes,3,opt,name=consumerGroup,proto3" json:"consumerGroup,omitempty"`
-	ConsumerName  string                               `protobuf:"bytes,4,opt,name=consumerName,proto3" json:"consumerName,omitempty"`
-	Offsets       []github_com_celrenheit_sandflake.ID `protobuf:"bytes,5,rep,name=offsets,customtype=github.com/celrenheit/sandflake.ID" json:"offsets"`
-}
-
-func (m *MultiOffsetChangeRequest) Reset()      { *m = MultiOffsetChangeRequest{} }
-func (*MultiOffsetChangeRequest) ProtoMessage() {}
-func (*MultiOffsetChangeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptorSandglass, []int{13}
-}
-
-func (m *MultiOffsetChangeRequest) GetTopic() string {
-	if m != nil {
-		return m.Topic
-	}
-	return ""
-}
-
-func (m *MultiOffsetChangeRequest) GetPartition() string {
-	if m != nil {
-		return m.Partition
-	}
-	return ""
-}
-
-func (m *MultiOffsetChangeRequest) GetConsumerGroup() string {
-	if m != nil {
-		return m.ConsumerGroup
-	}
-	return ""
-}
-
-func (m *MultiOffsetChangeRequest) GetConsumerName() string {
-	if m != nil {
-		return m.ConsumerName
-	}
-	return ""
-}
-
-type OffsetChangeReply struct {
-	Success bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-}
-
-func (m *OffsetChangeReply) Reset()                    { *m = OffsetChangeReply{} }
-func (*OffsetChangeReply) ProtoMessage()               {}
-func (*OffsetChangeReply) Descriptor() ([]byte, []int) { return fileDescriptorSandglass, []int{14} }
-
-func (m *OffsetChangeReply) GetSuccess() bool {
-	if m != nil {
-		return m.Success
-	}
-	return false
 }
 
 type LastOffsetReply struct {
@@ -684,9 +690,9 @@ func init() {
 	proto.RegisterType((*FetchRangeRequest)(nil), "sandglass.FetchRangeRequest")
 	proto.RegisterType((*GetRequest)(nil), "sandglass.GetRequest")
 	proto.RegisterType((*ConsumeFromGroupRequest)(nil), "sandglass.ConsumeFromGroupRequest")
-	proto.RegisterType((*OffsetChangeRequest)(nil), "sandglass.OffsetChangeRequest")
-	proto.RegisterType((*MultiOffsetChangeRequest)(nil), "sandglass.MultiOffsetChangeRequest")
-	proto.RegisterType((*OffsetChangeReply)(nil), "sandglass.OffsetChangeReply")
+	proto.RegisterType((*MarkRequest)(nil), "sandglass.MarkRequest")
+	proto.RegisterType((*MarkResponse)(nil), "sandglass.MarkResponse")
+	proto.RegisterType((*GetMarkRequest)(nil), "sandglass.GetMarkRequest")
 	proto.RegisterType((*LastOffsetReply)(nil), "sandglass.LastOffsetReply")
 	proto.RegisterType((*LastOffsetRequest)(nil), "sandglass.LastOffsetRequest")
 	proto.RegisterType((*FetchFromSyncRequest)(nil), "sandglass.FetchFromSyncRequest")
@@ -1137,7 +1143,7 @@ func (this *ConsumeFromGroupRequest) Equal(that interface{}) bool {
 	}
 	return true
 }
-func (this *OffsetChangeRequest) Equal(that interface{}) bool {
+func (this *MarkRequest) Equal(that interface{}) bool {
 	if that == nil {
 		if this == nil {
 			return true
@@ -1145,51 +1151,9 @@ func (this *OffsetChangeRequest) Equal(that interface{}) bool {
 		return false
 	}
 
-	that1, ok := that.(*OffsetChangeRequest)
+	that1, ok := that.(*MarkRequest)
 	if !ok {
-		that2, ok := that.(OffsetChangeRequest)
-		if ok {
-			that1 = &that2
-		} else {
-			return false
-		}
-	}
-	if that1 == nil {
-		if this == nil {
-			return true
-		}
-		return false
-	} else if this == nil {
-		return false
-	}
-	if this.Topic != that1.Topic {
-		return false
-	}
-	if this.Partition != that1.Partition {
-		return false
-	}
-	if this.ConsumerGroup != that1.ConsumerGroup {
-		return false
-	}
-	if this.ConsumerName != that1.ConsumerName {
-		return false
-	}
-	if !this.Offset.Equal(that1.Offset) {
-		return false
-	}
-	return true
-}
-func (this *MultiOffsetChangeRequest) Equal(that interface{}) bool {
-	if that == nil {
-		if this == nil {
-			return true
-		}
-		return false
-	}
-
-	that1, ok := that.(*MultiOffsetChangeRequest)
-	if !ok {
-		that2, ok := that.(MultiOffsetChangeRequest)
+		that2, ok := that.(MarkRequest)
 		if ok {
 			that1 = &that2
 		} else {
@@ -1224,9 +1188,12 @@ func (this *MultiOffsetChangeRequest) Equal(that interface{}) bool {
 			return false
 		}
 	}
+	if !this.State.Equal(that1.State) {
+		return false
+	}
 	return true
 }
-func (this *OffsetChangeReply) Equal(that interface{}) bool {
+func (this *MarkResponse) Equal(that interface{}) bool {
 	if that == nil {
 		if this == nil {
 			return true
@@ -1234,9 +1201,9 @@ func (this *OffsetChangeReply) Equal(that interface{}) bool {
 		return false
 	}
 
-	that1, ok := that.(*OffsetChangeReply)
+	that1, ok := that.(*MarkResponse)
 	if !ok {
-		that2, ok := that.(OffsetChangeReply)
+		that2, ok := that.(MarkResponse)
 		if ok {
 			that1 = &that2
 		} else {
@@ -1252,6 +1219,48 @@ func (this *OffsetChangeReply) Equal(that interface{}) bool {
 		return false
 	}
 	if this.Success != that1.Success {
+		return false
+	}
+	return true
+}
+func (this *GetMarkRequest) Equal(that interface{}) bool {
+	if that == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	}
+
+	that1, ok := that.(*GetMarkRequest)
+	if !ok {
+		that2, ok := that.(GetMarkRequest)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		if this == nil {
+			return true
+		}
+		return false
+	} else if this == nil {
+		return false
+	}
+	if this.Topic != that1.Topic {
+		return false
+	}
+	if this.Partition != that1.Partition {
+		return false
+	}
+	if this.ConsumerGroup != that1.ConsumerGroup {
+		return false
+	}
+	if this.ConsumerName != that1.ConsumerName {
+		return false
+	}
+	if !this.Offset.Equal(that1.Offset) {
 		return false
 	}
 	return true
@@ -1442,14 +1451,11 @@ type BrokerServiceClient interface {
 	CreateTopic(ctx context.Context, in *CreateTopicParams, opts ...grpc.CallOption) (*TopicReply, error)
 	GetTopic(ctx context.Context, in *GetTopicParams, opts ...grpc.CallOption) (*GetTopicReply, error)
 	Produce(ctx context.Context, in *ProduceMessageRequest, opts ...grpc.CallOption) (*ProduceResponse, error)
-	ProduceMessagesStream(ctx context.Context, opts ...grpc.CallOption) (BrokerService_ProduceMessagesStreamClient, error)
 	FetchFrom(ctx context.Context, in *FetchFromRequest, opts ...grpc.CallOption) (BrokerService_FetchFromClient, error)
 	FetchRange(ctx context.Context, in *FetchRangeRequest, opts ...grpc.CallOption) (BrokerService_FetchRangeClient, error)
 	ConsumeFromGroup(ctx context.Context, in *ConsumeFromGroupRequest, opts ...grpc.CallOption) (BrokerService_ConsumeFromGroupClient, error)
-	Acknowledge(ctx context.Context, in *OffsetChangeRequest, opts ...grpc.CallOption) (*OffsetChangeReply, error)
-	NotAcknowledge(ctx context.Context, in *OffsetChangeRequest, opts ...grpc.CallOption) (*OffsetChangeReply, error)
-	Commit(ctx context.Context, in *OffsetChangeRequest, opts ...grpc.CallOption) (*OffsetChangeReply, error)
-	AcknowledgeMessages(ctx context.Context, in *MultiOffsetChangeRequest, opts ...grpc.CallOption) (*OffsetChangeReply, error)
+	Acknowledge(ctx context.Context, in *MarkRequest, opts ...grpc.CallOption) (*MarkResponse, error)
+	NotAcknowledge(ctx context.Context, in *MarkRequest, opts ...grpc.CallOption) (*MarkResponse, error)
 }
 
 type brokerServiceClient struct {
@@ -1487,42 +1493,8 @@ func (c *brokerServiceClient) Produce(ctx context.Context, in *ProduceMessageReq
 	return out, nil
 }
 
-func (c *brokerServiceClient) ProduceMessagesStream(ctx context.Context, opts ...grpc.CallOption) (BrokerService_ProduceMessagesStreamClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_BrokerService_serviceDesc.Streams[0], c.cc, "/sandglass.BrokerService/ProduceMessagesStream", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &brokerServiceProduceMessagesStreamClient{stream}
-	return x, nil
-}
-
-type BrokerService_ProduceMessagesStreamClient interface {
-	Send(*Message) error
-	CloseAndRecv() (*StoreLocallyReply, error)
-	grpc.ClientStream
-}
-
-type brokerServiceProduceMessagesStreamClient struct {
-	grpc.ClientStream
-}
-
-func (x *brokerServiceProduceMessagesStreamClient) Send(m *Message) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *brokerServiceProduceMessagesStreamClient) CloseAndRecv() (*StoreLocallyReply, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(StoreLocallyReply)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *brokerServiceClient) FetchFrom(ctx context.Context, in *FetchFromRequest, opts ...grpc.CallOption) (BrokerService_FetchFromClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_BrokerService_serviceDesc.Streams[1], c.cc, "/sandglass.BrokerService/FetchFrom", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_BrokerService_serviceDesc.Streams[0], c.cc, "/sandglass.BrokerService/FetchFrom", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1554,7 +1526,7 @@ func (x *brokerServiceFetchFromClient) Recv() (*Message, error) {
 }
 
 func (c *brokerServiceClient) FetchRange(ctx context.Context, in *FetchRangeRequest, opts ...grpc.CallOption) (BrokerService_FetchRangeClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_BrokerService_serviceDesc.Streams[2], c.cc, "/sandglass.BrokerService/FetchRange", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_BrokerService_serviceDesc.Streams[1], c.cc, "/sandglass.BrokerService/FetchRange", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1586,7 +1558,7 @@ func (x *brokerServiceFetchRangeClient) Recv() (*Message, error) {
 }
 
 func (c *brokerServiceClient) ConsumeFromGroup(ctx context.Context, in *ConsumeFromGroupRequest, opts ...grpc.CallOption) (BrokerService_ConsumeFromGroupClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_BrokerService_serviceDesc.Streams[3], c.cc, "/sandglass.BrokerService/ConsumeFromGroup", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_BrokerService_serviceDesc.Streams[2], c.cc, "/sandglass.BrokerService/ConsumeFromGroup", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1617,8 +1589,8 @@ func (x *brokerServiceConsumeFromGroupClient) Recv() (*Message, error) {
 	return m, nil
 }
 
-func (c *brokerServiceClient) Acknowledge(ctx context.Context, in *OffsetChangeRequest, opts ...grpc.CallOption) (*OffsetChangeReply, error) {
-	out := new(OffsetChangeReply)
+func (c *brokerServiceClient) Acknowledge(ctx context.Context, in *MarkRequest, opts ...grpc.CallOption) (*MarkResponse, error) {
+	out := new(MarkResponse)
 	err := grpc.Invoke(ctx, "/sandglass.BrokerService/Acknowledge", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -1626,27 +1598,9 @@ func (c *brokerServiceClient) Acknowledge(ctx context.Context, in *OffsetChangeR
 	return out, nil
 }
 
-func (c *brokerServiceClient) NotAcknowledge(ctx context.Context, in *OffsetChangeRequest, opts ...grpc.CallOption) (*OffsetChangeReply, error) {
-	out := new(OffsetChangeReply)
+func (c *brokerServiceClient) NotAcknowledge(ctx context.Context, in *MarkRequest, opts ...grpc.CallOption) (*MarkResponse, error) {
+	out := new(MarkResponse)
 	err := grpc.Invoke(ctx, "/sandglass.BrokerService/NotAcknowledge", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *brokerServiceClient) Commit(ctx context.Context, in *OffsetChangeRequest, opts ...grpc.CallOption) (*OffsetChangeReply, error) {
-	out := new(OffsetChangeReply)
-	err := grpc.Invoke(ctx, "/sandglass.BrokerService/Commit", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *brokerServiceClient) AcknowledgeMessages(ctx context.Context, in *MultiOffsetChangeRequest, opts ...grpc.CallOption) (*OffsetChangeReply, error) {
-	out := new(OffsetChangeReply)
-	err := grpc.Invoke(ctx, "/sandglass.BrokerService/AcknowledgeMessages", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1659,14 +1613,11 @@ type BrokerServiceServer interface {
 	CreateTopic(context.Context, *CreateTopicParams) (*TopicReply, error)
 	GetTopic(context.Context, *GetTopicParams) (*GetTopicReply, error)
 	Produce(context.Context, *ProduceMessageRequest) (*ProduceResponse, error)
-	ProduceMessagesStream(BrokerService_ProduceMessagesStreamServer) error
 	FetchFrom(*FetchFromRequest, BrokerService_FetchFromServer) error
 	FetchRange(*FetchRangeRequest, BrokerService_FetchRangeServer) error
 	ConsumeFromGroup(*ConsumeFromGroupRequest, BrokerService_ConsumeFromGroupServer) error
-	Acknowledge(context.Context, *OffsetChangeRequest) (*OffsetChangeReply, error)
-	NotAcknowledge(context.Context, *OffsetChangeRequest) (*OffsetChangeReply, error)
-	Commit(context.Context, *OffsetChangeRequest) (*OffsetChangeReply, error)
-	AcknowledgeMessages(context.Context, *MultiOffsetChangeRequest) (*OffsetChangeReply, error)
+	Acknowledge(context.Context, *MarkRequest) (*MarkResponse, error)
+	NotAcknowledge(context.Context, *MarkRequest) (*MarkResponse, error)
 }
 
 func RegisterBrokerServiceServer(s *grpc.Server, srv BrokerServiceServer) {
@@ -1725,32 +1676,6 @@ func _BrokerService_Produce_Handler(srv interface{}, ctx context.Context, dec fu
 		return srv.(BrokerServiceServer).Produce(ctx, req.(*ProduceMessageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
-}
-
-func _BrokerService_ProduceMessagesStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(BrokerServiceServer).ProduceMessagesStream(&brokerServiceProduceMessagesStreamServer{stream})
-}
-
-type BrokerService_ProduceMessagesStreamServer interface {
-	SendAndClose(*StoreLocallyReply) error
-	Recv() (*Message, error)
-	grpc.ServerStream
-}
-
-type brokerServiceProduceMessagesStreamServer struct {
-	grpc.ServerStream
-}
-
-func (x *brokerServiceProduceMessagesStreamServer) SendAndClose(m *StoreLocallyReply) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *brokerServiceProduceMessagesStreamServer) Recv() (*Message, error) {
-	m := new(Message)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
 }
 
 func _BrokerService_FetchFrom_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -1817,7 +1742,7 @@ func (x *brokerServiceConsumeFromGroupServer) Send(m *Message) error {
 }
 
 func _BrokerService_Acknowledge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(OffsetChangeRequest)
+	in := new(MarkRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1829,13 +1754,13 @@ func _BrokerService_Acknowledge_Handler(srv interface{}, ctx context.Context, de
 		FullMethod: "/sandglass.BrokerService/Acknowledge",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BrokerServiceServer).Acknowledge(ctx, req.(*OffsetChangeRequest))
+		return srv.(BrokerServiceServer).Acknowledge(ctx, req.(*MarkRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _BrokerService_NotAcknowledge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(OffsetChangeRequest)
+	in := new(MarkRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1847,43 +1772,7 @@ func _BrokerService_NotAcknowledge_Handler(srv interface{}, ctx context.Context,
 		FullMethod: "/sandglass.BrokerService/NotAcknowledge",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BrokerServiceServer).NotAcknowledge(ctx, req.(*OffsetChangeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _BrokerService_Commit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(OffsetChangeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(BrokerServiceServer).Commit(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/sandglass.BrokerService/Commit",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BrokerServiceServer).Commit(ctx, req.(*OffsetChangeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _BrokerService_AcknowledgeMessages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MultiOffsetChangeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(BrokerServiceServer).AcknowledgeMessages(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/sandglass.BrokerService/AcknowledgeMessages",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BrokerServiceServer).AcknowledgeMessages(ctx, req.(*MultiOffsetChangeRequest))
+		return srv.(BrokerServiceServer).NotAcknowledge(ctx, req.(*MarkRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1912,21 +1801,8 @@ var _BrokerService_serviceDesc = grpc.ServiceDesc{
 			MethodName: "NotAcknowledge",
 			Handler:    _BrokerService_NotAcknowledge_Handler,
 		},
-		{
-			MethodName: "Commit",
-			Handler:    _BrokerService_Commit_Handler,
-		},
-		{
-			MethodName: "AcknowledgeMessages",
-			Handler:    _BrokerService_AcknowledgeMessages_Handler,
-		},
 	},
 	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "ProduceMessagesStream",
-			Handler:       _BrokerService_ProduceMessagesStream_Handler,
-			ClientStreams: true,
-		},
 		{
 			StreamName:    "FetchFrom",
 			Handler:       _BrokerService_FetchFrom_Handler,
@@ -1953,8 +1829,8 @@ type InternalServiceClient interface {
 	HasKey(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*HasResponse, error)
 	FetchFromSync(ctx context.Context, in *FetchFromSyncRequest, opts ...grpc.CallOption) (InternalService_FetchFromSyncClient, error)
 	LastOffset(ctx context.Context, in *LastOffsetRequest, opts ...grpc.CallOption) (*LastOffsetReply, error)
-	MarkConsumed(ctx context.Context, in *OffsetChangeRequest, opts ...grpc.CallOption) (*OffsetChangeReply, error)
-	GetMarkStateMessage(ctx context.Context, in *OffsetChangeRequest, opts ...grpc.CallOption) (*Message, error)
+	Mark(ctx context.Context, in *MarkRequest, opts ...grpc.CallOption) (*MarkResponse, error)
+	GetMarkStateMessage(ctx context.Context, in *GetMarkRequest, opts ...grpc.CallOption) (*Message, error)
 }
 
 type internalServiceClient struct {
@@ -2024,16 +1900,16 @@ func (c *internalServiceClient) LastOffset(ctx context.Context, in *LastOffsetRe
 	return out, nil
 }
 
-func (c *internalServiceClient) MarkConsumed(ctx context.Context, in *OffsetChangeRequest, opts ...grpc.CallOption) (*OffsetChangeReply, error) {
-	out := new(OffsetChangeReply)
-	err := grpc.Invoke(ctx, "/sandglass.InternalService/MarkConsumed", in, out, c.cc, opts...)
+func (c *internalServiceClient) Mark(ctx context.Context, in *MarkRequest, opts ...grpc.CallOption) (*MarkResponse, error) {
+	out := new(MarkResponse)
+	err := grpc.Invoke(ctx, "/sandglass.InternalService/Mark", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *internalServiceClient) GetMarkStateMessage(ctx context.Context, in *OffsetChangeRequest, opts ...grpc.CallOption) (*Message, error) {
+func (c *internalServiceClient) GetMarkStateMessage(ctx context.Context, in *GetMarkRequest, opts ...grpc.CallOption) (*Message, error) {
 	out := new(Message)
 	err := grpc.Invoke(ctx, "/sandglass.InternalService/GetMarkStateMessage", in, out, c.cc, opts...)
 	if err != nil {
@@ -2049,8 +1925,8 @@ type InternalServiceServer interface {
 	HasKey(context.Context, *GetRequest) (*HasResponse, error)
 	FetchFromSync(*FetchFromSyncRequest, InternalService_FetchFromSyncServer) error
 	LastOffset(context.Context, *LastOffsetRequest) (*LastOffsetReply, error)
-	MarkConsumed(context.Context, *OffsetChangeRequest) (*OffsetChangeReply, error)
-	GetMarkStateMessage(context.Context, *OffsetChangeRequest) (*Message, error)
+	Mark(context.Context, *MarkRequest) (*MarkResponse, error)
+	GetMarkStateMessage(context.Context, *GetMarkRequest) (*Message, error)
 }
 
 func RegisterInternalServiceServer(s *grpc.Server, srv InternalServiceServer) {
@@ -2132,26 +2008,26 @@ func _InternalService_LastOffset_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-func _InternalService_MarkConsumed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(OffsetChangeRequest)
+func _InternalService_Mark_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MarkRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(InternalServiceServer).MarkConsumed(ctx, in)
+		return srv.(InternalServiceServer).Mark(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sandglass.InternalService/MarkConsumed",
+		FullMethod: "/sandglass.InternalService/Mark",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(InternalServiceServer).MarkConsumed(ctx, req.(*OffsetChangeRequest))
+		return srv.(InternalServiceServer).Mark(ctx, req.(*MarkRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _InternalService_GetMarkStateMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(OffsetChangeRequest)
+	in := new(GetMarkRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -2163,7 +2039,7 @@ func _InternalService_GetMarkStateMessage_Handler(srv interface{}, ctx context.C
 		FullMethod: "/sandglass.InternalService/GetMarkStateMessage",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(InternalServiceServer).GetMarkStateMessage(ctx, req.(*OffsetChangeRequest))
+		return srv.(InternalServiceServer).GetMarkStateMessage(ctx, req.(*GetMarkRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2185,8 +2061,8 @@ var _InternalService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _InternalService_LastOffset_Handler,
 		},
 		{
-			MethodName: "MarkConsumed",
-			Handler:    _InternalService_MarkConsumed_Handler,
+			MethodName: "Mark",
+			Handler:    _InternalService_Mark_Handler,
 		},
 		{
 			MethodName: "GetMarkStateMessage",
@@ -2664,7 +2540,7 @@ func (m *ConsumeFromGroupRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *OffsetChangeRequest) Marshal() (dAtA []byte, err error) {
+func (m *MarkRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -2674,57 +2550,7 @@ func (m *OffsetChangeRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *OffsetChangeRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if len(m.Topic) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintSandglass(dAtA, i, uint64(len(m.Topic)))
-		i += copy(dAtA[i:], m.Topic)
-	}
-	if len(m.Partition) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintSandglass(dAtA, i, uint64(len(m.Partition)))
-		i += copy(dAtA[i:], m.Partition)
-	}
-	if len(m.ConsumerGroup) > 0 {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintSandglass(dAtA, i, uint64(len(m.ConsumerGroup)))
-		i += copy(dAtA[i:], m.ConsumerGroup)
-	}
-	if len(m.ConsumerName) > 0 {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintSandglass(dAtA, i, uint64(len(m.ConsumerName)))
-		i += copy(dAtA[i:], m.ConsumerName)
-	}
-	dAtA[i] = 0x2a
-	i++
-	i = encodeVarintSandglass(dAtA, i, uint64(m.Offset.Size()))
-	n6, err := m.Offset.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n6
-	return i, nil
-}
-
-func (m *MultiOffsetChangeRequest) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *MultiOffsetChangeRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *MarkRequest) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -2765,10 +2591,20 @@ func (m *MultiOffsetChangeRequest) MarshalTo(dAtA []byte) (int, error) {
 			i += n
 		}
 	}
+	if m.State != nil {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintSandglass(dAtA, i, uint64(m.State.Size()))
+		n6, err := m.State.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n6
+	}
 	return i, nil
 }
 
-func (m *OffsetChangeReply) Marshal() (dAtA []byte, err error) {
+func (m *MarkResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -2778,7 +2614,7 @@ func (m *OffsetChangeReply) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *OffsetChangeReply) MarshalTo(dAtA []byte) (int, error) {
+func (m *MarkResponse) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -2793,6 +2629,56 @@ func (m *OffsetChangeReply) MarshalTo(dAtA []byte) (int, error) {
 		}
 		i++
 	}
+	return i, nil
+}
+
+func (m *GetMarkRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetMarkRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Topic) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintSandglass(dAtA, i, uint64(len(m.Topic)))
+		i += copy(dAtA[i:], m.Topic)
+	}
+	if len(m.Partition) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintSandglass(dAtA, i, uint64(len(m.Partition)))
+		i += copy(dAtA[i:], m.Partition)
+	}
+	if len(m.ConsumerGroup) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintSandglass(dAtA, i, uint64(len(m.ConsumerGroup)))
+		i += copy(dAtA[i:], m.ConsumerGroup)
+	}
+	if len(m.ConsumerName) > 0 {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintSandglass(dAtA, i, uint64(len(m.ConsumerName)))
+		i += copy(dAtA[i:], m.ConsumerName)
+	}
+	dAtA[i] = 0x2a
+	i++
+	i = encodeVarintSandglass(dAtA, i, uint64(m.Offset.Size()))
+	n7, err := m.Offset.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n7
 	return i, nil
 }
 
@@ -2814,11 +2700,11 @@ func (m *LastOffsetReply) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintSandglass(dAtA, i, uint64(m.Offset.Size()))
-	n7, err := m.Offset.MarshalTo(dAtA[i:])
+	n8, err := m.Offset.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n7
+	i += n8
 	return i, nil
 }
 
@@ -3186,31 +3072,7 @@ func (m *ConsumeFromGroupRequest) Size() (n int) {
 	return n
 }
 
-func (m *OffsetChangeRequest) Size() (n int) {
-	var l int
-	_ = l
-	l = len(m.Topic)
-	if l > 0 {
-		n += 1 + l + sovSandglass(uint64(l))
-	}
-	l = len(m.Partition)
-	if l > 0 {
-		n += 1 + l + sovSandglass(uint64(l))
-	}
-	l = len(m.ConsumerGroup)
-	if l > 0 {
-		n += 1 + l + sovSandglass(uint64(l))
-	}
-	l = len(m.ConsumerName)
-	if l > 0 {
-		n += 1 + l + sovSandglass(uint64(l))
-	}
-	l = m.Offset.Size()
-	n += 1 + l + sovSandglass(uint64(l))
-	return n
-}
-
-func (m *MultiOffsetChangeRequest) Size() (n int) {
+func (m *MarkRequest) Size() (n int) {
 	var l int
 	_ = l
 	l = len(m.Topic)
@@ -3235,15 +3097,43 @@ func (m *MultiOffsetChangeRequest) Size() (n int) {
 			n += 1 + l + sovSandglass(uint64(l))
 		}
 	}
+	if m.State != nil {
+		l = m.State.Size()
+		n += 1 + l + sovSandglass(uint64(l))
+	}
 	return n
 }
 
-func (m *OffsetChangeReply) Size() (n int) {
+func (m *MarkResponse) Size() (n int) {
 	var l int
 	_ = l
 	if m.Success {
 		n += 2
 	}
+	return n
+}
+
+func (m *GetMarkRequest) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.Topic)
+	if l > 0 {
+		n += 1 + l + sovSandglass(uint64(l))
+	}
+	l = len(m.Partition)
+	if l > 0 {
+		n += 1 + l + sovSandglass(uint64(l))
+	}
+	l = len(m.ConsumerGroup)
+	if l > 0 {
+		n += 1 + l + sovSandglass(uint64(l))
+	}
+	l = len(m.ConsumerName)
+	if l > 0 {
+		n += 1 + l + sovSandglass(uint64(l))
+	}
+	l = m.Offset.Size()
+	n += 1 + l + sovSandglass(uint64(l))
 	return n
 }
 
@@ -3474,40 +3364,41 @@ func (this *ConsumeFromGroupRequest) String() string {
 	}, "")
 	return s
 }
-func (this *OffsetChangeRequest) String() string {
+func (this *MarkRequest) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&OffsetChangeRequest{`,
-		`Topic:` + fmt.Sprintf("%v", this.Topic) + `,`,
-		`Partition:` + fmt.Sprintf("%v", this.Partition) + `,`,
-		`ConsumerGroup:` + fmt.Sprintf("%v", this.ConsumerGroup) + `,`,
-		`ConsumerName:` + fmt.Sprintf("%v", this.ConsumerName) + `,`,
-		`Offset:` + fmt.Sprintf("%v", this.Offset) + `,`,
-		`}`,
-	}, "")
-	return s
-}
-func (this *MultiOffsetChangeRequest) String() string {
-	if this == nil {
-		return "nil"
-	}
-	s := strings.Join([]string{`&MultiOffsetChangeRequest{`,
+	s := strings.Join([]string{`&MarkRequest{`,
 		`Topic:` + fmt.Sprintf("%v", this.Topic) + `,`,
 		`Partition:` + fmt.Sprintf("%v", this.Partition) + `,`,
 		`ConsumerGroup:` + fmt.Sprintf("%v", this.ConsumerGroup) + `,`,
 		`ConsumerName:` + fmt.Sprintf("%v", this.ConsumerName) + `,`,
 		`Offsets:` + fmt.Sprintf("%v", this.Offsets) + `,`,
+		`State:` + strings.Replace(fmt.Sprintf("%v", this.State), "MarkState", "MarkState", 1) + `,`,
 		`}`,
 	}, "")
 	return s
 }
-func (this *OffsetChangeReply) String() string {
+func (this *MarkResponse) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&OffsetChangeReply{`,
+	s := strings.Join([]string{`&MarkResponse{`,
 		`Success:` + fmt.Sprintf("%v", this.Success) + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *GetMarkRequest) String() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&GetMarkRequest{`,
+		`Topic:` + fmt.Sprintf("%v", this.Topic) + `,`,
+		`Partition:` + fmt.Sprintf("%v", this.Partition) + `,`,
+		`ConsumerGroup:` + fmt.Sprintf("%v", this.ConsumerGroup) + `,`,
+		`ConsumerName:` + fmt.Sprintf("%v", this.ConsumerName) + `,`,
+		`Offset:` + fmt.Sprintf("%v", this.Offset) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -5125,7 +5016,7 @@ func (m *ConsumeFromGroupRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *OffsetChangeRequest) Unmarshal(dAtA []byte) error {
+func (m *MarkRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -5148,206 +5039,10 @@ func (m *OffsetChangeRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: OffsetChangeRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: MarkRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: OffsetChangeRequest: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Topic", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSandglass
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthSandglass
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Topic = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Partition", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSandglass
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthSandglass
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Partition = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ConsumerGroup", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSandglass
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthSandglass
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ConsumerGroup = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ConsumerName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSandglass
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthSandglass
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ConsumerName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Offset", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowSandglass
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthSandglass
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if err := m.Offset.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipSandglass(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthSandglass
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *MultiOffsetChangeRequest) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowSandglass
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: MultiOffsetChangeRequest: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: MultiOffsetChangeRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: MarkRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -5498,6 +5193,39 @@ func (m *MultiOffsetChangeRequest) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field State", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSandglass
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSandglass
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.State == nil {
+				m.State = &MarkState{}
+			}
+			if err := m.State.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipSandglass(dAtA[iNdEx:])
@@ -5519,7 +5247,7 @@ func (m *MultiOffsetChangeRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *OffsetChangeReply) Unmarshal(dAtA []byte) error {
+func (m *MarkResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -5542,10 +5270,10 @@ func (m *OffsetChangeReply) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: OffsetChangeReply: wiretype end group for non-group")
+			return fmt.Errorf("proto: MarkResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: OffsetChangeReply: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: MarkResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -5568,6 +5296,202 @@ func (m *OffsetChangeReply) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.Success = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSandglass(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthSandglass
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetMarkRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSandglass
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetMarkRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetMarkRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Topic", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSandglass
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSandglass
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Topic = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Partition", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSandglass
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSandglass
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Partition = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ConsumerGroup", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSandglass
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSandglass
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ConsumerGroup = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ConsumerName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSandglass
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSandglass
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ConsumerName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Offset", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSandglass
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthSandglass
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Offset.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipSandglass(dAtA[iNdEx:])
@@ -6259,91 +6183,85 @@ var (
 func init() { proto.RegisterFile("sandglass.proto", fileDescriptorSandglass) }
 
 var fileDescriptorSandglass = []byte{
-	// 1375 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x58, 0x3d, 0x6f, 0x1b, 0x47,
-	0x13, 0xe6, 0x8a, 0xa2, 0x28, 0x8e, 0x44, 0x89, 0x5c, 0x49, 0x7e, 0xef, 0xa5, 0x15, 0x8a, 0xd8,
-	0xd8, 0x0e, 0x21, 0xd8, 0xa2, 0x21, 0x17, 0x81, 0x5d, 0x28, 0x32, 0x25, 0x58, 0x32, 0x64, 0x3b,
-	0xc6, 0xc9, 0x1f, 0x80, 0x8a, 0x04, 0xeb, 0xe3, 0x8a, 0x3a, 0xf0, 0x78, 0xcb, 0xdc, 0x2e, 0x1d,
-	0x13, 0x82, 0x81, 0xc0, 0x45, 0xfe, 0x40, 0x9a, 0x74, 0x69, 0xd3, 0x07, 0x08, 0x10, 0x17, 0x69,
-	0xd2, 0xb8, 0x0c, 0x90, 0x22, 0x41, 0x80, 0x18, 0x89, 0xf2, 0xf1, 0x3b, 0x82, 0xdb, 0xe3, 0x91,
-	0x7b, 0x24, 0x45, 0x46, 0x66, 0xe3, 0x8a, 0xb7, 0xb3, 0x33, 0x73, 0xcf, 0xcc, 0xce, 0xce, 0x33,
-	0x3c, 0x98, 0x17, 0xd4, 0xad, 0x54, 0x1d, 0x2a, 0xc4, 0x5a, 0xc3, 0xe3, 0x92, 0xe3, 0x54, 0x47,
-	0x90, 0x5b, 0xae, 0x72, 0x5e, 0x75, 0x58, 0x89, 0x36, 0xec, 0x12, 0x75, 0x5d, 0x2e, 0xa9, 0xb4,
-	0xb9, 0xdb, 0x56, 0xcc, 0x5d, 0xa9, 0xda, 0xf2, 0xa8, 0xf9, 0x64, 0xcd, 0xe2, 0xf5, 0x52, 0x95,
-	0x57, 0x79, 0x49, 0x89, 0x9f, 0x34, 0x0f, 0xd5, 0x4a, 0x2d, 0xd4, 0x53, 0xa0, 0x4e, 0x7e, 0x43,
-	0x90, 0xbc, 0xcb, 0x84, 0xa0, 0x55, 0x86, 0x37, 0x21, 0x61, 0xbb, 0x15, 0xf6, 0xcc, 0x80, 0x02,
-	0x2a, 0xce, 0x96, 0x57, 0x5f, 0xbd, 0x5e, 0x89, 0xfd, 0xfa, 0x7a, 0x85, 0x68, 0x1e, 0x2d, 0xe6,
-	0x78, 0xcc, 0x3d, 0x62, 0xb6, 0x2c, 0xf9, 0x80, 0x0e, 0x1d, 0x5a, 0x63, 0x6b, 0xb7, 0xb7, 0xcd,
-	0xc0, 0x10, 0x97, 0x61, 0x8a, 0x1f, 0x1e, 0x0a, 0x26, 0x8d, 0x99, 0x33, 0xbb, 0x68, 0x5b, 0xe2,
-	0x0c, 0xc4, 0x6b, 0xac, 0x65, 0x2c, 0xfa, 0x0e, 0x4c, 0xff, 0x11, 0x5f, 0x80, 0xb4, 0xe5, 0x34,
-	0x85, 0x64, 0x9e, 0xed, 0x56, 0xf7, 0x58, 0xcb, 0x58, 0x52, 0x7b, 0x51, 0x21, 0x5e, 0x84, 0xc4,
-	0x53, 0xea, 0x34, 0x99, 0x91, 0x57, 0xbb, 0xc1, 0x82, 0x1c, 0xc3, 0xd2, 0x7d, 0x8f, 0x57, 0x9a,
-	0x16, 0x6b, 0x47, 0x69, 0xb2, 0x4f, 0x9a, 0x4c, 0x48, 0x5f, 0x5d, 0xf2, 0x86, 0x6d, 0x19, 0xa8,
-	0x80, 0x8a, 0x29, 0x33, 0x58, 0xe0, 0x65, 0x48, 0x35, 0xa8, 0x27, 0x6d, 0x3f, 0xa3, 0xc6, 0x84,
-	0xda, 0xe9, 0x0a, 0xf0, 0x1a, 0x4c, 0xd7, 0x03, 0x2f, 0xc2, 0x88, 0x17, 0xe2, 0xc5, 0x99, 0x75,
-	0xbc, 0xd6, 0x3d, 0xa8, 0xf0, 0x05, 0x1d, 0x1d, 0xf2, 0x18, 0xe6, 0xdb, 0x2f, 0x37, 0x99, 0x68,
-	0x70, 0x57, 0x30, 0xbc, 0x0d, 0xc9, 0x20, 0x4e, 0x61, 0xa0, 0x42, 0xfc, 0x8c, 0x29, 0x0a, 0x4d,
-	0xc9, 0xdf, 0x08, 0xb2, 0x5b, 0x1e, 0xa3, 0x92, 0x3d, 0xf0, 0x61, 0xdf, 0xa7, 0x1e, 0xad, 0x0b,
-	0x8c, 0x61, 0xd2, 0xa5, 0x75, 0xd6, 0x8e, 0x48, 0x3d, 0xe3, 0x22, 0x4c, 0xd6, 0x6c, 0xb7, 0xa2,
-	0x62, 0x99, 0x5b, 0x5f, 0xd4, 0xe0, 0x2a, 0xcb, 0x3d, 0xdb, 0xad, 0x98, 0x4a, 0x03, 0x5f, 0x86,
-	0xac, 0xc7, 0x1a, 0x8e, 0x6d, 0xa9, 0x72, 0xba, 0x45, 0x2d, 0xc9, 0x3d, 0x23, 0x5e, 0x40, 0xc5,
-	0x84, 0xd9, 0xbf, 0xe1, 0x9f, 0x89, 0xdb, 0xac, 0xdf, 0x0f, 0x53, 0x23, 0x8c, 0x49, 0xa5, 0x19,
-	0x15, 0xe2, 0x0d, 0x48, 0x0b, 0xc9, 0x3d, 0x5a, 0x65, 0xdb, 0x9e, 0xfd, 0x94, 0x79, 0x46, 0x42,
-	0xc1, 0x30, 0x34, 0x18, 0xfb, 0xfa, 0xbe, 0x19, 0x55, 0x27, 0x17, 0x60, 0x6e, 0x87, 0xc9, 0x11,
-	0x31, 0x92, 0x2d, 0x48, 0x87, 0x5a, 0x26, 0x6b, 0x38, 0xad, 0x81, 0x89, 0xc8, 0x03, 0x34, 0xba,
-	0x68, 0x27, 0x0a, 0xf1, 0x62, 0xca, 0xd4, 0x24, 0xe4, 0x12, 0x80, 0xe6, 0xc1, 0x80, 0xa4, 0x68,
-	0x5a, 0x16, 0x13, 0x42, 0x39, 0x99, 0x36, 0xc3, 0x25, 0xb9, 0x02, 0x59, 0x1f, 0x32, 0xbb, 0xc3,
-	0x2d, 0xea, 0x38, 0xad, 0x51, 0xea, 0x9f, 0x23, 0xc8, 0xdc, 0x62, 0xd2, 0x3a, 0xba, 0xe5, 0xf1,
-	0xfa, 0x38, 0xb5, 0xb7, 0x01, 0x93, 0x87, 0x1e, 0xaf, 0xab, 0x13, 0x39, 0x5b, 0xd5, 0x28, 0x3b,
-	0xf2, 0x03, 0x82, 0xac, 0x02, 0x62, 0x52, 0x77, 0xbc, 0x5b, 0x30, 0x26, 0x12, 0x7c, 0x03, 0x26,
-	0x24, 0x57, 0xf5, 0x72, 0x36, 0xeb, 0x09, 0xc9, 0xc9, 0x33, 0x80, 0x1d, 0x26, 0xc7, 0x41, 0xdf,
-	0x6e, 0x2f, 0xf1, 0x21, 0xed, 0x65, 0x72, 0x40, 0x7b, 0x21, 0x5f, 0x21, 0xf8, 0xdf, 0x16, 0x77,
-	0x45, 0xb3, 0xce, 0xfc, 0xa3, 0xdc, 0xf1, 0x78, 0xb3, 0x31, 0x0e, 0x8e, 0xcb, 0x90, 0xb5, 0x02,
-	0x77, 0x9e, 0xf2, 0x75, 0xcf, 0x2f, 0xd8, 0xb8, 0xd2, 0xea, 0xdf, 0xc0, 0x04, 0x66, 0x43, 0xa1,
-	0x52, 0x9c, 0x54, 0x8a, 0x11, 0x19, 0xf9, 0x19, 0xc1, 0xc2, 0x87, 0xaa, 0x41, 0x6c, 0x1d, 0x8d,
-	0x7b, 0xc6, 0x7e, 0x4e, 0x74, 0x10, 0x6d, 0x64, 0x51, 0xe1, 0x7f, 0x41, 0xa5, 0x51, 0x42, 0xe2,
-	0x4d, 0x29, 0x81, 0xbc, 0x46, 0x60, 0xdc, 0x6d, 0x3a, 0xd2, 0x7e, 0xfb, 0xc2, 0xd3, 0xfa, 0x79,
-	0xe2, 0xcd, 0xfb, 0xf9, 0x15, 0xc8, 0x46, 0x43, 0x1b, 0xde, 0x54, 0x1e, 0xc2, 0xfc, 0x1d, 0x2a,
-	0x64, 0x60, 0x12, 0x28, 0x77, 0xd3, 0x8c, 0xde, 0x38, 0xcd, 0x2f, 0x11, 0x64, 0x75, 0xbf, 0x6f,
-	0x43, 0x7e, 0xdf, 0x6b, 0xf3, 0x57, 0x40, 0x1c, 0x0b, 0x3a, 0xdd, 0x52, 0xaf, 0xd6, 0xa5, 0x2f,
-	0xf2, 0x11, 0x2c, 0x76, 0xfa, 0xec, 0x7e, 0xcb, 0xb5, 0xc6, 0x81, 0x8f, 0xf5, 0x0e, 0xd7, 0xee,
-	0x9f, 0x17, 0x61, 0x66, 0x97, 0x8a, 0x0e, 0x8f, 0x9f, 0x83, 0x29, 0xf6, 0xcc, 0x16, 0x32, 0x3c,
-	0x9b, 0xf6, 0x8a, 0x1c, 0x40, 0xca, 0x07, 0xb6, 0x2f, 0xa9, 0xec, 0x82, 0x47, 0x23, 0xc0, 0xfb,
-	0xf9, 0xaa, 0x30, 0xc7, 0xa7, 0xbc, 0xd6, 0x16, 0x6f, 0xba, 0x52, 0x41, 0x4a, 0x98, 0x51, 0xe1,
-	0xea, 0x25, 0x48, 0x75, 0x48, 0x1b, 0xa7, 0x21, 0xf5, 0xc0, 0xae, 0x33, 0xcf, 0x5f, 0x64, 0x62,
-	0x18, 0x60, 0x6a, 0xef, 0x91, 0x7a, 0x46, 0xab, 0x45, 0x48, 0x47, 0x58, 0x15, 0xcf, 0x40, 0xd2,
-	0xe4, 0x56, 0x4d, 0x6c, 0x97, 0x03, 0xcd, 0x32, 0xad, 0x54, 0x99, 0x97, 0x41, 0xab, 0x07, 0x30,
-	0x1d, 0x22, 0xf1, 0x95, 0x1e, 0xba, 0x35, 0x97, 0x7f, 0xea, 0x66, 0x62, 0x78, 0x16, 0xa6, 0xdb,
-	0xcd, 0xae, 0x92, 0x01, 0xbc, 0x00, 0xf3, 0xf7, 0xb8, 0xbc, 0x69, 0xf9, 0xbb, 0x0e, 0xab, 0x54,
-	0x59, 0x25, 0xb3, 0x88, 0x33, 0x30, 0x1b, 0x91, 0xe4, 0x03, 0xa3, 0x7a, 0xdd, 0x96, 0xac, 0x92,
-	0x29, 0xae, 0xff, 0x03, 0x90, 0x2e, 0x7b, 0xbc, 0xc6, 0xbc, 0x7d, 0xe6, 0x3d, 0xb5, 0x2d, 0x86,
-	0x1f, 0xc1, 0x8c, 0x36, 0xb4, 0xe0, 0x65, 0x2d, 0x1f, 0x7d, 0xc3, 0x4c, 0x6e, 0xa9, 0x77, 0x54,
-	0x51, 0x75, 0x4e, 0xf0, 0x8b, 0x9f, 0xfe, 0xfa, 0x62, 0x62, 0x96, 0x24, 0x4b, 0xea, 0x20, 0xc5,
-	0x0d, 0xb4, 0x8a, 0x1f, 0xc3, 0x74, 0xc8, 0xff, 0xf8, 0xff, 0x9a, 0x59, 0x74, 0x74, 0xc8, 0x19,
-	0x03, 0xb6, 0x02, 0xa7, 0xe7, 0x94, 0xd3, 0x0c, 0x9e, 0x6b, 0x3b, 0x2d, 0x1d, 0xfb, 0x23, 0xc3,
-	0x73, 0xfc, 0x02, 0x41, 0xb2, 0x3d, 0xc0, 0xe1, 0x82, 0x66, 0x3d, 0x70, 0xa2, 0xcc, 0xe5, 0xfa,
-	0x35, 0xc2, 0x72, 0x21, 0xd7, 0xd5, 0x1b, 0xae, 0x91, 0xf9, 0xce, 0x1b, 0xd4, 0xef, 0xf3, 0x1b,
-	0x68, 0xf5, 0xe0, 0x1d, 0x72, 0xbe, 0x47, 0x5a, 0x3a, 0xee, 0xd4, 0xe2, 0x73, 0x7c, 0xb7, 0x77,
-	0x82, 0x15, 0xfb, 0xd2, 0x63, 0xb4, 0x8e, 0x07, 0xcc, 0x9e, 0xb9, 0xe5, 0x9e, 0xc9, 0x2a, 0x32,
-	0xa6, 0x90, 0x58, 0x11, 0xe1, 0x4d, 0x48, 0x75, 0xee, 0x09, 0x3e, 0xaf, 0xa9, 0xf7, 0x4e, 0x29,
-	0xb9, 0x01, 0xfe, 0x49, 0xec, 0x2a, 0xc2, 0x65, 0x80, 0xee, 0x20, 0x11, 0x39, 0xc5, 0xbe, 0xf9,
-	0xe2, 0x54, 0x1f, 0xdf, 0x20, 0xc8, 0xf4, 0xb2, 0x29, 0x26, 0x7a, 0x41, 0x0c, 0xa6, 0xda, 0x81,
-	0x0e, 0x99, 0x4a, 0xee, 0xc7, 0x78, 0x58, 0x1a, 0x0f, 0x36, 0xf1, 0xc6, 0x90, 0xed, 0xd2, 0x71,
-	0x1f, 0xe7, 0x6a, 0x32, 0xb5, 0xbc, 0x8a, 0xf0, 0x77, 0x08, 0x66, 0xb4, 0x9a, 0xc7, 0x79, 0x0d,
-	0xcc, 0x00, 0x6a, 0x8a, 0x9c, 0x46, 0x5f, 0x7f, 0x27, 0x8e, 0x82, 0x7d, 0x48, 0x56, 0x42, 0x5c,
-	0xd4, 0xaa, 0x0d, 0xc2, 0xe6, 0xd7, 0xc8, 0x26, 0xd9, 0x18, 0xa1, 0xd5, 0x13, 0x41, 0x2f, 0x7a,
-	0xfc, 0x3d, 0x82, 0xb9, 0xe8, 0x25, 0x1e, 0x13, 0xbe, 0xab, 0xe0, 0x1f, 0x91, 0x42, 0x08, 0xcc,
-	0x1d, 0x82, 0xff, 0x26, 0xf9, 0x60, 0x94, 0xda, 0xa8, 0x00, 0x5e, 0x22, 0x98, 0x0a, 0xda, 0xcb,
-	0x98, 0xc0, 0x3d, 0x05, 0xdc, 0x21, 0x24, 0x44, 0x64, 0x29, 0xaf, 0xa7, 0x41, 0xdf, 0x22, 0x37,
-	0x47, 0x2b, 0x8e, 0x02, 0x7f, 0x00, 0x0b, 0x5a, 0xe6, 0xc3, 0x8b, 0x8c, 0xdf, 0xd5, 0xab, 0xf9,
-	0x94, 0x01, 0x67, 0x44, 0x34, 0xb1, 0xf5, 0x6f, 0xe3, 0x30, 0x7f, 0xdb, 0x95, 0xcc, 0x73, 0xa9,
-	0x13, 0xb6, 0xda, 0xf7, 0x55, 0x4b, 0x2c, 0xb7, 0xfc, 0x3f, 0xc6, 0x4b, 0xd1, 0xbe, 0x37, 0xf4,
-	0x6a, 0xe2, 0xeb, 0x30, 0xb5, 0x4b, 0xc5, 0x10, 0xb3, 0x73, 0x9a, 0x58, 0x23, 0x44, 0x12, 0xc3,
-	0xbb, 0x90, 0x8e, 0x30, 0x30, 0x5e, 0x19, 0xd4, 0x5d, 0x34, 0x6e, 0x3e, 0xb5, 0x3b, 0xec, 0x02,
-	0x74, 0xe7, 0x90, 0x48, 0x87, 0xe9, 0x1b, 0x4f, 0x22, 0x5d, 0xb7, 0x67, 0x28, 0x22, 0x31, 0x7c,
-	0x0f, 0x66, 0x7d, 0x82, 0x0b, 0xb9, 0x6c, 0xcc, 0xca, 0x89, 0xe1, 0x3d, 0x58, 0xd8, 0x61, 0xb2,
-	0xc3, 0xf0, 0xe1, 0x97, 0x93, 0x51, 0x6e, 0x07, 0x06, 0x5a, 0xbe, 0xf8, 0xcb, 0x1f, 0xf9, 0xd8,
-	0x67, 0x27, 0x79, 0xf4, 0xf5, 0x49, 0x1e, 0xbd, 0x3a, 0xc9, 0xa3, 0x1f, 0x4f, 0xf2, 0xe8, 0xf7,
-	0x93, 0x3c, 0xfa, 0xf2, 0xcf, 0x7c, 0xec, 0x20, 0x29, 0xaa, 0xc1, 0xa7, 0x9b, 0x29, 0xf5, 0x73,
-	0xed, 0xdf, 0x00, 0x00, 0x00, 0xff, 0xff, 0xdf, 0x8b, 0xc6, 0x7f, 0x14, 0x12, 0x00, 0x00,
+	// 1272 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x57, 0xbb, 0x6f, 0x1b, 0x47,
+	0x13, 0xe7, 0x8a, 0x2f, 0x71, 0x48, 0x8a, 0xe4, 0x5a, 0xb2, 0xef, 0xa3, 0xfd, 0xd1, 0xc4, 0xc2,
+	0x76, 0x08, 0xc2, 0x16, 0x0d, 0xb9, 0x08, 0xec, 0xc2, 0x50, 0x28, 0x41, 0x96, 0xe1, 0x47, 0x8c,
+	0x93, 0x1f, 0x80, 0x8a, 0x04, 0xeb, 0xe3, 0xea, 0x7c, 0xe0, 0xf1, 0x96, 0xb9, 0x5d, 0x3a, 0x26,
+	0x04, 0x03, 0x81, 0x8b, 0x20, 0x7d, 0x9a, 0x14, 0x01, 0xd2, 0xa6, 0x4f, 0x97, 0x36, 0x8d, 0xcb,
+	0x20, 0x69, 0x82, 0x00, 0x31, 0x12, 0x25, 0xf9, 0x33, 0x02, 0x04, 0xb7, 0x77, 0x47, 0xde, 0x91,
+	0xb4, 0x14, 0x89, 0x8d, 0x2b, 0xde, 0xce, 0xce, 0xcc, 0xfe, 0x66, 0xf6, 0xb7, 0x33, 0x43, 0x28,
+	0x09, 0xea, 0x74, 0x4c, 0x9b, 0x0a, 0xb1, 0xda, 0x77, 0xb9, 0xe4, 0x38, 0x37, 0x12, 0x54, 0xcf,
+	0x99, 0x9c, 0x9b, 0x36, 0x6b, 0xd1, 0xbe, 0xd5, 0xa2, 0x8e, 0xc3, 0x25, 0x95, 0x16, 0x77, 0x02,
+	0xc5, 0xea, 0x15, 0xd3, 0x92, 0xcf, 0x06, 0x4f, 0x57, 0x0d, 0xde, 0x6b, 0x99, 0xdc, 0xe4, 0x2d,
+	0x25, 0x7e, 0x3a, 0xd8, 0x53, 0x2b, 0xb5, 0x50, 0x5f, 0xbe, 0x3a, 0xf9, 0x0d, 0x41, 0xf6, 0x1e,
+	0x13, 0x82, 0x9a, 0x0c, 0xaf, 0x43, 0xda, 0x72, 0x3a, 0xec, 0x85, 0x06, 0x75, 0xd4, 0x28, 0xb4,
+	0x9b, 0xaf, 0xdf, 0x9c, 0x4f, 0xfc, 0xfa, 0xe6, 0x3c, 0x89, 0x78, 0x34, 0x98, 0xed, 0x32, 0xe7,
+	0x19, 0xb3, 0x64, 0xcb, 0x03, 0xb4, 0x67, 0xd3, 0x2e, 0x5b, 0xbd, 0xbd, 0xa9, 0xfb, 0x86, 0xb8,
+	0x0d, 0x19, 0xbe, 0xb7, 0x27, 0x98, 0xd4, 0xf2, 0xc7, 0x76, 0x11, 0x58, 0xe2, 0x32, 0x24, 0xbb,
+	0x6c, 0xa8, 0x2d, 0x7b, 0x0e, 0x74, 0xef, 0x13, 0x5f, 0x80, 0xa2, 0x61, 0x0f, 0x84, 0x64, 0xae,
+	0xe5, 0x98, 0x77, 0xd8, 0x50, 0x5b, 0x51, 0x7b, 0x71, 0x21, 0x5e, 0x86, 0xf4, 0x73, 0x6a, 0x0f,
+	0x98, 0x56, 0x53, 0xbb, 0xfe, 0x82, 0xec, 0xc3, 0xca, 0x03, 0x97, 0x77, 0x06, 0x06, 0x0b, 0xa2,
+	0xd4, 0xd9, 0x27, 0x03, 0x26, 0xa4, 0xa7, 0x2e, 0x79, 0xdf, 0x32, 0x34, 0x54, 0x47, 0x8d, 0x9c,
+	0xee, 0x2f, 0xf0, 0x39, 0xc8, 0xf5, 0xa9, 0x2b, 0x2d, 0x2f, 0xa3, 0xda, 0x82, 0xda, 0x19, 0x0b,
+	0xf0, 0x2a, 0x2c, 0xf6, 0x7c, 0x2f, 0x42, 0x4b, 0xd6, 0x93, 0x8d, 0xfc, 0x1a, 0x5e, 0x1d, 0x5f,
+	0x54, 0x78, 0xc0, 0x48, 0x87, 0x3c, 0x81, 0x52, 0x70, 0xb8, 0xce, 0x44, 0x9f, 0x3b, 0x82, 0xe1,
+	0x4d, 0xc8, 0xfa, 0x71, 0x0a, 0x0d, 0xd5, 0x93, 0xc7, 0x4c, 0x51, 0x68, 0x4a, 0xfe, 0x46, 0x50,
+	0xd9, 0x70, 0x19, 0x95, 0xec, 0xa1, 0x07, 0xfb, 0x01, 0x75, 0x69, 0x4f, 0x60, 0x0c, 0x29, 0x87,
+	0xf6, 0x58, 0x10, 0x91, 0xfa, 0xc6, 0x0d, 0x48, 0x75, 0x2d, 0xa7, 0xa3, 0x62, 0x59, 0x5a, 0x5b,
+	0x8e, 0xc0, 0x55, 0x96, 0x77, 0x2c, 0xa7, 0xa3, 0x2b, 0x0d, 0x7c, 0x19, 0x2a, 0x2e, 0xeb, 0xdb,
+	0x96, 0xa1, 0xe8, 0xb4, 0x45, 0x0d, 0xc9, 0x5d, 0x2d, 0x59, 0x47, 0x8d, 0xb4, 0x3e, 0xbd, 0xe1,
+	0xdd, 0x89, 0x33, 0xe8, 0x3d, 0x08, 0x53, 0x23, 0xb4, 0x94, 0xd2, 0x8c, 0x0b, 0xf1, 0x4d, 0x28,
+	0x0a, 0xc9, 0x5d, 0x6a, 0xb2, 0x4d, 0xd7, 0x7a, 0xce, 0x5c, 0x2d, 0xad, 0x60, 0x68, 0x11, 0x18,
+	0x3b, 0xd1, 0x7d, 0x3d, 0xae, 0x4e, 0x2e, 0xc0, 0xd2, 0x2d, 0x26, 0x8f, 0x88, 0x91, 0x6c, 0x40,
+	0x31, 0xd4, 0xd2, 0x59, 0xdf, 0x1e, 0xce, 0x4c, 0x44, 0x0d, 0xa0, 0x3f, 0x46, 0xbb, 0x50, 0x4f,
+	0x36, 0x72, 0x7a, 0x44, 0x42, 0x2e, 0x01, 0x44, 0x3c, 0x68, 0x90, 0x15, 0x03, 0xc3, 0x60, 0x42,
+	0x28, 0x27, 0x8b, 0x7a, 0xb8, 0x24, 0x57, 0xa0, 0xe2, 0x41, 0x66, 0x77, 0xb9, 0x41, 0x6d, 0x7b,
+	0x78, 0x94, 0xfa, 0xe7, 0x08, 0xca, 0x5b, 0x4c, 0x1a, 0xcf, 0xb6, 0x5c, 0xde, 0x9b, 0x87, 0x7b,
+	0x37, 0x21, 0xb5, 0xe7, 0xf2, 0x9e, 0xba, 0x91, 0xe3, 0xb1, 0x46, 0xd9, 0x91, 0x1f, 0x10, 0x54,
+	0x14, 0x10, 0x9d, 0x3a, 0xf3, 0xbd, 0x82, 0x39, 0x91, 0xe0, 0x1b, 0xb0, 0x20, 0xb9, 0xe2, 0xcb,
+	0xf1, 0xac, 0x17, 0x24, 0x27, 0x2f, 0x00, 0x6e, 0x31, 0x39, 0x0f, 0xfa, 0xa0, 0xbc, 0x24, 0x0f,
+	0x29, 0x2f, 0xa9, 0x19, 0xe5, 0x85, 0x7c, 0x83, 0xe0, 0xcc, 0x06, 0x77, 0xc4, 0xa0, 0xc7, 0xbc,
+	0xab, 0xbc, 0xe5, 0xf2, 0x41, 0x7f, 0x1e, 0x1c, 0x97, 0xa1, 0x62, 0xf8, 0xee, 0x5c, 0xe5, 0xeb,
+	0xbe, 0x47, 0xd8, 0xa4, 0xd2, 0x9a, 0xde, 0xc0, 0x04, 0x0a, 0xa1, 0x50, 0x29, 0xa6, 0x94, 0x62,
+	0x4c, 0x46, 0xfe, 0x41, 0x90, 0xbf, 0x47, 0xdd, 0xee, 0x3c, 0xa8, 0xbc, 0x5c, 0x44, 0x0f, 0x0f,
+	0x10, 0xc5, 0x85, 0xff, 0x05, 0x4d, 0xb4, 0xd0, 0xa5, 0x4f, 0x5c, 0xe8, 0x70, 0x13, 0xd2, 0x42,
+	0x52, 0xc9, 0xb4, 0x4c, 0x1d, 0x35, 0xf2, 0xb1, 0xfa, 0xe5, 0x85, 0xba, 0xe3, 0xed, 0xe9, 0xbe,
+	0x0a, 0x69, 0x40, 0xc1, 0x0f, 0x3f, 0x28, 0xb5, 0x6f, 0x7f, 0x94, 0x3f, 0x21, 0x55, 0x57, 0xde,
+	0x9d, 0x64, 0x8d, 0xfb, 0x66, 0xfa, 0xa4, 0x7d, 0x93, 0x3c, 0x82, 0xd2, 0x5d, 0x2a, 0xe4, 0x87,
+	0x6a, 0xe5, 0x97, 0xa5, 0xb1, 0x5b, 0x74, 0x62, 0xb7, 0xdf, 0x23, 0xa8, 0x44, 0xfd, 0xbe, 0x0b,
+	0xe9, 0x7a, 0x2f, 0x68, 0x6a, 0x7e, 0x37, 0x39, 0x35, 0x41, 0x8a, 0x71, 0x4f, 0x23, 0x1f, 0xc1,
+	0xf2, 0xa8, 0xf8, 0xee, 0x0c, 0x1d, 0x63, 0x1e, 0xf8, 0x38, 0x5a, 0xf6, 0x82, 0xa2, 0x7a, 0x11,
+	0xf2, 0xdb, 0x54, 0x8c, 0x18, 0x77, 0x1a, 0x32, 0xec, 0x85, 0x25, 0x64, 0x48, 0xb8, 0x60, 0x45,
+	0x76, 0x21, 0x37, 0x62, 0xeb, 0x08, 0x3c, 0x3a, 0x02, 0xbc, 0x97, 0xaf, 0x0e, 0xb3, 0xbd, 0x3e,
+	0x38, 0xdc, 0xe0, 0x03, 0x47, 0x2a, 0x48, 0x69, 0x3d, 0x2e, 0x6c, 0x5e, 0x82, 0xdc, 0xa8, 0x93,
+	0xe3, 0x22, 0xe4, 0x1e, 0x5a, 0x3d, 0xe6, 0x7a, 0x8b, 0x72, 0x02, 0x03, 0x64, 0xee, 0x3c, 0x56,
+	0xdf, 0xa8, 0xd9, 0x80, 0x62, 0xac, 0xd5, 0xe2, 0x3c, 0x64, 0x75, 0x6e, 0x74, 0xc5, 0x66, 0xdb,
+	0xd7, 0x6c, 0xd3, 0x8e, 0xc9, 0xdc, 0x32, 0x6a, 0xee, 0xc2, 0x62, 0x88, 0xc4, 0x53, 0x7a, 0xe4,
+	0x74, 0x1d, 0xfe, 0xa9, 0x53, 0x4e, 0xe0, 0x02, 0x2c, 0x06, 0x15, 0xb0, 0x53, 0x06, 0x7c, 0x0a,
+	0x4a, 0xf7, 0xb9, 0xfc, 0xc0, 0xf0, 0x76, 0x6d, 0xd6, 0x31, 0x59, 0xa7, 0xbc, 0x8c, 0xcb, 0x50,
+	0x88, 0x49, 0x6a, 0xbe, 0x51, 0xaf, 0x67, 0x49, 0xd6, 0x29, 0x37, 0xd6, 0xbe, 0xc8, 0x40, 0xb1,
+	0xed, 0xf2, 0x2e, 0x73, 0x77, 0x98, 0xfb, 0xdc, 0x32, 0x18, 0x7e, 0x0c, 0xf9, 0xc8, 0x24, 0x83,
+	0xcf, 0x45, 0xf2, 0x31, 0x35, 0xe1, 0x54, 0x57, 0x26, 0xe7, 0x17, 0xc5, 0x73, 0x82, 0x5f, 0xfd,
+	0xfc, 0xd7, 0x97, 0x0b, 0x05, 0x92, 0x6d, 0xa9, 0x8b, 0x14, 0x37, 0x50, 0x13, 0x3f, 0x81, 0xc5,
+	0x70, 0x28, 0xc0, 0xff, 0x8b, 0x98, 0xc5, 0xe7, 0x89, 0xaa, 0x36, 0x63, 0xcb, 0x77, 0x7a, 0x5a,
+	0x39, 0x2d, 0xe3, 0xa5, 0xc0, 0x69, 0x6b, 0xdf, 0x9b, 0x23, 0x5e, 0xe2, 0x57, 0x08, 0xb2, 0xc1,
+	0x54, 0x87, 0xeb, 0x11, 0xeb, 0x99, 0x63, 0x66, 0xb5, 0x3a, 0xad, 0x11, 0xd2, 0x85, 0x5c, 0x57,
+	0x27, 0x5c, 0x23, 0xa5, 0xd1, 0x09, 0xea, 0xf7, 0xe5, 0x0d, 0xd4, 0xdc, 0xfd, 0x3f, 0x39, 0x3b,
+	0x21, 0x6d, 0xed, 0x8f, 0xb8, 0xf8, 0x12, 0xaf, 0x43, 0x6e, 0x44, 0x6c, 0x7c, 0x36, 0x72, 0xc6,
+	0xe4, 0xac, 0x51, 0x9d, 0x31, 0xa1, 0x92, 0xc4, 0x55, 0x84, 0xdb, 0x00, 0xe3, 0x71, 0x20, 0x96,
+	0xf6, 0xa9, 0x29, 0xe1, 0xad, 0x3e, 0xbe, 0x43, 0x50, 0x9e, 0xec, 0x89, 0x98, 0x44, 0x6f, 0x70,
+	0x76, 0xc3, 0x9c, 0xe9, 0x90, 0xa9, 0x6c, 0x7c, 0x8c, 0x0f, 0x8b, 0x7b, 0x77, 0x1d, 0xdf, 0x3c,
+	0x64, 0xbb, 0xb5, 0x3f, 0xd5, 0x39, 0x23, 0x32, 0xb5, 0xbc, 0x8a, 0xf0, 0x3a, 0xe4, 0x23, 0x1c,
+	0xc5, 0xa7, 0x27, 0x5e, 0x60, 0x88, 0xf1, 0xcc, 0x94, 0x3c, 0xb8, 0xb6, 0x04, 0xde, 0x80, 0xa5,
+	0x38, 0xf5, 0x4f, 0xe0, 0x64, 0xed, 0xeb, 0x24, 0x94, 0x6e, 0x3b, 0x92, 0xb9, 0x0e, 0xb5, 0xc3,
+	0xc7, 0xf0, 0xbe, 0x22, 0x6d, 0x7b, 0xe8, 0xfd, 0x9f, 0x59, 0x89, 0x33, 0xf3, 0xd0, 0xbb, 0xc0,
+	0xd7, 0x21, 0xb3, 0x4d, 0xc5, 0x21, 0x66, 0x51, 0x80, 0x91, 0x92, 0x45, 0x12, 0x78, 0x1b, 0x8a,
+	0xb1, 0x1a, 0x89, 0xcf, 0xcf, 0xa2, 0x53, 0xa4, 0x7a, 0xbe, 0x95, 0x0e, 0xdb, 0x00, 0xe3, 0x4e,
+	0x11, 0xa3, 0xd4, 0x54, 0x03, 0x89, 0xbd, 0x8b, 0x89, 0xb6, 0xa5, 0xc2, 0x49, 0x79, 0xd9, 0x3a,
+	0xc9, 0xdd, 0x6c, 0xc1, 0xa9, 0xa0, 0xb5, 0xab, 0x72, 0x1b, 0xfe, 0xb7, 0x9d, 0x28, 0x01, 0x51,
+	0x67, 0x33, 0xc3, 0x69, 0x5f, 0xfc, 0xe5, 0x8f, 0x5a, 0xe2, 0xb3, 0x83, 0x1a, 0xfa, 0xf6, 0xa0,
+	0x86, 0x5e, 0x1f, 0xd4, 0xd0, 0x8f, 0x07, 0x35, 0xf4, 0xfb, 0x41, 0x0d, 0x7d, 0xf5, 0x67, 0x2d,
+	0xb1, 0x9b, 0x15, 0xa6, 0xff, 0xbf, 0x3a, 0xa3, 0x7e, 0xae, 0xfd, 0x1b, 0x00, 0x00, 0xff, 0xff,
+	0x4d, 0x66, 0xb7, 0x6a, 0xb1, 0x0f, 0x00, 0x00,
 }
