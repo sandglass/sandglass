@@ -122,7 +122,12 @@ func (c *ConsumerGroup) consumeLoop() {
 				}
 				i++
 
-				markedMsg, err := c.broker.GetMarkStateMessage(context.TODO(), c.topic, c.partition, c.name, "", m.Offset)
+				markedMsg, err := c.broker.GetMarkStateMessage(context.TODO(), &sgproto.GetMarkRequest{
+					Topic:         c.topic,
+					Partition:     c.partition,
+					ConsumerGroup: c.name,
+					Offset:        m.Offset,
+				})
 				if err != nil {
 					s, ok := status.FromError(err)
 					if !ok || s.Code() != codes.NotFound {

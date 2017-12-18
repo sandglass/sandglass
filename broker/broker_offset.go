@@ -16,79 +16,61 @@ import (
 	"github.com/celrenheit/sandglass/topic"
 )
 
-func (b *Broker) Acknowledge(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
-	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.MarkKind_Acknowledged)
-}
-
-func (b *Broker) NotAcknowledge(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
-	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.MarkKind_NotAcknowledged)
-}
-
-// FIXME: share same code between AcknowledgeMessages a AcknowledgeMessage
-func (b *Broker) AcknowledgeMessages(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets []sandflake.ID) error {
-	topic := b.getTopic(ConsumerOffsetTopicName)
-	p := topic.ChoosePartitionForKey(partitionKey(topicName, partitionName, consumerGroup))
-
-	n := b.getPartitionLeader(ConsumerOffsetTopicName, p.Id)
-	if n == nil {
-		return ErrNoLeaderFound
-	}
-
-	if n.Name != b.Name() {
-		change := &sgproto.MultiOffsetChangeRequest{
-			Topic:         topicName,
-			Partition:     partitionName,
-			ConsumerGroup: consumerGroup,
-			ConsumerName:  consumerName,
-			Offsets:       offsets,
-		}
-
-		_, err := n.AcknowledgeMessages(ctx, change)
-
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	produceRequest := &sgproto.ProduceMessageRequest{
-		Topic:     ConsumerOffsetTopicName,
-		Partition: p.Id,
-	}
-	for _, offset := range offsets {
-		state := &sgproto.MarkState{
+func (b *Broker) Acknowledge(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets ...sandflake.ID) (bool, error) {
+	return b.Mark(ctx, &sgproto.MarkRequest{
+		Topic:         topicName,
+		Partition:     partitionName,
+		ConsumerGroup: consumerGroup,
+		ConsumerName:  consumerName,
+		Offsets:       offsets,
+		State: &sgproto.MarkState{
 			Kind: sgproto.MarkKind_Acknowledged,
-		}
-
-		value, err := proto.Marshal(state)
-		if err != nil {
-			return err
-		}
-
-		produceRequest.Messages = append(produceRequest.Messages, &sgproto.Message{
-			Offset:        offset,
-			Key:           partitionKey(topicName, partitionName, consumerGroup),
-			ClusteringKey: generateClusterKey(offset, sgproto.MarkKind_Acknowledged),
-			Value:         value,
-		})
-	}
-
-	_, err := b.Produce(ctx, produceRequest)
-	return err
+		},
+	})
 }
 
-func (b *Broker) Commit(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
-	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.MarkKind_Commited)
+func (b *Broker) NotAcknowledge(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets ...sandflake.ID) (bool, error) {
+	return b.Mark(ctx, &sgproto.MarkRequest{
+		Topic:         topicName,
+		Partition:     partitionName,
+		ConsumerGroup: consumerGroup,
+		ConsumerName:  consumerName,
+		Offsets:       offsets,
+		State: &sgproto.MarkState{
+			Kind: sgproto.MarkKind_NotAcknowledged,
+		},
+	})
 }
 
-func (b *Broker) MarkConsumed(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (bool, error) {
-	return b.mark(ctx, topicName, partitionName, consumerGroup, consumerName, offset, sgproto.MarkKind_Consumed)
+func (b *Broker) Commit(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets ...sandflake.ID) (bool, error) {
+	return b.Mark(ctx, &sgproto.MarkRequest{
+		Topic:         topicName,
+		Partition:     partitionName,
+		ConsumerGroup: consumerGroup,
+		ConsumerName:  consumerName,
+		Offsets:       offsets,
+		State: &sgproto.MarkState{
+			Kind: sgproto.MarkKind_Commited,
+		},
+	})
 }
 
-func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID, kind sgproto.MarkKind) (bool, error) {
+func (b *Broker) MarkConsumed(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets ...sandflake.ID) (bool, error) {
+	return b.Mark(ctx, &sgproto.MarkRequest{
+		Topic:         topicName,
+		Partition:     partitionName,
+		ConsumerGroup: consumerGroup,
+		ConsumerName:  consumerName,
+		Offsets:       offsets,
+		State: &sgproto.MarkState{
+			Kind: sgproto.MarkKind_Consumed,
+		},
+	})
+}
+
+func (b *Broker) Mark(ctx context.Context, req *sgproto.MarkRequest) (bool, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
-	p := topic.ChoosePartitionForKey(partitionKey(topicName, partitionName, consumerGroup))
+	p := topic.ChoosePartitionForKey(partitionKey(req.Topic, req.Partition, req.ConsumerGroup))
 
 	n := b.getPartitionLeader(ConsumerOffsetTopicName, p.Id)
 	if n == nil {
@@ -96,28 +78,7 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 	}
 
 	if n.Name != b.Name() {
-		change := &sgproto.OffsetChangeRequest{
-			Topic:         topicName,
-			Partition:     partitionName,
-			ConsumerGroup: consumerGroup,
-			ConsumerName:  consumerName,
-			Offset:        offset,
-		}
-
-		var (
-			res *sgproto.OffsetChangeReply
-			err error
-		)
-		switch kind {
-		case sgproto.MarkKind_Acknowledged:
-			res, err = n.Acknowledge(ctx, change)
-		case sgproto.MarkKind_NotAcknowledged:
-			res, err = n.NotAcknowledge(ctx, change)
-		case sgproto.MarkKind_Commited:
-			res, err = n.Commit(ctx, change)
-		case sgproto.MarkKind_Consumed:
-			res, err = n.MarkConsumed(ctx, change)
-		}
+		res, err := n.Mark(ctx, req)
 		if err != nil {
 			return false, err
 		}
@@ -125,26 +86,29 @@ func (b *Broker) mark(ctx context.Context, topicName, partitionName, consumerGro
 		return res.Success, nil
 	}
 
-	state := &sgproto.MarkState{
-		Kind: kind,
+	if req.State == nil {
+		req.State = &sgproto.MarkState{}
 	}
 
-	value, err := proto.Marshal(state)
+	value, err := proto.Marshal(req.State)
 	if err != nil {
 		return false, err
+	}
+
+	msgs := make([]*sgproto.Message, 0, len(req.Offsets))
+	for _, offset := range req.Offsets {
+		msgs = append(msgs, &sgproto.Message{
+			Offset:        offset,
+			Key:           partitionKey(req.Topic, req.Partition, req.ConsumerGroup),
+			ClusteringKey: generateClusterKey(offset, req.State.Kind),
+			Value:         value,
+		})
 	}
 
 	res, err := b.Produce(ctx, &sgproto.ProduceMessageRequest{
 		Topic:     ConsumerOffsetTopicName,
 		Partition: p.Id,
-		Messages: []*sgproto.Message{
-			{
-				Offset:        offset,
-				Key:           partitionKey(topicName, partitionName, consumerGroup),
-				ClusteringKey: generateClusterKey(offset, kind),
-				Value:         value,
-			},
-		},
+		Messages:  msgs,
 	})
 	return res != nil, err
 }
@@ -179,9 +143,9 @@ func (b *Broker) LastOffset(ctx context.Context, topicName, partitionName, consu
 	return b.last(p, pk, lastKind)
 }
 
-func (b *Broker) GetMarkStateMessage(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offset sandflake.ID) (*sgproto.Message, error) {
+func (b *Broker) GetMarkStateMessage(ctx context.Context, req *sgproto.GetMarkRequest) (*sgproto.Message, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
-	pk := partitionKey(topicName, partitionName, consumerGroup)
+	pk := partitionKey(req.Topic, req.Partition, req.ConsumerGroup)
 	p := topic.ChoosePartitionForKey(pk)
 
 	n := b.getPartitionLeader(ConsumerOffsetTopicName, p.Id)
@@ -190,13 +154,7 @@ func (b *Broker) GetMarkStateMessage(ctx context.Context, topicName, partitionNa
 	}
 
 	if n.Name != b.Name() {
-		res, err := n.GetMarkStateMessage(ctx, &sgproto.OffsetChangeRequest{
-			Topic:         topicName,
-			Partition:     partitionName,
-			ConsumerGroup: consumerGroup,
-			ConsumerName:  consumerName,
-			Offset:        offset,
-		})
+		res, err := n.GetMarkStateMessage(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -204,7 +162,7 @@ func (b *Broker) GetMarkStateMessage(ctx context.Context, topicName, partitionNa
 		return res, nil
 	}
 
-	key := generatePrefixConsumerOffsetKey(pk, offset)
+	key := generatePrefixConsumerOffsetKey(pk, req.Offset)
 
 	msg, err := p.GetMessage(sandflake.Nil, key, nil)
 	if err != nil {
