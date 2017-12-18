@@ -79,13 +79,13 @@ func (c *ConsumerGroup) consumeLoop() {
 		c.mu.Unlock()
 	}()
 
-	lastCommited, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.MarkKind_Commited)
+	lastCommited, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Commited)
 	if err != nil {
 		c.broker.Debug("got error when fetching last committed offset: %v ", err)
 		return
 	}
 
-	lastConsumed, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.MarkKind_Consumed)
+	lastConsumed, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Consumed)
 	if err != nil {
 		c.broker.Debug("got error when fetching last committed offset: %v ", err)
 		return
@@ -108,7 +108,7 @@ func (c *ConsumerGroup) consumeLoop() {
 			}
 
 			commit := func(offset sandflake.ID) {
-				_, err := c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, "", lastMessage.Offset)
+				_, err := c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, lastMessage.Offset)
 				if err != nil {
 					c.broker.Debug("unable to commit")
 				}
@@ -278,7 +278,7 @@ loop:
 	}
 
 	if m != nil && !m.Offset.Equal(lastConsumed) {
-		_, err := c.broker.MarkConsumed(context.TODO(), c.topic, c.partition, c.name, "REMOVE THIS", m.Offset)
+		_, err := c.broker.MarkConsumed(context.TODO(), c.topic, c.partition, c.name, m.Offset)
 		if err != nil {
 			c.broker.Debug("unable to mark as consumed: %v", err)
 		}

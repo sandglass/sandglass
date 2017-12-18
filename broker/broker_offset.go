@@ -16,12 +16,11 @@ import (
 	"github.com/celrenheit/sandglass/topic"
 )
 
-func (b *Broker) Acknowledge(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets ...sandflake.ID) (bool, error) {
+func (b *Broker) Acknowledge(ctx context.Context, topicName, partitionName, consumerGroup string, offsets ...sandflake.ID) (bool, error) {
 	return b.Mark(ctx, &sgproto.MarkRequest{
 		Topic:         topicName,
 		Partition:     partitionName,
 		ConsumerGroup: consumerGroup,
-		ConsumerName:  consumerName,
 		Offsets:       offsets,
 		State: &sgproto.MarkState{
 			Kind: sgproto.MarkKind_Acknowledged,
@@ -29,12 +28,11 @@ func (b *Broker) Acknowledge(ctx context.Context, topicName, partitionName, cons
 	})
 }
 
-func (b *Broker) NotAcknowledge(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets ...sandflake.ID) (bool, error) {
+func (b *Broker) NotAcknowledge(ctx context.Context, topicName, partitionName, consumerGroup string, offsets ...sandflake.ID) (bool, error) {
 	return b.Mark(ctx, &sgproto.MarkRequest{
 		Topic:         topicName,
 		Partition:     partitionName,
 		ConsumerGroup: consumerGroup,
-		ConsumerName:  consumerName,
 		Offsets:       offsets,
 		State: &sgproto.MarkState{
 			Kind: sgproto.MarkKind_NotAcknowledged,
@@ -42,12 +40,11 @@ func (b *Broker) NotAcknowledge(ctx context.Context, topicName, partitionName, c
 	})
 }
 
-func (b *Broker) Commit(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets ...sandflake.ID) (bool, error) {
+func (b *Broker) Commit(ctx context.Context, topicName, partitionName, consumerGroup string, offsets ...sandflake.ID) (bool, error) {
 	return b.Mark(ctx, &sgproto.MarkRequest{
 		Topic:         topicName,
 		Partition:     partitionName,
 		ConsumerGroup: consumerGroup,
-		ConsumerName:  consumerName,
 		Offsets:       offsets,
 		State: &sgproto.MarkState{
 			Kind: sgproto.MarkKind_Commited,
@@ -55,12 +52,11 @@ func (b *Broker) Commit(ctx context.Context, topicName, partitionName, consumerG
 	})
 }
 
-func (b *Broker) MarkConsumed(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, offsets ...sandflake.ID) (bool, error) {
+func (b *Broker) MarkConsumed(ctx context.Context, topicName, partitionName, consumerGroup string, offsets ...sandflake.ID) (bool, error) {
 	return b.Mark(ctx, &sgproto.MarkRequest{
 		Topic:         topicName,
 		Partition:     partitionName,
 		ConsumerGroup: consumerGroup,
-		ConsumerName:  consumerName,
 		Offsets:       offsets,
 		State: &sgproto.MarkState{
 			Kind: sgproto.MarkKind_Consumed,
@@ -113,7 +109,7 @@ func (b *Broker) Mark(ctx context.Context, req *sgproto.MarkRequest) (bool, erro
 	return res != nil, err
 }
 
-func (b *Broker) LastOffset(ctx context.Context, topicName, partitionName, consumerGroup, consumerName string, kind sgproto.MarkKind) (sandflake.ID, error) {
+func (b *Broker) LastOffset(ctx context.Context, topicName, partitionName, consumerGroup string, kind sgproto.MarkKind) (sandflake.ID, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
 	pk := partitionKey(topicName, partitionName, consumerGroup)
 	p := topic.ChoosePartitionForKey(pk)
@@ -128,7 +124,6 @@ func (b *Broker) LastOffset(ctx context.Context, topicName, partitionName, consu
 			Topic:         topicName,
 			Partition:     partitionName,
 			ConsumerGroup: consumerGroup,
-			ConsumerName:  consumerName,
 			Kind:          kind,
 		})
 		if err != nil {
