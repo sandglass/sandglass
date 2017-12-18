@@ -164,7 +164,16 @@ func (c *ConsumerGroup) consumeLoop() {
 					// those calls should be batched
 					if state.Kind == sgproto.MarkKind_Unknown {
 						// TODO: Should we mark this consumed?
-						_, err := c.broker.MarkConsumed(context.Background(), c.topic, c.partition, c.name, "NOT SET", m.Offset)
+						_, err := c.broker.Mark(context.Background(), &sgproto.MarkRequest{
+							Topic:         c.topic,
+							Partition:     c.partition,
+							ConsumerGroup: c.name,
+							Offsets:       []sandflake.ID{m.Offset},
+							State: &sgproto.MarkState{
+								Kind:          sgproto.MarkKind_Consumed,
+								DeliveryCount: 1,
+							},
+						})
 						if err != nil {
 							c.broker.Debug("error while acking message for the first redilvery", err)
 							return err

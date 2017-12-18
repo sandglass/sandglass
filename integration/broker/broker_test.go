@@ -322,19 +322,6 @@ func TestConsume(t *testing.T) {
 		require.Equal(t, 20, count)
 	}
 
-	// FIXME: this is not the correct behavior, all of the message should end at the same time
-	// this is due to the fact that messages do not have the same initial state
-
-	time.Sleep(150 * time.Millisecond)
-
-	count = 0
-	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
-		count++
-		return nil
-	})
-	require.Nil(t, err)
-	require.Equal(t, 19, count)
-
 	time.Sleep(150 * time.Millisecond)
 
 	count = 0
