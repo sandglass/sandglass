@@ -276,7 +276,11 @@ func shouldRedeliver(index sandflake.ID, state sgproto.MarkState) bool {
 	case sgproto.MarkKind_NotAcknowledged:
 		return true
 	case sgproto.MarkKind_Consumed, sgproto.MarkKind_Unknown: // inflight
-		return index.Time().Add(time.Duration(state.DeliveryCount) * RedeliveryTimeout).Before(time.Now().UTC())
+		dur := RedeliveryTimeout
+		if state.DeliveryCount > 0 {
+			dur *= time.Duration(state.DeliveryCount)
+		}
+		return index.Time().Add(dur).Before(time.Now().UTC())
 	case sgproto.MarkKind_Acknowledged, sgproto.MarkKind_Commited:
 		return false
 	default:

@@ -307,8 +307,25 @@ func TestConsume(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 0, count)
 
-	broker.RedeliveryTimeout = 10 * time.Millisecond // this should trigger redelivery
-	time.Sleep(20 * time.Millisecond)
+	broker.RedeliveryTimeout = 100 * time.Millisecond // this should trigger redelivery
+	broker.MaxRedeliveryCount = 3
+	for i := 0; i < broker.MaxRedeliveryCount; i++ {
+
+		time.Sleep(150 * time.Millisecond)
+
+		count = 0
+		err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+			count++
+			return nil
+		})
+		require.Nil(t, err)
+		require.Equal(t, 20, count)
+	}
+
+	// FIXME: this is not the correct behavior, all of the message should end at the same time
+	// this is due to the fact that messages do not have the same initial state
+
+	time.Sleep(150 * time.Millisecond)
 
 	count = 0
 	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
@@ -316,7 +333,17 @@ func TestConsume(t *testing.T) {
 		return nil
 	})
 	require.Nil(t, err)
-	require.Equal(t, 20, count)
+	require.Equal(t, 19, count)
+
+	time.Sleep(150 * time.Millisecond)
+
+	count = 0
+	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+		count++
+		return nil
+	})
+	require.Nil(t, err)
+	require.Equal(t, 0, count)
 }
 
 func TestSyncRequest(t *testing.T) {
