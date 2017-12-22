@@ -135,7 +135,7 @@ func (s *service) Mark(ctx context.Context, req *sgproto.MarkRequest) (*sgproto.
 }
 
 func (s *service) LastOffset(ctx context.Context, req *sgproto.LastOffsetRequest) (*sgproto.LastOffsetReply, error) {
-	offset, err := s.broker.LastOffset(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Kind)
+	offset, err := s.broker.LastOffset(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.Kind)
 	return &sgproto.LastOffsetReply{
 		Offset: offset,
 	}, err

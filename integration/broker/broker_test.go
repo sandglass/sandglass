@@ -180,31 +180,31 @@ func TestACK(t *testing.T) {
 
 	var g sandflake.Generator
 	offset := g.Next()
-	ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", offset)
+	ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", offset)
 	require.Nil(t, err)
 	require.True(t, ok)
 
-	got, err := b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
+	got, err := b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
 	require.Equal(t, sandflake.Nil, got)
 
-	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
+	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
 
 	offset2 := g.Next()
-	ok, err = b.Commit(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", offset2)
+	ok, err = b.Commit(ctx, topic.Name, topic.Partitions[0].Id, "group1", offset2)
 	require.Nil(t, err)
 	require.True(t, ok)
 
-	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
+	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
 	require.Equal(t, offset2, got)
 
-	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
+	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
@@ -265,7 +265,7 @@ func TestConsume(t *testing.T) {
 	var got sandflake.ID
 	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
 		count++
-		ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", msg.Offset)
+		ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", msg.Offset)
 		require.True(t, ok)
 		got = msg.Offset
 		return err
