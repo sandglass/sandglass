@@ -43,7 +43,7 @@ func TestSandglass(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
@@ -95,7 +95,7 @@ func TestKVTopic(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_KVKind,
 		ReplicationFactor: 2,
@@ -153,7 +153,7 @@ func TestACK(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
@@ -215,7 +215,7 @@ func TestConsume(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
@@ -339,7 +339,7 @@ func TestSyncRequest(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
@@ -421,7 +421,7 @@ func BenchmarkKVTopicGet(b *testing.B) {
 	brokers, destroyFn := makeNBrokers(b, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_KVKind,
 		ReplicationFactor: 2,
@@ -468,7 +468,7 @@ func BenchmarkConsume(b *testing.B) {
 	brokers, destroyFn := makeNBrokers(b, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,

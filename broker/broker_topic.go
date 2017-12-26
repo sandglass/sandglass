@@ -46,7 +46,7 @@ func (b *Broker) watchTopic() error {
 	}
 }
 
-func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicParams) error {
+func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.TopicConfig) error {
 	if params.Name == "" {
 		return ErrInvalidTopicName
 	}

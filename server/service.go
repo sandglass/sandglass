@@ -21,7 +21,7 @@ func newService(b *broker.Broker) *service {
 	return &service{broker: b}
 }
 
-func (s *service) CreateTopic(ctx context.Context, params *sgproto.CreateTopicParams) (*sgproto.TopicReply, error) {
+func (s *service) CreateTopic(ctx context.Context, params *sgproto.TopicConfig) (*sgproto.TopicReply, error) {
 	err := s.broker.CreateTopic(ctx, params)
 	if err != nil {
 		return nil, err
