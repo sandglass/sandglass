@@ -95,7 +95,8 @@ type dialOptions struct {
 	scChan      <-chan ServiceConfig
 	copts       transport.ConnectOptions
 	callOptions []CallOption
-	// This is to support v1 balancer.
+	// This is used by v1 balancer dial option WithBalancer to support v1
+	// balancer, and also by WithBalancerName dial option.
 	balancerBuilder balancer.Builder
 	// This is to support grpclb.
 	resolverBuilder resolver.Builder
@@ -200,7 +201,8 @@ func WithDecompressor(dc Decompressor) DialOption {
 
 // WithBalancer returns a DialOption which sets a load balancer with the v1 API.
 // Name resolver will be ignored if this DialOption is specified.
-// Deprecated: use the new balancer APIs in balancer package instead.
+//
+// Deprecated: use the new balancer APIs in balancer package and WithBalancerName.
 func WithBalancer(b Balancer) DialOption {
 	return func(o *dialOptions) {
 		o.balancerBuilder = &balancerWrapperBuilder{
@@ -209,12 +211,21 @@ func WithBalancer(b Balancer) DialOption {
 	}
 }
 
-// WithBalancerBuilder is for testing only. Users using custom balancers should
-// register their balancer and use service config to choose the balancer to use.
-func WithBalancerBuilder(b balancer.Builder) DialOption {
-	// TODO(bar) remove this when switching balancer is done.
+// WithBalancerName sets the balancer that the ClientConn will be initialized
+// with. Balancer registered with balancerName will be used. This function
+// panics if no balancer was registered by balancerName.
+//
+// The balancer cannot be overridden by balancer option specified by service
+// config.
+//
+// This is an EXPERIMENTAL API.
+func WithBalancerName(balancerName string) DialOption {
+	builder := balancer.Get(balancerName)
+	if builder == nil {
+		panic(fmt.Sprintf("grpc.WithBalancerName: no balancer is registered for name %v", balancerName))
+	}
 	return func(o *dialOptions) {
-		o.balancerBuilder = b
+		o.balancerBuilder = builder
 	}
 }
 
@@ -610,6 +621,7 @@ type ClientConn struct {
 	// Keepalive parameter can be updated if a GoAway is received.
 	mkp             keepalive.ClientParameters
 	curBalancerName string
+	preBalancerName string // previous balancer name.
 	curAddresses    []resolver.Address
 	balancerWrapper *ccBalancerWrapper
 }
@@ -667,35 +679,58 @@ func (cc *ClientConn) handleResolvedAddrs(addrs []resolver.Address, err error) {
 		return
 	}
 
-	// TODO(bar switching) when grpclb is submitted, check address type and start grpclb.
-	if cc.balancerWrapper == nil {
-		// First time handling resolved addresses. Build a balancer use either
-		// the builder specified by dial option, or pickfirst.
-		builder := cc.dopts.balancerBuilder
-		if builder == nil {
-			// No customBalancer was specified by DialOption, and this is the first
-			// time handling resolved addresses, create a pickfirst balancer.
-			builder = newPickfirstBuilder()
+	cc.curAddresses = addrs
+
+	if cc.dopts.balancerBuilder == nil {
+		// Only look at balancer types and switch balancer if balancer dial
+		// option is not set.
+		var isGRPCLB bool
+		for _, a := range addrs {
+			if a.Type == resolver.GRPCLB {
+				isGRPCLB = true
+				break
+			}
 		}
-		cc.curBalancerName = builder.Name()
-		cc.balancerWrapper = newCCBalancerWrapper(cc, builder, cc.balancerBuildOpts)
+		var newBalancerName string
+		if isGRPCLB {
+			newBalancerName = grpclbName
+		} else {
+			// Address list doesn't contain grpclb address. Try to pick a
+			// non-grpclb balancer.
+			newBalancerName = cc.curBalancerName
+			// If current balancer is grpclb, switch to the previous one.
+			if newBalancerName == grpclbName {
+				newBalancerName = cc.preBalancerName
+			}
+			// The following could be true in two cases:
+			// - the first time handling resolved addresses
+			//   (curBalancerName="")
+			// - the first time handling non-grpclb addresses
+			//   (curBalancerName="grpclb", preBalancerName="")
+			if newBalancerName == "" {
+				newBalancerName = PickFirstBalancerName
+			}
+		}
+		cc.switchBalancer(newBalancerName)
+	} else if cc.balancerWrapper == nil {
+		// Balancer dial option was set, and this is the first time handling
+		// resolved addresses. Build a balancer with dopts.balancerBuilder.
+		cc.balancerWrapper = newCCBalancerWrapper(cc, cc.dopts.balancerBuilder, cc.balancerBuildOpts)
 	}
 
-	cc.curAddresses = addrs
 	cc.balancerWrapper.handleResolvedAddrs(addrs, nil)
 }
 
-// switchBalancer starts the switching from current balancer to the balancer with name.
+// switchBalancer starts the switching from current balancer to the balancer
+// with the given name.
+//
+// It will NOT send the current address list to the new balancer. If needed,
+// caller of this function should send address list to the new balancer after
+// this function returns.
 //
 // Caller must hold cc.mu.
 func (cc *ClientConn) switchBalancer(name string) {
 	if cc.conns == nil {
-		return
-	}
-	grpclog.Infof("ClientConn switching balancer to %q", name)
-
-	if cc.dopts.balancerBuilder != nil {
-		grpclog.Infoln("ignoring service config balancer configuration: WithBalancer DialOption used instead")
 		return
 	}
 
@@ -703,6 +738,11 @@ func (cc *ClientConn) switchBalancer(name string) {
 		return
 	}
 
+	grpclog.Infof("ClientConn switching balancer to %q", name)
+	if cc.dopts.balancerBuilder != nil {
+		grpclog.Infoln("ignoring balancer switching: Balancer DialOption used instead")
+		return
+	}
 	// TODO(bar switching) change this to two steps: drain and close.
 	// Keep track of sc in wrapper.
 	if cc.balancerWrapper != nil {
@@ -711,12 +751,12 @@ func (cc *ClientConn) switchBalancer(name string) {
 
 	builder := balancer.Get(name)
 	if builder == nil {
-		grpclog.Infof("failed to get balancer builder for: %v (this should never happen...)", name)
+		grpclog.Infof("failed to get balancer builder for: %v, using pick_first instead", name)
 		builder = newPickfirstBuilder()
 	}
+	cc.preBalancerName = cc.curBalancerName
 	cc.curBalancerName = builder.Name()
 	cc.balancerWrapper = newCCBalancerWrapper(cc, builder, cc.balancerBuildOpts)
-	cc.balancerWrapper.handleResolvedAddrs(cc.curAddresses, nil)
 }
 
 func (cc *ClientConn) handleSubConnStateChange(sc balancer.SubConn, s connectivity.State) {
@@ -867,8 +907,18 @@ func (cc *ClientConn) handleServiceConfig(js string) error {
 	cc.mu.Lock()
 	cc.scRaw = js
 	cc.sc = sc
-	if sc.LB != nil {
-		cc.switchBalancer(*sc.LB)
+	if sc.LB != nil && *sc.LB != grpclbName { // "grpclb" is not a valid balancer option in service config.
+		if cc.curBalancerName == grpclbName {
+			// If current balancer is grpclb, there's at least one grpclb
+			// balancer address in the resolved list. Don't switch the balancer,
+			// but change the previous balancer name, so if a new resolved
+			// address list doesn't contain grpclb address, balancer will be
+			// switched to *sc.LB.
+			cc.preBalancerName = *sc.LB
+		} else {
+			cc.switchBalancer(*sc.LB)
+			cc.balancerWrapper.handleResolvedAddrs(cc.curAddresses, nil)
+		}
 	}
 	cc.mu.Unlock()
 	return nil
@@ -1299,6 +1349,9 @@ func (ac *addrConn) tearDown(err error) {
 	ac.cancel()
 	ac.mu.Lock()
 	defer ac.mu.Unlock()
+	if ac.state == connectivity.Shutdown {
+		return
+	}
 	ac.curAddr = resolver.Address{}
 	if err == errConnDrain && ac.transport != nil {
 		// GracefulClose(...) may be executed multiple times when
@@ -1306,9 +1359,6 @@ func (ac *addrConn) tearDown(err error) {
 		// ii) there are concurrent name resolver/Balancer triggered
 		// address removal and GoAway.
 		ac.transport.GracefulClose()
-	}
-	if ac.state == connectivity.Shutdown {
-		return
 	}
 	ac.state = connectivity.Shutdown
 	ac.tearDownErr = err
