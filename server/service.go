@@ -100,6 +100,12 @@ func (s *service) HasKey(ctx context.Context, req *sgproto.GetRequest) (*sgproto
 }
 
 func (s *service) Acknowledge(ctx context.Context, req *sgproto.MarkRequest) (*sgproto.MarkResponse, error) {
+	if req.State == nil {
+		req.State = &sgproto.MarkState{
+			Kind: sgproto.MarkKind_Acknowledged,
+		}
+	}
+
 	ok, err := s.broker.Mark(ctx, req)
 	return &sgproto.MarkResponse{
 		Success: ok,
@@ -107,6 +113,12 @@ func (s *service) Acknowledge(ctx context.Context, req *sgproto.MarkRequest) (*s
 }
 
 func (s *service) NotAcknowledge(ctx context.Context, req *sgproto.MarkRequest) (*sgproto.MarkResponse, error) {
+	if req.State == nil {
+		req.State = &sgproto.MarkState{
+			Kind: sgproto.MarkKind_NotAcknowledged,
+		}
+	}
+
 	ok, err := s.broker.Mark(ctx, req)
 	return &sgproto.MarkResponse{
 		Success: ok,
@@ -114,6 +126,12 @@ func (s *service) NotAcknowledge(ctx context.Context, req *sgproto.MarkRequest) 
 }
 
 func (s *service) Commit(ctx context.Context, req *sgproto.MarkRequest) (*sgproto.MarkResponse, error) {
+	if req.State == nil {
+		req.State = &sgproto.MarkState{
+			Kind: sgproto.MarkKind_Commited,
+		}
+	}
+
 	ok, err := s.broker.Mark(ctx, req)
 	return &sgproto.MarkResponse{
 		Success: ok,
@@ -121,6 +139,12 @@ func (s *service) Commit(ctx context.Context, req *sgproto.MarkRequest) (*sgprot
 }
 
 func (s *service) MarkConsumed(ctx context.Context, req *sgproto.MarkRequest) (*sgproto.MarkResponse, error) {
+	if req.State == nil {
+		req.State = &sgproto.MarkState{
+			Kind: sgproto.MarkKind_Consumed,
+		}
+	}
+
 	ok, err := s.broker.Mark(ctx, req)
 	return &sgproto.MarkResponse{
 		Success: ok,
