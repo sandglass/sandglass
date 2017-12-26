@@ -33,10 +33,10 @@
 			"revisionTime": "2017-12-26T16:26:09Z"
 		},
 		{
-			"checksumSHA1": "NUhH/jHerRQ1Do5W7/wz0WlFtz0=",
+			"checksumSHA1": "rEzEwORtm30wE2hUiPgIfinbheE=",
 			"path": "github.com/celrenheit/sandglass-grpc/go/sgproto",
-			"revision": "e832b1a21ad3d62e809914c7d2c29ff3d403c720",
-			"revisionTime": "2017-12-26T19:01:32Z"
+			"revision": "709de2adcfa04cc51cfc3c9e27e54febee3daf10",
+			"revisionTime": "2017-12-26T19:11:01Z"
 		},
 		{
 			"checksumSHA1": "Zlk5zPiw+3u9pyy4kNThpKDaYmE=",
