@@ -24,15 +24,21 @@ Sandglass is a distributed, horizontally scalable, persistent, time ordered mess
 - [Features](#features)
 - [Installation](#installation)
 - [Getting started](#getting-started)
+- [Documentation](#documentation)
+- [Motivation](#motivation)
 - [Clients](#clients)
   - [Go](#go)
     - [Installation](#installation-1)
     - [Documentation](#documentation)
     - [Usage](#usage)
+      - [Producer](#producer)
+      - [Consumer](#consumer)
   - [Java, Python, Node.js, Ruby](#java-python-nodejs-ruby)
 - [Architecture](#architecture)
   - [General](#general)
-  - [Topics](#topics)
+  - [Topic](#topic)
+  - [Offset Tracking](#offset-tracking)
+  - [Technologies used](#technologies-used)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -100,6 +106,23 @@ sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master
 
 and repeat the same steps described above for another topic and increasing the replication factor to 2.
 
+## Motivation
+
+As previously asked ([#4](https://github.com/celrenheit/sandglass/issues/4)), the purpose of this project might not seem clear. In short, there is two goals. 
+
+The first is to be able to track each message individually (i.e. not using a single commit offset) to make suitable for asynchronous tasks.
+
+The second is the ability to schedule messages to be consumed in the future. This make it suitable for retries.
+
+## Documentation
+
+> Documentation is a work in progress and still lacking.
+
+* [API docs](https://docs.sandglass.stream/)
+* Overview - TODO
+* Clients development guides - TODO
+* Documentation the different ways of starting a cluster
+
 ## Clients
 
 ### Go
@@ -131,13 +154,32 @@ defer client.Close()
 
 // Now we produce a new message
 // Notice the empty string "" in the 3th argument, meaning let sandglass choose a random partition
-err := client.Produce(context.Background(), "payments", "", &sgproto.Message{
+err := client.Produce(context.Background(), "emails", "", &sgproto.Message{
     Value: []byte("Hello, Sandglass!"),
 })
 if err != nil {
     panic(err)
 }
 ```
+
+In order to produce message in the future, you need to specify a custom offset:
+
+```go
+inOneHour := time.Now().Add(1 * time.Hour)
+gen := sandflake.NewFixedTimeGenerator(inOneHour)
+
+msg := &sgproto.Message{
+	Offset: gen.Next(),
+	Value:  []byte("Hello"),
+}
+
+err := client.ProduceMessage(context.Background(), "emails", "", msg)
+if err != nil {
+	return err
+}
+```
+
+This will produce a message that will be available for consumption in 1h.
 
 ##### Consumer
 
@@ -187,7 +229,7 @@ defer client.Close()
 
 
 // Listing partitions in order to choose one to consume from
-partitions, err := c.ListPartitions(context.Background(), topic)
+partitions, err := client.ListPartitions(context.Background(), topic)
 if err != nil {
     panic(err)
 }
@@ -195,8 +237,8 @@ if err != nil {
 // we are choosing only one partition for demo purposes
 partition := partitions[0]
 
-// Create a new consumer using consumer group payments-sender and consumer name consumer1
-consumer := c.NewConsumer(topic, partition, "payments-sender", "consumer1")
+// Create a new consumer using consumer group emails-sender and consumer name consumer1
+consumer := client.NewConsumer(topic, partition, "emails-sender", "consumer1")
 
 // and consume messages
 msgCh, err := consumer.Consume(context.Background())
@@ -284,7 +326,7 @@ Data is written into a single partition. Either the destination partition is spe
 
 Each produced message to a partition writes a message to a Write Ahead Log (WAL) and to the View Log (VL).
 The WAL is used for the replication logic, it is sorted in the order each message was produced.
-The View Log is used for message comsumption, it is mainly sorted by time (please refer to [sandflake ids](https://github.com/celrenheit/sandflake) for the exact composition) for a Timer topics and by keys for KV topics.
+The View Log is used for message consumption, it is mainly sorted by time (please refer to [sandflake ids](https://github.com/celrenheit/sandflake) for the exact composition) for a Timer topics and by keys for KV topics.
 
 
 A message is composed of the following fields:
@@ -295,6 +337,22 @@ A message is composed of the following fields:
         key and clusteringKey       <- position in the view log for key for kv topics (key is used for partitioning)
 
         value                       <- your payload
+
+### Offset Tracking
+
+Sandglass is responsible for maintaining two offsets for each consumer group: 
+* Commited: the offset below which all messages have been ACKed
+* Consumed: the last consumed message
+
+When consuming sandglass starts from the last commited until the last consumed message to check the redelivery of messages. And from the last consumed offset until the last produced message to deliver the new messages. These two actions are done in parallel.
+
+### Technologies used
+
+* Leader Election: [hashicorp/raft](https://github.com/hashicorp/raft)
+* Persitance: [RocksDB](http://rocksdb.org/) or [Badger](https://github.com/dgraph-io/badger) 
+* Communication: [GRPC](https://grpc.io)
+* Gossip: [Serf](https://github.com/hashicorp/serf)
+* and many more
 
 ## Contributing
 

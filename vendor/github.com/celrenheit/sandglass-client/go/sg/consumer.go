@@ -47,23 +47,12 @@ func (c *Consumer) Consume(ctx context.Context) (chan *sgproto.Message, error) {
 	return msgCh, nil
 }
 
-func (c *Consumer) Acknowledge(ctx context.Context, msg *sgproto.Message) error {
-	_, err := c.client.client.Acknowledge(ctx, &sgproto.OffsetChangeRequest{
-		Topic:         c.topic,
-		Partition:     c.partition,
-		ConsumerGroup: c.group,
-		ConsumerName:  c.name,
-		Offset:        msg.Offset,
-	})
-	return err
-}
-
-func (c *Consumer) AcknowledgeMessages(ctx context.Context, offsets []sandflake.ID) error {
-	if len(offsets) == 0 {
-		return nil
+func (c *Consumer) Acknowledge(ctx context.Context, msgs ...*sgproto.Message) error {
+	offsets := make([]sandflake.ID, len(msgs))
+	for i, msg := range msgs {
+		offsets[i] = msg.Offset
 	}
-
-	_, err := c.client.client.AcknowledgeMessages(ctx, &sgproto.MultiOffsetChangeRequest{
+	_, err := c.client.client.Acknowledge(ctx, &sgproto.MarkRequest{
 		Topic:         c.topic,
 		Partition:     c.partition,
 		ConsumerGroup: c.group,
@@ -73,13 +62,17 @@ func (c *Consumer) AcknowledgeMessages(ctx context.Context, offsets []sandflake.
 	return err
 }
 
-func (c *Consumer) Commit(ctx context.Context, msg *sgproto.Message) error {
-	_, err := c.client.client.Commit(ctx, &sgproto.OffsetChangeRequest{
+func (c *Consumer) NotAcknowledge(ctx context.Context, msgs ...*sgproto.Message) error {
+	offsets := make([]sandflake.ID, len(msgs))
+	for i, msg := range msgs {
+		offsets[i] = msg.Offset
+	}
+	_, err := c.client.client.NotAcknowledge(ctx, &sgproto.MarkRequest{
 		Topic:         c.topic,
 		Partition:     c.partition,
 		ConsumerGroup: c.group,
 		ConsumerName:  c.name,
-		Offset:        msg.Offset,
+		Offsets:       offsets,
 	})
 	return err
 }

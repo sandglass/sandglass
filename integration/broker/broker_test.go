@@ -43,7 +43,7 @@ func TestSandglass(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
@@ -95,7 +95,7 @@ func TestKVTopic(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_KVKind,
 		ReplicationFactor: 2,
@@ -153,7 +153,7 @@ func TestACK(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
@@ -180,31 +180,31 @@ func TestACK(t *testing.T) {
 
 	var g sandflake.Generator
 	offset := g.Next()
-	ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", offset)
+	ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", offset)
 	require.Nil(t, err)
 	require.True(t, ok)
 
-	got, err := b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
+	got, err := b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
 	require.Equal(t, sandflake.Nil, got)
 
-	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
+	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
 
 	offset2 := g.Next()
-	ok, err = b.Commit(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", offset2)
+	ok, err = b.Commit(ctx, topic.Name, topic.Partitions[0].Id, "group1", offset2)
 	require.Nil(t, err)
 	require.True(t, ok)
 
-	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
+	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
 	require.Equal(t, offset2, got)
 
-	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1",
+	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
@@ -215,7 +215,7 @@ func TestConsume(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
@@ -265,7 +265,7 @@ func TestConsume(t *testing.T) {
 	var got sandflake.ID
 	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
 		count++
-		ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", "cons1", msg.Offset)
+		ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", msg.Offset)
 		require.True(t, ok)
 		got = msg.Offset
 		return err
@@ -307,8 +307,22 @@ func TestConsume(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 0, count)
 
-	broker.RedeliveryTimeout = 10 * time.Millisecond // this should trigger redelivery
-	time.Sleep(20 * time.Millisecond)
+	broker.RedeliveryTimeout = 100 * time.Millisecond // this should trigger redelivery
+	broker.MaxRedeliveryCount = 3
+	for i := 0; i < broker.MaxRedeliveryCount; i++ {
+
+		time.Sleep(150 * time.Millisecond)
+
+		count = 0
+		err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+			count++
+			return nil
+		})
+		require.Nil(t, err)
+		require.Equal(t, 20, count)
+	}
+
+	time.Sleep(150 * time.Millisecond)
 
 	count = 0
 	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
@@ -316,7 +330,7 @@ func TestConsume(t *testing.T) {
 		return nil
 	})
 	require.Nil(t, err)
-	require.Equal(t, 20, count)
+	require.Equal(t, 0, count)
 }
 
 func TestSyncRequest(t *testing.T) {
@@ -325,7 +339,7 @@ func TestSyncRequest(t *testing.T) {
 	brokers, destroyFn := makeNBrokers(t, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,
@@ -407,7 +421,7 @@ func BenchmarkKVTopicGet(b *testing.B) {
 	brokers, destroyFn := makeNBrokers(b, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_KVKind,
 		ReplicationFactor: 2,
@@ -454,7 +468,7 @@ func BenchmarkConsume(b *testing.B) {
 	brokers, destroyFn := makeNBrokers(b, n)
 	defer destroyFn()
 
-	createTopicParams := &sgproto.CreateTopicParams{
+	createTopicParams := &sgproto.TopicConfig{
 		Name:              "payments",
 		Kind:              sgproto.TopicKind_TimerKind,
 		ReplicationFactor: 2,

@@ -3,8 +3,6 @@ package sg
 import (
 	"context"
 
-	"google.golang.org/grpc/metadata"
-
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"google.golang.org/grpc"
 )
@@ -84,40 +82,6 @@ func (c *Client) ProduceMessage(ctx context.Context, topic, partition string, ms
 		Messages:  []*sgproto.Message{msg},
 	})
 	return err
-}
-
-func (c *Client) ProduceMessageCh(ctx context.Context, topic, partition string) (chan<- *sgproto.Message, <-chan error) {
-	errCh := make(chan error, 1)
-
-	md := metadata.MD{}
-	md["topic"] = []string{topic}
-	md["partition"] = []string{partition}
-	ctx = metadata.NewOutgoingContext(ctx, md)
-
-	stream, err := c.client.ProduceMessagesStream(ctx)
-	if err != nil {
-		errCh <- err
-		return nil, errCh
-	}
-
-	msgCh := make(chan *sgproto.Message)
-
-	go func() {
-		defer close(errCh)
-		for msg := range msgCh {
-			err := stream.Send(msg)
-			if err != nil {
-				errCh <- err
-				return
-			}
-		}
-		err := stream.CloseSend()
-		if err != nil {
-			errCh <- err
-		}
-	}()
-
-	return msgCh, errCh
 }
 
 func (c *Client) NewConsumer(topic, partition, group, name string) *Consumer {

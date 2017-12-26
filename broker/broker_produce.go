@@ -12,11 +12,16 @@ import (
 )
 
 var (
-	ErrNoKeySet = errors.New("ErrNoKeySet")
+	ErrNoKeySet           = errors.New("ErrNoKeySet")
+	ErrNoMessageToProduce = errors.New("ErrNoMessageToProduce")
 )
 
 func (b *Broker) Produce(ctx context.Context, req *sgproto.ProduceMessageRequest) (*sgproto.ProduceResponse, error) {
 	b.Debug("PublishMessage: %+v\n", req)
+	if len(req.Messages) == 0 {
+		return nil, ErrNoMessageToProduce
+	}
+
 	t := b.getTopic(req.Topic)
 	if t == nil {
 		return nil, ErrTopicNotFound
@@ -28,7 +33,7 @@ func (b *Broker) Produce(ctx context.Context, req *sgproto.ProduceMessageRequest
 			return nil, fmt.Errorf("unknown partition '%s'", req.Partition)
 		}
 	} else { // choose one
-		p = t.ChooseRandomPartition() // FIXME: choose randomly
+		p = t.ChooseRandomPartition()
 	}
 
 	leader := b.getPartitionLeader(req.Topic, p.Id)

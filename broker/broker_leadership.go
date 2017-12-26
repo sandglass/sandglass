@@ -45,7 +45,7 @@ func (b *Broker) monitorLeadership() error {
 				if !exists {
 					operation := func() error {
 						b.Debug("creating %s topic", ConsumerOffsetTopicName)
-						err := b.CreateTopic(context.TODO(), &sgproto.CreateTopicParams{
+						err := b.CreateTopic(context.TODO(), &sgproto.TopicConfig{
 							Name:              ConsumerOffsetTopicName,
 							Kind:              sgproto.TopicKind_KVKind,
 							NumPartitions:     50,

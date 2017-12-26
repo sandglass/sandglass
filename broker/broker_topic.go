@@ -33,15 +33,6 @@ func (b *Broker) watchTopic() error {
 			return nil
 		case topic := <-b.raft.NewTopicChan():
 			b.Debug("[topic watcher] received new topic: %s", topic.Name)
-			// exists := b.topicExists(topic.Name)
-			// if !exists {
-			// 	err := b.setupTopic(topic)
-			// 	if err != nil {
-			// 		b.Debug("err in setupTopic: %v", err)
-			// 	}
-			// }
-
-			// b.eventEmitter.Emit("topics:created:"+topic.Name, nil)
 
 			b.wg.Add(1)
 			go func() {
@@ -55,7 +46,7 @@ func (b *Broker) watchTopic() error {
 	}
 }
 
-func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.CreateTopicParams) error {
+func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.TopicConfig) error {
 	if params.Name == "" {
 		return ErrInvalidTopicName
 	}
