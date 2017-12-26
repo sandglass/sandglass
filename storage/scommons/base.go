@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	ViewPrefix = []byte("v")
-	WalPrefix  = []byte("w")
+	ViewPrefix = []byte{1, 'v'}
+	WalPrefix  = []byte{1, 'w'}
 )
 
 type StorageCommons struct {

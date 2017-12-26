@@ -2,12 +2,8 @@ package server
 
 import (
 	"fmt"
-	"io"
-	"time"
 
 	"github.com/celrenheit/sandflake"
-
-	"google.golang.org/grpc/metadata"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
@@ -53,65 +49,6 @@ func (s *service) GetTopic(ctx context.Context, req *sgproto.GetTopicParams) (*s
 
 func (s *service) Produce(ctx context.Context, req *sgproto.ProduceMessageRequest) (*sgproto.ProduceResponse, error) {
 	return s.broker.Produce(ctx, req)
-}
-
-func (s *service) ProduceMessagesStream(stream sgproto.BrokerService_ProduceMessagesStreamServer) error {
-	const n = 10000
-	ctx := stream.Context()
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return fmt.Errorf("no metadata")
-	}
-
-	var topic, partition string
-
-	if mds, ok := md["topic"]; ok && len(mds) > 0 {
-		topic = mds[0]
-	}
-
-	if mds, ok := md["partition"]; ok && len(mds) > 0 {
-		partition = mds[0]
-	}
-
-	if topic == "" {
-		return fmt.Errorf("topic metadata should be set")
-	}
-
-	messages := make([]*sgproto.Message, 0)
-	for {
-		msg, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-
-		messages = append(messages, msg)
-		if len(messages) >= n {
-			start := time.Now()
-			if _, err := s.broker.Produce(ctx, &sgproto.ProduceMessageRequest{
-				Topic:     topic,
-				Partition: partition,
-				Messages:  messages,
-			}); err != nil {
-				return err
-			}
-			fmt.Println("Publish Messages took:", time.Since(start))
-			messages = messages[:0]
-		}
-	}
-
-	if len(messages) > 0 {
-		_, err := s.broker.Produce(ctx, &sgproto.ProduceMessageRequest{
-			Topic:     topic,
-			Partition: partition,
-			Messages:  messages,
-		})
-		return err
-	}
-
-	return nil
 }
 
 func (s *service) FetchFrom(req *sgproto.FetchFromRequest, stream sgproto.BrokerService_FetchFromServer) error {
@@ -162,62 +99,54 @@ func (s *service) HasKey(ctx context.Context, req *sgproto.GetRequest) (*sgproto
 	}, nil
 }
 
-func (s *service) Acknowledge(ctx context.Context, req *sgproto.OffsetChangeRequest) (*sgproto.OffsetChangeReply, error) {
-	ok, err := s.broker.Acknowledge(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
-	return &sgproto.OffsetChangeReply{
+func (s *service) Acknowledge(ctx context.Context, req *sgproto.MarkRequest) (*sgproto.MarkResponse, error) {
+	ok, err := s.broker.Mark(ctx, req)
+	return &sgproto.MarkResponse{
 		Success: ok,
 	}, err
 }
 
-func (s *service) NotAcknowledge(ctx context.Context, req *sgproto.OffsetChangeRequest) (*sgproto.OffsetChangeReply, error) {
-	ok, err := s.broker.NotAcknowledge(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
-	return &sgproto.OffsetChangeReply{
+func (s *service) NotAcknowledge(ctx context.Context, req *sgproto.MarkRequest) (*sgproto.MarkResponse, error) {
+	ok, err := s.broker.Mark(ctx, req)
+	return &sgproto.MarkResponse{
 		Success: ok,
 	}, err
 }
 
-func (s *service) AcknowledgeMessages(ctx context.Context, req *sgproto.MultiOffsetChangeRequest) (*sgproto.OffsetChangeReply, error) {
-	err := s.broker.AcknowledgeMessages(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offsets)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sgproto.OffsetChangeReply{
-		Success: true,
-	}, nil
-}
-
-func (s *service) Commit(ctx context.Context, req *sgproto.OffsetChangeRequest) (*sgproto.OffsetChangeReply, error) {
-	ok, err := s.broker.Commit(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
-	return &sgproto.OffsetChangeReply{
+func (s *service) Commit(ctx context.Context, req *sgproto.MarkRequest) (*sgproto.MarkResponse, error) {
+	ok, err := s.broker.Mark(ctx, req)
+	return &sgproto.MarkResponse{
 		Success: ok,
 	}, err
 }
 
-func (s *service) MarkConsumed(ctx context.Context, req *sgproto.OffsetChangeRequest) (*sgproto.OffsetChangeReply, error) {
-	ok, err := s.broker.MarkConsumed(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
-	return &sgproto.OffsetChangeReply{
+func (s *service) MarkConsumed(ctx context.Context, req *sgproto.MarkRequest) (*sgproto.MarkResponse, error) {
+	ok, err := s.broker.Mark(ctx, req)
+	return &sgproto.MarkResponse{
+		Success: ok,
+	}, err
+}
+
+func (s *service) Mark(ctx context.Context, req *sgproto.MarkRequest) (*sgproto.MarkResponse, error) {
+	ok, err := s.broker.Mark(ctx, req)
+	return &sgproto.MarkResponse{
 		Success: ok,
 	}, err
 }
 
 func (s *service) LastOffset(ctx context.Context, req *sgproto.LastOffsetRequest) (*sgproto.LastOffsetReply, error) {
-	offset, err := s.broker.LastOffset(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Kind)
+	offset, err := s.broker.LastOffset(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.Kind)
 	return &sgproto.LastOffsetReply{
 		Offset: offset,
 	}, err
 }
 
-func (s *service) GetMarkStateMessage(ctx context.Context, req *sgproto.OffsetChangeRequest) (*sgproto.Message, error) {
-	return s.broker.GetMarkStateMessage(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.ConsumerName, req.Offset)
+func (s *service) GetMarkStateMessage(ctx context.Context, req *sgproto.GetMarkRequest) (*sgproto.Message, error) {
+	return s.broker.GetMarkStateMessage(ctx, req)
 }
 
 func (s *service) FetchFromSync(req *sgproto.FetchFromSyncRequest, stream sgproto.InternalService_FetchFromSyncServer) error {
 	return s.broker.FetchFromSync(req.Topic, req.Partition, req.From, func(msg *sgproto.Message) error {
-		// if msg == nil {
-		// 	return fmt.Errorf("kikou")
-		// }
-
 		return stream.Send(msg)
 	})
 }

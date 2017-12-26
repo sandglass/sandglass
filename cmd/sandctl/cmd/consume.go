@@ -122,7 +122,7 @@ FOLLOW:
 	}
 
 	ackFn := func(offsets []sandflake.ID) error {
-		_, err := client.AcknowledgeMessages(context.Background(), &sgproto.MultiOffsetChangeRequest{
+		_, err := client.Acknowledge(context.Background(), &sgproto.MarkRequest{
 			Topic:         topic,
 			Partition:     partition,
 			ConsumerGroup: group,

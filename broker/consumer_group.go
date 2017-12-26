@@ -79,13 +79,13 @@ func (c *ConsumerGroup) consumeLoop() {
 		c.mu.Unlock()
 	}()
 
-	lastCommited, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.MarkKind_Commited)
+	lastCommited, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Commited)
 	if err != nil {
 		c.broker.Debug("got error when fetching last committed offset: %v ", err)
 		return
 	}
 
-	lastConsumed, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, "", sgproto.MarkKind_Consumed)
+	lastConsumed, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Consumed)
 	if err != nil {
 		c.broker.Debug("got error when fetching last committed offset: %v ", err)
 		return
@@ -108,7 +108,7 @@ func (c *ConsumerGroup) consumeLoop() {
 			}
 
 			commit := func(offset sandflake.ID) {
-				_, err := c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, "", lastMessage.Offset)
+				_, err := c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, lastMessage.Offset)
 				if err != nil {
 					c.broker.Debug("unable to commit")
 				}
@@ -122,7 +122,12 @@ func (c *ConsumerGroup) consumeLoop() {
 				}
 				i++
 
-				markedMsg, err := c.broker.GetMarkStateMessage(context.TODO(), c.topic, c.partition, c.name, "", m.Offset)
+				markedMsg, err := c.broker.GetMarkStateMessage(context.TODO(), &sgproto.GetMarkRequest{
+					Topic:         c.topic,
+					Partition:     c.partition,
+					ConsumerGroup: c.name,
+					Offset:        m.Offset,
+				})
 				if err != nil {
 					s, ok := status.FromError(err)
 					if !ok || s.Code() != codes.NotFound {
@@ -159,7 +164,16 @@ func (c *ConsumerGroup) consumeLoop() {
 					// those calls should be batched
 					if state.Kind == sgproto.MarkKind_Unknown {
 						// TODO: Should we mark this consumed?
-						_, err := c.broker.MarkConsumed(context.Background(), c.topic, c.partition, c.name, "NOT SET", m.Offset)
+						_, err := c.broker.Mark(context.Background(), &sgproto.MarkRequest{
+							Topic:         c.topic,
+							Partition:     c.partition,
+							ConsumerGroup: c.name,
+							Offsets:       []sandflake.ID{m.Offset},
+							State: &sgproto.MarkState{
+								Kind:          sgproto.MarkKind_Consumed,
+								DeliveryCount: 1,
+							},
+						})
 						if err != nil {
 							c.broker.Debug("error while acking message for the first redilvery", err)
 							return err
@@ -264,7 +278,7 @@ loop:
 	}
 
 	if m != nil && !m.Offset.Equal(lastConsumed) {
-		_, err := c.broker.MarkConsumed(context.TODO(), c.topic, c.partition, c.name, "REMOVE THIS", m.Offset)
+		_, err := c.broker.MarkConsumed(context.TODO(), c.topic, c.partition, c.name, m.Offset)
 		if err != nil {
 			c.broker.Debug("unable to mark as consumed: %v", err)
 		}
