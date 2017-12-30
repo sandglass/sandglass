@@ -37,6 +37,9 @@ brew:
 
   description: "Sandglass is a distributed, horizontally scalable, persistent, delayed message queue"
 
+dockers:
+  - image: celrenheit/sandglass
+
 archive:
   format: tar.gz
   replacements:
