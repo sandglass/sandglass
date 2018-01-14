@@ -1,7 +1,7 @@
 name: node3
 bind_addr: 127.0.0.1
 advertise_addr: 127.0.0.1
-db_path: /tmp/node3
+data: /tmp/node3
 gossip_port: 9902
 http_port: 4108
 grpc_port: 7172

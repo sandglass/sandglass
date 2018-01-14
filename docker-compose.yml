@@ -32,15 +32,15 @@ services:
         extends: sandglass
         ports:
         - "7170:7170"
-        command: -v --name node1 --advertise_addr node1 --initial_peers node2:9900 --bootstrap_raft --db_path /data
+        command: -v --name node1 --advertise_addr node1 --initial_peers node2:9900 --bootstrap_raft --data /data
 
     node2:
         extends: sandglass
-        command: -v --name node2 --advertise_addr node2 --initial_peers node1:9900 --db_path /data
+        command: -v --name node2 --advertise_addr node2 --initial_peers node1:9900 --data /data
 
     node3:
         extends: sandglass
-        command: -v --name node3 --advertise_addr node3 --initial_peers node3:9900 --db_path /data
+        command: -v --name node3 --advertise_addr node3 --initial_peers node3:9900 --data /data
 
     integration_test:
         extends: sandglass

@@ -21,7 +21,6 @@ import (
 	"github.com/celrenheit/sandglass/raft"
 	"github.com/hashicorp/serf/serf"
 	"github.com/pkg/errors"
-	uuid "github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 
 	"net/http"
@@ -47,7 +46,7 @@ type Config struct {
 	DCName                  string        `yaml:"dc_name,omitempty"`
 	BindAddr                string        `yaml:"bind_addr,omitempty"`
 	AdvertiseAddr           string        `yaml:"advertise_addr,omitempty"`
-	DBPath                  string        `yaml:"db_path,omitempty"`
+	DBPath                  string        `yaml:"data,omitempty"`
 	GossipPort              string        `yaml:"gossip_port,omitempty"`
 	HTTPPort                string        `yaml:"http_port,omitempty"`
 	GRPCPort                string        `yaml:"grpc_port,omitempty"`
@@ -83,8 +82,12 @@ type Broker struct {
 }
 
 func New(conf *Config) (*Broker, error) {
+	if conf.DBPath == "" {
+		return nil, errors.New("no data storage path specified. use 'sandglass --data mypath' the directory where you want data to be stored")
+	}
+
 	if conf.Name == "" {
-		conf.Name = uuid.NewV4().String()
+		return nil, errors.New("no name specified. use 'sandglass --name node1' the name of this broker")
 	}
 
 	if conf.DCName == "" {

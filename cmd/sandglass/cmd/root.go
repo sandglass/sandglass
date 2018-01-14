@@ -63,7 +63,7 @@ var RootCmd = &cobra.Command{
 			Name:                    viper.GetString("name"),
 			BindAddr:                viper.GetString("bind_addr"),
 			AdvertiseAddr:           viper.GetString("advertise_addr"),
-			DBPath:                  viper.GetString("db_path"),
+			DBPath:                  viper.GetString("data"),
 			GossipPort:              viper.GetString("gossip_port"),
 			HTTPPort:                viper.GetString("http_port"),
 			GRPCPort:                viper.GetString("grpc_port"),
@@ -162,8 +162,8 @@ func init() {
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "advertise_addr")
 	RootCmd.PersistentFlags().String("bind_addr", "0.0.0.0", "bind addr")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "bind_addr")
-	RootCmd.PersistentFlags().String("db_path", "/tmp/sandglassdb", "base directory for data storage")
-	cmdcommon.BindViper(RootCmd.PersistentFlags(), "db_path")
+	RootCmd.PersistentFlags().String("data", "", "base directory for data storage")
+	cmdcommon.BindViper(RootCmd.PersistentFlags(), "data")
 	RootCmd.PersistentFlags().StringSliceP("initial_peers", "p", nil, "Inital peers")
 	cmdcommon.BindViper(RootCmd.PersistentFlags(), "initial_peers")
 	RootCmd.PersistentFlags().Bool("bootstrap_raft", false, "Bootstrap raft")
