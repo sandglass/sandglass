@@ -59,7 +59,7 @@ func NewClient(opts ...optionFn) (c *Client, err error) {
 	return c, nil
 }
 
-func (c *Client) CreateTopic(ctx context.Context, params *sgproto.CreateTopicParams) error {
+func (c *Client) CreateTopic(ctx context.Context, params *sgproto.TopicConfig) error {
 	_, err := c.client.CreateTopic(ctx, params)
 	return err
 }

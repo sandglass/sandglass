@@ -49,6 +49,8 @@ var (
 	MaxID = ID{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255}
 
 	maxSequence = MaxID.Sequence()
+
+	globalGenerator Generator
 )
 
 var (
@@ -115,6 +117,12 @@ func MustParseBytes(b []byte) ID {
 	}
 
 	return id
+}
+
+// Next returns the next id from the global generator
+// It is safe for concurrent use.
+func Next() ID {
+	return globalGenerator.Next()
 }
 
 func (id ID) String() string {
