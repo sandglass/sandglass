@@ -63,9 +63,8 @@ type Broker struct {
 	cluster    *serf.Serf
 	conf       *Config
 	eventCh    chan serf.Event
-	ShutdownCh chan struct{}
+	shutdownCh chan struct{}
 
-	nodes       map[string]string
 	mu          sync.RWMutex
 	peers       map[string]*sandglass.Node
 	currentNode *sandglass.Node
@@ -117,9 +116,8 @@ func New(conf *Config) (*Broker, error) {
 
 	b := &Broker{
 		conf:         conf,
-		ShutdownCh:   make(chan struct{}),
+		shutdownCh:   make(chan struct{}),
 		Entry:        logger,
-		nodes:        make(map[string]string),
 		peers:        map[string]*sandglass.Node{},
 		consumers:    map[string]*ConsumerGroup{},
 		eventEmitter: watchy.New(),
@@ -135,7 +133,7 @@ func (b *Broker) Stop(ctx context.Context) error {
 	defer cancel()
 
 	go func() {
-		close(b.ShutdownCh)
+		close(b.shutdownCh)
 
 		if err := b.cluster.Leave(); err != nil {
 			gracefulCh <- errors.Wrap(err, "error while leaving cluster")
@@ -204,7 +202,7 @@ func (b *Broker) LaunchWatchers() error {
 	group.Go(func() error {
 		for {
 			select {
-			case <-b.ShutdownCh:
+			case <-b.shutdownCh:
 				return nil
 			case <-time.After(300 * time.Millisecond):
 			}
@@ -414,7 +412,7 @@ func (b *Broker) eventLoop() {
 loop:
 	for {
 		select {
-		case <-b.ShutdownCh:
+		case <-b.shutdownCh:
 			break loop
 		case <-shutdownCh:
 			break loop
@@ -473,7 +471,7 @@ func (b *Broker) syncWatcher() {
 
 		for {
 			select {
-			case <-b.ShutdownCh:
+			case <-b.shutdownCh:
 				return
 			case <-time.After(DefaultStateCheckInterval):
 				err := b.TriggerSyncRequest()

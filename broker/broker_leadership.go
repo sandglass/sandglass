@@ -30,7 +30,7 @@ func (b *Broker) monitorLeadership() error {
 			continue
 		}
 		select {
-		case <-b.ShutdownCh:
+		case <-b.shutdownCh:
 			return nil
 		case <-time.After(1 * time.Second): // reconcile any missing events
 			if b.raft.Leader() != "" {

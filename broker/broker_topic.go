@@ -29,7 +29,7 @@ var (
 func (b *Broker) watchTopic() error {
 	for {
 		select {
-		case <-b.ShutdownCh:
+		case <-b.shutdownCh:
 			return nil
 		case topic := <-b.raft.NewTopicChan():
 			b.WithField("topic", topic.Name).Debugf("[topic watcher] received new topic")
