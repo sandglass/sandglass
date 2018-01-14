@@ -141,7 +141,7 @@ func (b *Broker) Stop(ctx context.Context) error {
 
 		err := b.raft.Stop()
 		if err != nil {
-			b.Debug("error while stopping raft: %v", err)
+			b.WithError(err).Debugf("error while stopping raft")
 		}
 
 		b.wg.Wait()
@@ -166,7 +166,7 @@ func (b *Broker) Stop(ctx context.Context) error {
 		// return nil
 	}
 
-	b.Debug("closing topics dbs...")
+	b.Debugf("closing topics dbs...")
 	// closing topics
 	for _, t := range b.raft.GetTopics() {
 		if err := t.Close(); err != nil {
@@ -200,12 +200,12 @@ func (b *Broker) LaunchWatchers() error {
 				return nil
 			case <-time.After(300 * time.Millisecond):
 			}
-			b.Debug("launching watchTopic")
+			b.Debugf("launching watchTopic")
 			err := b.watchTopic()
 			if err == nil {
 				return nil
 			}
-			b.Debug("error in watchTopic: %v", err)
+			b.WithError(err).Debugf("error in watchTopic")
 		}
 	})
 
@@ -234,8 +234,8 @@ func (b *Broker) getNodeByRaftAddr(addr string) *sandglass.Node {
 }
 
 func (b *Broker) Bootstrap() error {
-	b.Debug("Bootstrapping %s...", b.Name())
-	b.Debug("config: %+v", b.Conf())
+	b.Debugf("Bootstrapping %s...", b.Name())
+	b.Debugf("config: %+v", b.Conf())
 	b.readyListeners = append(b.readyListeners,
 		b.eventEmitter.Once(leaderElectedEvent),
 		b.eventEmitter.Once("topics:created:"+ConsumerOffsetTopicName),
@@ -278,8 +278,9 @@ func (b *Broker) Bootstrap() error {
 		conf.LogOutput = ioutil.Discard
 		conf.MemberlistConfig.LogOutput = ioutil.Discard
 	} else {
-		conf.Logger = log.New(os.Stdout, "serf["+b.Name()+"] ", log.LstdFlags)
-		conf.MemberlistConfig.Logger = log.New(os.Stdout, "serf["+b.Name()+"] ", log.LstdFlags)
+		serfLogger := log.New(os.Stdout, "serf["+b.Name()+"] ", log.LstdFlags)
+		conf.Logger = serfLogger
+		conf.MemberlistConfig.Logger = serfLogger
 	}
 
 	b.eventCh = make(chan serf.Event, 64)
@@ -308,9 +309,9 @@ func (b *Broker) Bootstrap() error {
 		defer b.wg.Done()
 		err := b.LaunchWatchers()
 		if err != nil {
-			b.Fatal("error launch watchers: %v", err)
+			b.WithError(err).Fatal("error launch watchers")
 		}
-		b.Debug("Stopped watchers")
+		b.Debugf("Stopped watchers")
 	}()
 
 	b.wg.Add(1)
@@ -389,7 +390,7 @@ func (b *Broker) Join(clusterAddrs ...string) (err error) {
 
 	_, err = b.cluster.Join(clusterAddrs, false)
 	if err != nil {
-		b.Debug("Couldn't join cluster, starting own: %v\n", err)
+		b.WithError(err).Debugf("Couldn't join cluster, starting own")
 		// return err
 	}
 
@@ -410,7 +411,7 @@ loop:
 		case <-shutdownCh:
 			break loop
 		case e := <-b.eventCh:
-			b.Debug("event: %+v\n", e)
+			b.WithField("event", e).Debugf("received gossip event")
 			switch e.EventType() {
 			case serf.EventMemberJoin:
 				ev := e.(serf.MemberEvent)
@@ -429,18 +430,18 @@ loop:
 					go func() {
 						defer b.wg.Done()
 						if err := b.rearrangePartitionsLeadership(); err != nil {
-							b.Debug("error while rearrangeLeadership err=%v", err)
+							b.WithError(err).Debugf("error while rearrangeLeadership")
 						}
 					}()
 				}
 			case serf.EventQuery:
 				qry := e.(*serf.Query)
-				b.Debug("received query: %v", qry)
+				b.Debugf("received query: %v", qry)
 				topicName := string(qry.Payload)
 				if b.getTopic(topicName) != nil {
 					err := qry.Respond([]byte("OK"))
 					if err != nil {
-						b.Info("got error responding: %v", err)
+						b.WithError(err).Info("got error responding")
 					}
 					continue
 				}
@@ -449,7 +450,7 @@ loop:
 					<-ch
 					err := qry.Respond([]byte("OK"))
 					if err != nil {
-						b.Info("got error responding: %v", err)
+						b.WithError(err).Info("got error responding")
 					}
 				}()
 			}
@@ -469,7 +470,7 @@ func (b *Broker) syncWatcher() {
 			case <-time.After(DefaultStateCheckInterval):
 				err := b.TriggerSyncRequest()
 				if err != nil {
-					b.Debug("error while making sync request: %v", err)
+					b.WithError(err).Debugf("error while making sync request")
 				}
 			}
 		}
@@ -491,16 +492,21 @@ func (b *Broker) TriggerSyncRequest() error {
 
 			leader := b.getPartitionLeader(t.Name, p.Id)
 			if leader == nil {
-				// b.Debug("sync no leader (t:%s p:%s)", t.Name, p.Id)
+				// b.Debugf("sync no leader (t:%s p:%s)", t.Name, p.Id)
 				continue
 			}
 
+			logger := b.WithFields(logrus.Fields{
+				"leader":    leader.Name,
+				"topic":     t.Name,
+				"partition": p.Id,
+			})
 			if !leader.IsAlive() {
-				b.Debug("skipping leader '%s' (t:%s p:%s): %v", leader.Name, t.Name, p.Id)
+				logger.Debugf("skipping leader")
 				continue
 			}
 
-			// b.Debug("syncing with %v for (t:%s p:%s) last=%v", leader.Name, t.Name, p.Id, last)
+			// b.Debugf("syncing with %v for (t:%s p:%s) last=%v", leader.Name, t.Name, p.Id, last)
 
 			group.Go(func() error {
 				stream, err := leader.FetchFromSync(ctx, &sgproto.FetchFromSyncRequest{
@@ -544,7 +550,7 @@ func (b *Broker) TriggerSyncRequest() error {
 				}
 
 				if n > 0 {
-					b.Debug("synced %d messages (t:%s p:%s)", n, t.Name, p.Id)
+					logger.WithField("msgs_synced", n).Debugf("synced %d messages", n)
 				}
 
 				return nil
@@ -562,10 +568,12 @@ func (b *Broker) addPeer(ev serf.MemberEvent) error {
 		if err != nil {
 			return err
 		}
-		b.Debug("adding peer: %v", peer.Name)
+		b.Debugf("adding peer: %v", peer.Name)
 		if m.Name != b.Name() {
 			if err := peer.Dial(); err != nil {
-				b.Debug("addPeer error while dialing peer '%s' err=%v", peer.Name, err)
+				b.WithError(err).WithFields(logrus.Fields{
+					"peer": peer.Name,
+				}).Debugf("addPeer error while dialing peer")
 			}
 
 		}
@@ -584,14 +592,17 @@ func (b *Broker) removePeer(ev serf.MemberEvent) error {
 		peer, ok := b.peers[m.Name]
 		b.mu.RUnlock()
 		if ok {
+			logger := b.WithFields(logrus.Fields{
+				"peer": peer.Name,
+			})
 			if err := peer.Close(); err != nil {
-				b.Debug("error while closing peer '%s' err=%v", peer.Name, err)
+				logger.WithError(err).Debugf("error while closing peer")
 			}
 
 			b.mu.Lock()
 			delete(b.peers, peer.Name)
 			b.mu.Unlock()
-			b.Debug("removed peer: %v", m.Name)
+			logger.Debugf("removed peer")
 		}
 
 	}

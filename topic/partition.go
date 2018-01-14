@@ -51,7 +51,7 @@ func (t *Partition) InitStore(basePath string) error {
 	case sgproto.StorageDriver_RocksDB:
 		t.db, err = rocksdb.NewStorage(msgdir)
 	default:
-		panic(fmt.Sprintf("unknown storage driver: %v for topic: %v", t.topic.StorageDriver, t.topic.Name))
+		return fmt.Errorf("unknown storage driver: %v for topic: %v", t.topic.StorageDriver, t.topic.Name)
 	}
 	if err != nil {
 		return err
@@ -110,7 +110,7 @@ func (s *Partition) GetMessage(offset sandflake.ID, k, suffix []byte) (*sgproto.
 
 		return &msg, nil
 	default:
-		panic("INVALID STORAGE KIND: " + s.topic.Kind.String())
+		return nil, fmt.Errorf("invalid storage kind: %s", s.topic.Kind.String())
 	}
 }
 
@@ -118,7 +118,7 @@ func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 	switch t.topic.Kind {
 	case sgproto.TopicKind_KVKind:
 	default:
-		panic("not kv topic")
+		return false, errors.New("HasKey should be used only with a KV topic")
 	}
 
 	pk := joinKeys(key, clusterKey)

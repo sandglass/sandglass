@@ -235,27 +235,27 @@ RECONCILE:
 	// Apply a raft barrier to ensure our FSM is caught up
 	barrier := s.raft.Barrier(barrierWriteTimeout)
 	if err := barrier.Error(); err != nil {
-		s.logger.Debug("failed to wait for barrier: %v", err)
+		s.logger.Debugf("failed to wait for barrier: %v", err)
 		goto WAIT
 	}
 
 	// Check if we need to handle initial leadership actions
 	if !establishedLeader {
 		if err := s.establishLeadership(); err != nil {
-			s.logger.Debug("failed to establish leadership: %v", err)
+			s.logger.Debugf("failed to establish leadership: %v", err)
 			goto WAIT
 		}
 		establishedLeader = true
 		defer func() {
 			if err := s.revokeLeadership(); err != nil {
-				s.logger.Debug("failed to revoke leadership: %v", err)
+				s.logger.Debugf("failed to revoke leadership: %v", err)
 			}
 		}()
 	}
 
 	// Reconcile any missing data
 	if err := s.reconcile(); err != nil {
-		s.logger.Debug("failed to reconcile: %v", err)
+		s.logger.Debugf("failed to reconcile: %v", err)
 		goto WAIT
 	}
 
@@ -295,7 +295,7 @@ func (s *Store) reconcileMember(member serf.Member) error {
 		err = s.RemoveServer(member.Name, 0)
 	}
 	if err != nil {
-		s.logger.Debug("failed to reconcile member: %v: %v",
+		s.logger.Debugf("failed to reconcile member: %v: %v",
 			member, err)
 	}
 	return nil
@@ -416,23 +416,24 @@ func (f *fsm) Apply(l *raft.Log) (value interface{}) {
 		panic(fmt.Sprintf("failed to unmarshal command: %s", err.Error()))
 	}
 
-	var val interface{}
+	var err error
 	switch c.Op {
 	case CreateTopicOp:
-		val = f.applySetTopic(c.Payload)
+		err = f.applySetTopic(c.Payload)
 	case SetPartitionLeaderBulkOp:
-		val = f.applySetPartitionLeaderBulk(c.Payload)
+		err = f.applySetPartitionLeaderBulk(c.Payload)
 	case AddNode:
-		val = f.applyAddOrDeleteNode(true, c.Payload)
+		err = f.applyAddOrDeleteNode(true, c.Payload)
 	case DeleteNode:
-		val = f.applyAddOrDeleteNode(false, c.Payload)
+		err = f.applyAddOrDeleteNode(false, c.Payload)
 	default:
-		panic(fmt.Sprintf("unrecognized command op: %s", c.Op))
+		f.logger.WithField("operation", c.Op).Warnf("unrecognized operation")
+		return fmt.Errorf("unrecognized command op: %s", c.Op)
 	}
 
-	if val != nil {
-		f.logger.Debug("Apply err: %v", val)
-		return val
+	if err != nil {
+		f.logger.WithField("operation", c.Op).Debugf("Apply err: %v", err)
+		return err
 	}
 
 	return nil
@@ -459,7 +460,7 @@ func (f *fsm) applySetTopic(b []byte) error {
 	if err := json.Unmarshal(b, &t); err != nil {
 		return err
 	}
-	f.logger.Debug("applyCreateTopic %v", t.Name)
+	f.logger.Debugf("applyCreateTopic %v", t.Name)
 
 	if !f.HasTopic(t.Name) {
 		err := t.InitStore(f.conf.Dir)
@@ -525,7 +526,7 @@ func (f *fsm) Restore(rc io.ReadCloser) error {
 	return nil
 }
 
-func (f *fsm) applySetPartitionLeaderBulk(d []byte) interface{} {
+func (f *fsm) applySetPartitionLeaderBulk(d []byte) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

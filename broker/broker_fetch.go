@@ -5,6 +5,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/sirupsen/logrus"
+
 	"google.golang.org/grpc/codes"
 
 	"github.com/celrenheit/sandflake"
@@ -95,7 +97,10 @@ func (b *Broker) getFromPartition(ctx context.Context, topic string, p *topic.Pa
 	}
 
 	if leader.Name != b.Name() {
-		b.Debug("fetch key remotely '%v' from %v", string(key), leader.Name)
+		b.WithFields(logrus.Fields{
+			"leader": leader.Name,
+			"key":    key,
+		}).Debugf("fetch key remotely")
 		return leader.GetByKey(ctx, &sgproto.GetRequest{
 			Topic:     topic,
 			Partition: p.Id,
@@ -122,7 +127,7 @@ func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.P
 	}
 
 	if leader.Name != b.Name() {
-		b.Debug("fetch key remotely '%v' from %v", string(key), leader.Name)
+		b.Debugf("fetch key remotely '%v' from %v", string(key), leader.Name)
 		resp, err := leader.HasKey(ctx, &sgproto.GetRequest{
 			Topic:         topic,
 			Partition:     p.Id,

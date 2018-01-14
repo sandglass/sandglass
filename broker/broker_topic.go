@@ -32,13 +32,13 @@ func (b *Broker) watchTopic() error {
 		case <-b.ShutdownCh:
 			return nil
 		case topic := <-b.raft.NewTopicChan():
-			b.Debug("[topic watcher] received new topic: %s", topic.Name)
+			b.WithField("topic", topic.Name).Debugf("[topic watcher] received new topic")
 
 			b.wg.Add(1)
 			go func() {
 				defer b.wg.Done()
 				if err := b.rearrangePartitionsLeadership(); err != nil {
-					b.Debug("error while rearrangeLeadership err=%v", err)
+					b.WithError(err).Debugf("error while rearrangeLeadership err=%v", err)
 				}
 			}()
 			b.eventEmitter.Emit("topics:created:"+topic.Name, nil)
@@ -56,7 +56,7 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.TopicConfig) e
 		if leader == nil {
 			return ErrNoLeaderFound
 		}
-		b.Debug("forward CreateTopic to %v", leader)
+		b.WithField("leader", leader).Debugf("forward CreateTopic")
 		_, err := leader.CreateTopic(ctx, params)
 		return err
 	}

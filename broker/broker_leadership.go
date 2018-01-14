@@ -40,11 +40,12 @@ func (b *Broker) monitorLeadership() error {
 			emitFirstElected()
 			if isElected {
 				// Do something
-				b.Debug("elected as controller %v\n", b.Name())
+				b.Debugf("elected as controller")
+				logger := b.WithField("topic", ConsumerOffsetTopicName)
 				exists := b.topicExists(ConsumerOffsetTopicName)
 				if !exists {
 					operation := func() error {
-						b.Debug("creating %s topic", ConsumerOffsetTopicName)
+						logger.Debugf("creating consumer offset topic")
 						err := b.CreateTopic(context.TODO(), &sgproto.TopicConfig{
 							Name:              ConsumerOffsetTopicName,
 							Kind:              sgproto.TopicKind_KVKind,
@@ -53,7 +54,7 @@ func (b *Broker) monitorLeadership() error {
 							// StorageDriver:     sgproto.StorageDriver_Badger,
 						})
 						if err != nil {
-							b.Debug("error while creating %v topic err=%v", ConsumerOffsetTopicName, err)
+							logger.WithError(err).Debugf("error while creating consumer offset topic")
 							return err
 						}
 						return nil
@@ -61,13 +62,13 @@ func (b *Broker) monitorLeadership() error {
 
 					err := backoff.Retry(operation, backoff.NewExponentialBackOff())
 					if err != nil {
-						b.Fatal("backoff error while creating %v topic err=%v", ConsumerOffsetTopicName, err)
+						logger.WithError(err).Fatal("backoff error while creating consumer offset topic")
 					}
 				}
 				b.rearrangePartitionsLeadership()
 			} else {
 				// Do something else
-				b.Debug("NOT elected as controller: %v\n", b.Name())
+				b.Debugf("NOT elected as controller")
 			}
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/celrenheit/sandglass/topic"
+	"github.com/sirupsen/logrus"
 
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
@@ -17,7 +18,11 @@ var (
 )
 
 func (b *Broker) Produce(ctx context.Context, req *sgproto.ProduceMessageRequest) (*sgproto.ProduceResponse, error) {
-	b.Debug("PublishMessage: %+v\n", req)
+	b.WithFields(logrus.Fields{
+		"topic":     req.Topic,
+		"partition": req.Partition,
+		"messages":  len(req.Messages),
+	}).Debugf("produce message")
 	if len(req.Messages) == 0 {
 		return nil, ErrNoMessageToProduce
 	}

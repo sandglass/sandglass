@@ -5,6 +5,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/storage"
 )
@@ -32,7 +34,9 @@ func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGrou
 	}
 
 	if leader.Name != b.Name() {
-		b.Debug("consuming from remote: ", leader.Name)
+		b.WithFields(logrus.Fields{
+			"leader": leader.Name,
+		}).Debugf("consuming from remote")
 		stream, err := leader.ConsumeFromGroup(ctx, &sgproto.ConsumeFromGroupRequest{
 			Topic:             topicName,
 			Partition:         partition,

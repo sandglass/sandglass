@@ -4,6 +4,7 @@ import (
 	"math/rand"
 
 	"github.com/celrenheit/sandglass/sgutils"
+	"github.com/sirupsen/logrus"
 
 	"github.com/celrenheit/sandglass"
 )
@@ -17,7 +18,7 @@ func (b *Broker) GetController() *sandglass.Node {
 }
 
 func (b *Broker) rearrangePartitionsLeadership() error {
-	b.Debug("rearrangePartitionsLeadership")
+	b.Debugf("rearrangePartitionsLeadership")
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -41,31 +42,34 @@ func (b *Broker) rearrangePartitionsLeadership() error {
 			if _, ok := b.peers[oldLeader]; ok { // still alive, nothing to do
 				continue
 			}
+			logger := b.WithFields(logrus.Fields{
+				"topic":      t.Name,
+				"partition":  partition.Id,
+				"replicas":   partition.Replicas,
+				"old_leader": oldLeader,
+			})
 
-			if partition == nil {
-				b.Debug("got unknown partition: %v", partition)
-				continue
-			}
 			aliveReplicas := make([]string, 0, len(partition.Replicas))
 			for _, r := range partition.Replicas {
 				if _, ok := b.peers[r]; ok {
 					aliveReplicas = append(aliveReplicas, r)
 				}
 			}
+			logger = logger.WithField("alive_replicas", aliveReplicas)
 
 			if len(aliveReplicas) == 0 {
-				b.Debug("NO leader available for %+v (%v)", partition, partitionKey)
+				logger.Debugf("no leader available")
 				setNewLeader(t.Name, partition.Id, "")
 				continue
 			}
 
 			if ok && sgutils.StringSliceHasString(aliveReplicas, oldLeader) {
-				b.Debug("old leader still alive %+v (t:%v p:%v)", oldLeader, t.Name, partition.Id)
+				logger.Debugf("old leader still alive")
 				continue
 			}
 
 			newLeader := aliveReplicas[rand.Intn(len(aliveReplicas))]
-			b.Debug("switch leader of topic:%v partition: %v (old=%v -> new=%v)", t.Name, partition.Id, oldLeader, newLeader)
+			logger.WithField("new_leader", newLeader).Debugf("switch leader")
 			setNewLeader(t.Name, partition.Id, newLeader)
 		}
 	}

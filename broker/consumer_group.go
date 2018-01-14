@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -28,6 +30,7 @@ type ConsumerGroup struct {
 	name      string
 	mu        sync.RWMutex
 	receivers []*receiver
+	logger    *logrus.Entry
 }
 
 func NewConsumerGroup(b *Broker, topic, partition, name string) *ConsumerGroup {
@@ -36,6 +39,11 @@ func NewConsumerGroup(b *Broker, topic, partition, name string) *ConsumerGroup {
 		name:      name,
 		topic:     topic,
 		partition: partition,
+		logger: b.WithFields(logrus.Fields{
+			"topic":          topic,
+			"partition":      partition,
+			"consumer_group": name,
+		}),
 	}
 }
 
@@ -81,13 +89,13 @@ func (c *ConsumerGroup) consumeLoop() {
 
 	lastCommited, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Commited)
 	if err != nil {
-		c.broker.Debug("got error when fetching last committed offset: %v ", err)
+		c.logger.WithError(err).Debugf("got error when fetching last committed offset")
 		return
 	}
 
 	lastConsumed, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Consumed)
 	if err != nil {
-		c.broker.Debug("got error when fetching last committed offset: %v ", err)
+		c.logger.WithError(err).Debugf("got error when fetching last consumed offset")
 		return
 	}
 
@@ -110,7 +118,7 @@ func (c *ConsumerGroup) consumeLoop() {
 			commit := func(offset sandflake.ID) {
 				_, err := c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, lastMessage.Offset)
 				if err != nil {
-					c.broker.Debug("unable to commit")
+					c.logger.WithError(err).Debugf("unable to commit")
 				}
 			}
 
@@ -158,7 +166,7 @@ func (c *ConsumerGroup) consumeLoop() {
 				}
 				lastMessage = m
 
-				if shouldRedeliver(m.Index, state) {
+				if c.shouldRedeliver(m.Index, state) {
 					msgCh <- m // deliver
 
 					// those calls should be batched
@@ -175,7 +183,7 @@ func (c *ConsumerGroup) consumeLoop() {
 							},
 						})
 						if err != nil {
-							c.broker.Debug("error while acking message for the first redilvery", err)
+							c.logger.WithError(err).Debugf("error while acking message for the first redilvery")
 							return err
 						}
 					} else {
@@ -244,7 +252,7 @@ func (c *ConsumerGroup) consumeLoop() {
 	go func() {
 		err := group.Wait()
 		if err != nil {
-			c.broker.Info("error in consumeLoop: %v", err)
+			c.logger.WithError(err).Info("error in consumeLoop")
 		}
 		close(msgCh)
 	}()
@@ -280,12 +288,12 @@ loop:
 	if m != nil && !m.Offset.Equal(lastConsumed) {
 		_, err := c.broker.MarkConsumed(context.TODO(), c.topic, c.partition, c.name, m.Offset)
 		if err != nil {
-			c.broker.Debug("unable to mark as consumed: %v", err)
+			c.logger.WithError(err).Debugf("unable to mark as consumed")
 		}
 	}
 }
 
-func shouldRedeliver(index sandflake.ID, state sgproto.MarkState) bool {
+func (c *ConsumerGroup) shouldRedeliver(index sandflake.ID, state sgproto.MarkState) bool {
 	switch state.Kind {
 	case sgproto.MarkKind_NotAcknowledged:
 		return true
@@ -298,7 +306,7 @@ func shouldRedeliver(index sandflake.ID, state sgproto.MarkState) bool {
 	case sgproto.MarkKind_Acknowledged, sgproto.MarkKind_Commited:
 		return false
 	default:
-		panic("unknown markkind: " + state.Kind.String())
+		c.logger.WithField("state_kind", state.Kind).Warn("unknown markkind")
 	}
 
 	return false
