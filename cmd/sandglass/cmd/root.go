@@ -23,6 +23,8 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/celrenheit/sandglass/cmd/cmdcommon"
 
 	"github.com/fatih/color"
@@ -30,7 +32,6 @@ import (
 	"time"
 
 	"github.com/celrenheit/sandglass/broker"
-	"github.com/celrenheit/sandglass/logy"
 	"github.com/celrenheit/sandglass/server"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -73,7 +74,7 @@ var RootCmd = &cobra.Command{
 		}
 
 		if viper.GetBool("verbose") {
-			lvl := logy.DEBUG
+			lvl := logrus.DebugLevel
 			conf.LoggingLevel = &lvl
 		}
 
@@ -90,8 +91,7 @@ var RootCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
-		logger := log.New(os.Stdout, conf.Name, log.LstdFlags)
-		server := server.New(b, net.JoinHostPort(conf.BindAddr, conf.GRPCPort), net.JoinHostPort(conf.BindAddr, conf.HTTPPort), logy.NewWithLogger(logger, logy.INFO))
+		server := server.New(b, net.JoinHostPort(conf.BindAddr, conf.GRPCPort), net.JoinHostPort(conf.BindAddr, conf.HTTPPort))
 		go func() {
 			err := server.Start()
 			if err != nil {

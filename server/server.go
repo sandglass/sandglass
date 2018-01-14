@@ -11,13 +11,13 @@ import (
 
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/broker"
-	"github.com/celrenheit/sandglass/logy"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/sirupsen/logrus"
 )
 
 type Server struct {
 	httpAddr, grpcAddr string
-	logger             logy.Logger
+	logger             *logrus.Entry
 	server             *grpc.Server
 	httpServer         *http.Server
 	broker             *broker.Broker
@@ -26,11 +26,11 @@ type Server struct {
 	wg                 sync.WaitGroup
 }
 
-func New(b *broker.Broker, grpcAddr, httpAddr string, logger logy.Logger) *Server {
+func New(b *broker.Broker, grpcAddr, httpAddr string) *Server {
 	return &Server{
 		httpAddr: httpAddr,
 		grpcAddr: grpcAddr,
-		logger:   logger,
+		logger:   b.Entry,
 		broker:   b,
 	}
 }

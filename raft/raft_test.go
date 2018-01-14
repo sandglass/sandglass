@@ -6,14 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celrenheit/sandglass/logy"
+	"github.com/sirupsen/logrus"
+
 	"github.com/celrenheit/sandglass/topic"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/serf/serf"
 	"github.com/stretchr/testify/require"
 )
 
-var logger = logy.NewStdoutLogger(logy.DEBUG)
+var logger = logrus.WithField("mode", "test")
 
 func TestRaft(t *testing.T) {
 	tmpDir, _ := ioutil.TempDir("", "store_test")

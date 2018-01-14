@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/celrenheit/sandglass/sgutils"
 	"golang.org/x/sync/errgroup"
 
@@ -23,7 +25,6 @@ import (
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/broker"
-	"github.com/celrenheit/sandglass/logy"
 	"github.com/celrenheit/sandglass/server"
 	"github.com/stretchr/testify/require"
 )
@@ -555,7 +556,7 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 		grpc_addr := net.JoinHostPort(brokers[i].Conf().BindAddr, brokers[i].Conf().GRPCPort)
 		http_addr := net.JoinHostPort(brokers[i].Conf().BindAddr, brokers[i].Conf().HTTPPort)
 
-		server := server.New(brokers[i], grpc_addr, http_addr, logy.NewWithLogger(logger, logy.INFO))
+		server := server.New(brokers[i], grpc_addr, http_addr)
 		doneServers.Add(1)
 		go func() {
 			defer doneServers.Done()
@@ -605,7 +606,7 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 var logger = log.New(os.Stdout, "", log.LstdFlags)
 
 func newBroker(tb testing.TB, i int, dc, bind_addr, adv_addr, gossip_port, grpc_port, http_port, raft_port, basepath string) *broker.Broker {
-	lvl := logy.INFO
+	lvl := logrus.InfoLevel
 	conf := &broker.Config{
 		Name:                    "broker" + strconv.Itoa(i),
 		DCName:                  dc,

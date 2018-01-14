@@ -22,12 +22,12 @@ import (
 	"github.com/hashicorp/serf/serf"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
+	"github.com/sirupsen/logrus"
 
 	"net/http"
 	_ "net/http/pprof"
 
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/logy"
 	"github.com/celrenheit/sandglass/topic"
 	"github.com/celrenheit/sandglass/watchy"
 )
@@ -46,23 +46,23 @@ func init() {
 }
 
 type Config struct {
-	Name                    string      `yaml:"name,omitempty"`
-	DCName                  string      `yaml:"dc_name,omitempty"`
-	BindAddr                string      `yaml:"bind_addr,omitempty"`
-	AdvertiseAddr           string      `yaml:"advertise_addr,omitempty"`
-	DBPath                  string      `yaml:"db_path,omitempty"`
-	GossipPort              string      `yaml:"gossip_port,omitempty"`
-	HTTPPort                string      `yaml:"http_port,omitempty"`
-	GRPCPort                string      `yaml:"grpc_port,omitempty"`
-	RaftPort                string      `yaml:"raft_port,omitempty"`
-	InitialPeers            []string    `yaml:"initial_peers,omitempty"`
-	BootstrapRaft           bool        `yaml:"bootstrap_raft,omitempty"`
-	LoggingLevel            *logy.Level `yaml:"-"`
-	OffsetReplicationFactor int         `yaml:"-"`
+	Name                    string        `yaml:"name,omitempty"`
+	DCName                  string        `yaml:"dc_name,omitempty"`
+	BindAddr                string        `yaml:"bind_addr,omitempty"`
+	AdvertiseAddr           string        `yaml:"advertise_addr,omitempty"`
+	DBPath                  string        `yaml:"db_path,omitempty"`
+	GossipPort              string        `yaml:"gossip_port,omitempty"`
+	HTTPPort                string        `yaml:"http_port,omitempty"`
+	GRPCPort                string        `yaml:"grpc_port,omitempty"`
+	RaftPort                string        `yaml:"raft_port,omitempty"`
+	InitialPeers            []string      `yaml:"initial_peers,omitempty"`
+	BootstrapRaft           bool          `yaml:"bootstrap_raft,omitempty"`
+	LoggingLevel            *logrus.Level `yaml:"-"`
+	OffsetReplicationFactor int           `yaml:"-"`
 }
 
 type Broker struct {
-	logy.Logger
+	*logrus.Entry
 	cluster    *serf.Serf
 	conf       *Config
 	eventCh    chan serf.Event
@@ -99,17 +99,18 @@ func New(conf *Config) (*Broker, error) {
 		}
 	}
 
-	level := logy.INFO
+	level := logrus.InfoLevel
 	if conf.LoggingLevel != nil {
 		level = *conf.LoggingLevel
 	}
 
-	logger := logy.NewWithLogger(log.New(os.Stdout, fmt.Sprintf("[broker: %v] ", conf.Name), log.LstdFlags), level)
+	logrus.SetLevel(level)
+	logger := logrus.WithField("broker", conf.Name)
 
 	b := &Broker{
 		conf:         conf,
 		ShutdownCh:   make(chan struct{}),
-		Logger:       logger,
+		Entry:        logger,
 		nodes:        make(map[string]string),
 		peers:        map[string]*sandglass.Node{},
 		consumers:    map[string]*ConsumerGroup{},
@@ -273,7 +274,7 @@ func (b *Broker) Bootstrap() error {
 	conf.Tags["http_addr"] = net.JoinHostPort(advAddr, b.conf.HTTPPort)
 	conf.Tags["grpc_addr"] = net.JoinHostPort(advAddr, b.conf.GRPCPort)
 	conf.Tags["raft_addr"] = net.JoinHostPort(advAddr, b.conf.RaftPort)
-	if b.Logger.Level() < logy.DEBUG {
+	if b.Logger.Level < logrus.DebugLevel {
 		conf.LogOutput = ioutil.Discard
 		conf.MemberlistConfig.LogOutput = ioutil.Discard
 	} else {
@@ -296,7 +297,7 @@ func (b *Broker) Bootstrap() error {
 		BindAddr: net.JoinHostPort(b.conf.BindAddr, b.conf.RaftPort),
 		AdvAddr:  net.JoinHostPort(advAddr, b.conf.RaftPort),
 		Dir:      b.conf.DBPath,
-	}, b.Logger)
+	}, b.Entry)
 
 	if err := b.raft.Init(b.conf.BootstrapRaft, cluster, b.reconcileCh); err != nil {
 		return err

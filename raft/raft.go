@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/celrenheit/sandglass"
-	"github.com/celrenheit/sandglass/logy"
 	"github.com/celrenheit/sandglass/topic"
+	"github.com/sirupsen/logrus"
 
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
@@ -46,7 +46,7 @@ type Config struct {
 type Store struct {
 	conf   Config
 	raft   *raft.Raft
-	logger logy.Logger
+	logger *logrus.Entry
 	mu     sync.RWMutex
 
 	state            *state
@@ -77,10 +77,10 @@ func newState() *state {
 	}
 }
 
-func New(conf Config, logger logy.Logger) *Store {
+func New(conf Config, logger *logrus.Entry) *Store {
 	return &Store{
 		conf:             conf,
-		logger:           logger,
+		logger:           logger.WithField("package", "raft"),
 		state:            newState(),
 		newTopicChan:     make(chan *topic.Topic, 10),
 		leaderChangeChan: make(chan bool, 10),
@@ -99,7 +99,7 @@ func (s *Store) Init(bootstrap bool, serf *serf.Serf, reconcileCh chan serf.Memb
 		serverId = address
 	}
 
-	if s.logger.Level() < logy.DEBUG {
+	if s.logger.Level < logrus.DebugLevel {
 		config.LogOutput = ioutil.Discard
 	} else {
 		config.Logger = log.New(os.Stdout, "raft["+serverId+"] ", log.LstdFlags)
