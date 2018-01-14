@@ -39,9 +39,6 @@ const (
 var DefaultStateCheckInterval = 1 * time.Second
 
 func init() {
-	go func() {
-		log.Println(http.ListenAndServe(":6060", nil))
-	}()
 	rand.Seed(time.Now().UnixNano())
 }
 
@@ -57,6 +54,7 @@ type Config struct {
 	RaftPort                string        `yaml:"raft_port,omitempty"`
 	InitialPeers            []string      `yaml:"initial_peers,omitempty"`
 	BootstrapRaft           bool          `yaml:"bootstrap_raft,omitempty"`
+	PProfPort               string        `yaml:"pprof_port,omitempty"`
 	LoggingLevel            *logrus.Level `yaml:"-"`
 	OffsetReplicationFactor int           `yaml:"-"`
 }
@@ -97,6 +95,13 @@ func New(conf *Config) (*Broker, error) {
 		if err := os.Mkdir(conf.DBPath, 0755); err != nil && !os.IsNotExist(err) {
 			return nil, err
 		}
+	}
+
+	if conf.PProfPort != "" {
+		addr := net.JoinHostPort(conf.BindAddr, conf.PProfPort)
+		go func() {
+			log.Println(http.ListenAndServe(addr, nil))
+		}()
 	}
 
 	level := logrus.InfoLevel
