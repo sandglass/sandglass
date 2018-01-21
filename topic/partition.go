@@ -64,7 +64,15 @@ func (t *Partition) InitStore(basePath string) error {
 
 	t.basepath = basePath
 
-	var index uint64 = 0 // FIXME: should fetch the last index from storage
+	var index uint64
+	msg, err := t.LastMessage()
+	if err != nil {
+		return fmt.Errorf("unable to fetch last message for init partition: %v", err)
+	}
+
+	if msg != nil {
+		index = msg.Index
+	}
 	t.lastIndex = &index
 	return nil
 }
