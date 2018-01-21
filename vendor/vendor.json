@@ -33,10 +33,10 @@
 			"revisionTime": "2017-12-28T22:56:34Z"
 		},
 		{
-			"checksumSHA1": "rEzEwORtm30wE2hUiPgIfinbheE=",
+			"checksumSHA1": "SlLfi2nZHs5U0c/ibCl2B71/zHk=",
 			"path": "github.com/celrenheit/sandglass-grpc/go/sgproto",
-			"revision": "709de2adcfa04cc51cfc3c9e27e54febee3daf10",
-			"revisionTime": "2017-12-26T19:11:01Z"
+			"revision": "15de142636409adab75c0e81027ccfed528242cc",
+			"revisionTime": "2018-01-21T14:17:35Z"
 		},
 		{
 			"checksumSHA1": "Zlk5zPiw+3u9pyy4kNThpKDaYmE=",
@@ -132,6 +132,12 @@
 		{
 			"checksumSHA1": "HPVQZu059/Rfw2bAWM538bVTcUc=",
 			"path": "github.com/gogo/protobuf/sortkeys",
+			"revision": "160de10b2537169b5ae3e7e221d28269ef40d311",
+			"revisionTime": "2018-01-04T10:21:28Z"
+		},
+		{
+			"checksumSHA1": "RFxAlnHGwHp7EnZnywy+MlFfqv4=",
+			"path": "github.com/gogo/protobuf/types",
 			"revision": "160de10b2537169b5ae3e7e221d28269ef40d311",
 			"revisionTime": "2018-01-04T10:21:28Z"
 		},
