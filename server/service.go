@@ -3,8 +3,6 @@ package server
 import (
 	"fmt"
 
-	"github.com/celrenheit/sandflake"
-
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -56,7 +54,7 @@ func (s *service) FetchFrom(req *sgproto.FetchFromRequest, stream sgproto.Broker
 		Topic:     req.Topic,
 		Partition: req.Partition,
 		From:      req.From,
-		To:        sandflake.MaxID,
+		To:        sgproto.MaxOffset,
 	}
 
 	return s.broker.FetchRange(stream.Context(), partitionReq, func(msg *sgproto.Message) error {

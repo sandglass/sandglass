@@ -10,7 +10,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/celrenheit/sandflake"
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
@@ -115,7 +114,7 @@ func (c *ConsumerGroup) consumeLoop() {
 				To:        lastConsumed,
 			}
 
-			commit := func(offset sandflake.ID) {
+			commit := func(offset sgproto.Offset) {
 				_, err := c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, lastMessage.Offset)
 				if err != nil {
 					c.logger.WithError(err).Debugf("unable to commit")
@@ -166,7 +165,7 @@ func (c *ConsumerGroup) consumeLoop() {
 				}
 				lastMessage = m
 
-				if c.shouldRedeliver(m.Index, state) {
+				if c.shouldRedeliver(m, state) {
 					msgCh <- m // deliver
 
 					// those calls should be batched
@@ -176,7 +175,7 @@ func (c *ConsumerGroup) consumeLoop() {
 							Topic:         c.topic,
 							Partition:     c.partition,
 							ConsumerGroup: c.name,
-							Offsets:       []sandflake.ID{m.Offset},
+							Offsets:       []sgproto.Offset{m.Offset},
 							State: &sgproto.MarkState{
 								Kind:          sgproto.MarkKind_Consumed,
 								DeliveryCount: 1,
@@ -229,7 +228,7 @@ func (c *ConsumerGroup) consumeLoop() {
 		})
 	}
 	group.Go(func() error {
-		now := sandflake.NewID(time.Now().UTC(), sandflake.MaxID.WorkerID(), sandflake.MaxID.Sequence(), sandflake.MaxID.RandomBytes())
+		now := sgproto.NewOffset(sgproto.MaxOffset.Index(), time.Now())
 		req := &sgproto.FetchRangeRequest{
 			Topic:     c.topic,
 			Partition: c.partition,
@@ -293,7 +292,7 @@ loop:
 	}
 }
 
-func (c *ConsumerGroup) shouldRedeliver(index sandflake.ID, state sgproto.MarkState) bool {
+func (c *ConsumerGroup) shouldRedeliver(m *sgproto.Message, state sgproto.MarkState) bool {
 	switch state.Kind {
 	case sgproto.MarkKind_NotAcknowledged:
 		return true
@@ -302,7 +301,7 @@ func (c *ConsumerGroup) shouldRedeliver(index sandflake.ID, state sgproto.MarkSt
 		if state.DeliveryCount > 0 {
 			dur *= time.Duration(state.DeliveryCount)
 		}
-		return index.Time().Add(dur).Before(time.Now().UTC())
+		return m.ProducedAt.Add(dur).Before(time.Now().UTC())
 	case sgproto.MarkKind_Acknowledged, sgproto.MarkKind_Commited:
 		return false
 	default:

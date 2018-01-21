@@ -9,7 +9,6 @@ import (
 
 	"google.golang.org/grpc/codes"
 
-	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/topic"
@@ -108,7 +107,7 @@ func (b *Broker) getFromPartition(ctx context.Context, topic string, p *topic.Pa
 		})
 	}
 
-	msg, err := p.GetMessage(sandflake.Nil, key, nil)
+	msg, err := p.GetMessage(sgproto.Nil, key, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +143,7 @@ func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.P
 	return p.HasKey(key, clusterKey)
 }
 
-func generatePrefixConsumerOffsetKey(partitionKey []byte, offset sandflake.ID) []byte {
+func generatePrefixConsumerOffsetKey(partitionKey []byte, offset sgproto.Offset) []byte {
 	return bytes.Join([][]byte{
 		partitionKey,
 		offset.Bytes(),

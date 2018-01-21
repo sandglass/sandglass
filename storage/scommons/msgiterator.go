@@ -1,7 +1,6 @@
 package scommons
 
 import (
-	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/storage"
 	"github.com/gogo/protobuf/proto"
@@ -31,7 +30,7 @@ func (i *messageIter) Rewind() *sgproto.Message {
 	return nil
 }
 
-func (i *messageIter) Seek(id sandflake.ID) *sgproto.Message {
+func (i *messageIter) Seek(id sgproto.Offset) *sgproto.Message {
 	i.iter.Seek(PrependPrefix(ViewPrefix, id[:]))
 	if i.Valid() {
 		return i.getCurrent()

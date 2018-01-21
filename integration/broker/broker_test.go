@@ -79,8 +79,8 @@ func TestSandglass(t *testing.T) {
 	req := &sgproto.FetchRangeRequest{
 		Topic:     "payments",
 		Partition: part,
-		From:      sandflake.Nil,
-		To:        sandflake.MaxID,
+		From:      sgproto.Nil,
+		To:        sgproto.MaxOffset,
 	}
 	err = brokers[0].FetchRange(ctx, req, func(keymsg *sgproto.Message) error {
 		count++
@@ -132,8 +132,8 @@ func TestKVTopic(t *testing.T) {
 	req := &sgproto.FetchRangeRequest{
 		Topic:     "payments",
 		Partition: part,
-		From:      sandflake.Nil,
-		To:        sandflake.MaxID,
+		From:      sgproto.Nil,
+		To:        sgproto.MaxOffset,
 	}
 	err = brokers[0].FetchRange(ctx, req, func(msg *sgproto.Message) error {
 		require.Equal(t, "my_key", string(msg.Key))
@@ -179,8 +179,7 @@ func TestACK(t *testing.T) {
 		}
 	}
 
-	var g sandflake.Generator
-	offset := g.Next()
+	offset := sgproto.NewOffset(1, time.Now())
 	ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", offset)
 	require.Nil(t, err)
 	require.True(t, ok)
@@ -188,14 +187,14 @@ func TestACK(t *testing.T) {
 	got, err := b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
-	require.Equal(t, sandflake.Nil, got)
+	require.Equal(t, sgproto.Nil, got)
 
 	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
 
-	offset2 := g.Next()
+	offset2 := sgproto.NewOffset(2, time.Now())
 	ok, err = b.Commit(ctx, topic.Name, topic.Partitions[0].Id, "group1", offset2)
 	require.Nil(t, err)
 	require.True(t, ok)
@@ -241,29 +240,25 @@ func TestConsume(t *testing.T) {
 		}
 	}
 
-	var gen sandflake.Generator
-	var want sandflake.ID
-	var ids []sandflake.ID
+	var want sgproto.Offset
 	for i := 0; i < 30; i++ {
-		want = gen.Next()
-		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
+		res, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     "payments",
 			Partition: topic.Partitions[0].Id,
 			Messages: []*sgproto.Message{
 				{
-					Offset: want,
-					Key:    []byte("my_key"),
-					Value:  []byte(strconv.Itoa(i)),
+					Key:   []byte("my_key"),
+					Value: []byte(strconv.Itoa(i)),
 				},
 			},
 		})
 		require.Nil(t, err)
-		ids = append(ids, want)
+		want = res.Offsets[0]
 	}
 
 	fmt.Println("-----------------------------")
 	var count int
-	var got sandflake.ID
+	var got sgproto.Offset
 	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
 		count++
 		ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", msg.Offset)
@@ -361,11 +356,9 @@ func TestSyncRequest(t *testing.T) {
 
 	part := topic.Partitions[0]
 
-	var gen sandflake.Generator
-	var lastPublishedID sandflake.ID
+	var lastPublishedID sgproto.Offset
 	for i := 0; i < 5; i++ {
-		lastPublishedID = gen.Next()
-		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
+		res, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     "payments",
 			Partition: part.Id,
 			Messages: []*sgproto.Message{
@@ -376,6 +369,7 @@ func TestSyncRequest(t *testing.T) {
 			},
 		})
 		require.Nil(t, err)
+		lastPublishedID = res.Offsets[0]
 	}
 
 	for _, b := range brokers {
@@ -383,14 +377,14 @@ func TestSyncRequest(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	lastOffsets := make(map[string]sandflake.ID)
+	lastOffsets := make(map[string]sgproto.Offset)
 	for _, b := range brokers {
 		if sgutils.StringSliceHasString(part.Replicas, b.Name()) {
 			tt := getTopicFromBroker(b, createTopicParams.Name)
 			p := tt.GetPartition(part.Id)
 			lastMsg, err := p.LastMessage()
 			require.NoError(t, err)
-			var lastOffset sandflake.ID
+			var lastOffset sgproto.Offset
 			if lastMsg != nil {
 				lastOffset = lastMsg.Offset
 			}
@@ -606,7 +600,7 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 var logger = log.New(os.Stdout, "", log.LstdFlags)
 
 func newBroker(tb testing.TB, i int, dc, bind_addr, adv_addr, gossip_port, grpc_port, http_port, raft_port, basepath string) *broker.Broker {
-	lvl := logrus.DebugLevel
+	lvl := logrus.InfoLevel
 	conf := &broker.Config{
 		Name:                    "broker" + strconv.Itoa(i),
 		DCName:                  dc,

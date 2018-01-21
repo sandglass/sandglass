@@ -7,7 +7,6 @@ import (
 
 	"fmt"
 
-	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/sgutils"
 	"golang.org/x/sync/errgroup"
@@ -120,9 +119,6 @@ func (t *Topic) PutMessage(partition string, msg *sgproto.Message) error {
 	} else {
 		p = t.ChoosePartition(msg)
 	}
-	if msg.Offset == sandflake.Nil {
-		msg.Offset = p.NextID()
-	}
 
 	return p.PutMessage(msg)
 }
@@ -155,10 +151,10 @@ func (t *Topic) Close() error {
 }
 
 func (t *Topic) ForEach(fn func(msg *sgproto.Message) error) error {
-	return t.ForRange(sandflake.Nil, sandflake.MaxID, fn)
+	return t.ForRange(sgproto.Nil, sgproto.MaxOffset, fn)
 }
 
-func (t *Topic) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Message) error) error {
+func (t *Topic) ForRange(min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error {
 	// FIXME
 	var mu sync.Mutex
 	var group errgroup.Group

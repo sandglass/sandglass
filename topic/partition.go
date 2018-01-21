@@ -2,9 +2,12 @@ package topic
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync/atomic"
+	"time"
 
 	"github.com/tylertreat/BoomFilters"
 
@@ -34,6 +37,8 @@ type Partition struct {
 
 	bf  *bloom.BloomFilter // TODO: persist bloom filter
 	ibf boom.Filter
+
+	lastIndex *uint64
 }
 
 func (t *Partition) InitStore(basePath string) error {
@@ -58,6 +63,9 @@ func (t *Partition) InitStore(basePath string) error {
 	}
 
 	t.basepath = basePath
+
+	var index uint64 = 0 // FIXME: should fetch the last index from storage
+	t.lastIndex = &index
 	return nil
 }
 
@@ -81,7 +89,7 @@ func (t *Partition) getStorageKey(msg *sgproto.Message) []byte {
 	return scommons.PrependPrefix(scommons.ViewPrefix, storekey)
 }
 
-func (s *Partition) GetMessage(offset sandflake.ID, k, suffix []byte) (*sgproto.Message, error) {
+func (s *Partition) GetMessage(offset sgproto.Offset, k, suffix []byte) (*sgproto.Message, error) {
 	switch s.topic.Kind {
 	case sgproto.TopicKind_TimerKind:
 		val, err := s.db.Get(scommons.PrependPrefix(scommons.ViewPrefix, offset[:]))
@@ -132,7 +140,7 @@ func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 		return false, nil
 	}
 
-	msg, err := t.GetMessage(sandflake.Nil, pk, nil)
+	msg, err := t.GetMessage(sgproto.Nil, pk, nil)
 	if err != nil {
 		return false, err
 	}
@@ -141,11 +149,13 @@ func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 		return false, nil
 	}
 
-	return msg.Offset != sandflake.Nil, nil
+	return msg.Offset != sgproto.Nil, nil
 }
 
-func (t *Partition) newWALKey(index sandflake.ID, key []byte) []byte {
-	return bytes.Join([][]byte{scommons.WalPrefix, index.Bytes(), key}, storage.Separator)
+func (t *Partition) newWALKey(index uint64, key []byte) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, index)
+	return bytes.Join([][]byte{scommons.WalPrefix, b, key}, storage.Separator)
 }
 
 func (t *Partition) PutMessage(msg *sgproto.Message) error {
@@ -157,15 +167,19 @@ func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
 		return nil
 	}
 
+	now := time.Now().UTC()
+
 	dataEntries := make([]*storage.Entry, len(msgs))
 	walEntries := make([]*storage.Entry, len(msgs))
 	for i, msg := range msgs {
-		if msg.Offset == sandflake.Nil {
-			return ErrNoKeySet
+		if msg.Index == 0 {
+			msg.Index = t.NextIndex()
 		}
-		if msg.Index == sandflake.Nil {
-			msg.Index = t.NextID()
+		if msg.Offset == sgproto.Nil {
+			msg.Offset = sgproto.NewOffset(msg.Index, now.Add(msg.ConsumeIn))
 		}
+		msg.ProducedAt = now
+
 		storagekey := t.getStorageKey(msg)
 		val, err := proto.Marshal(msg)
 		if err != nil {
@@ -190,11 +204,11 @@ func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
 	return t.db.BatchPut(entries)
 }
 
-func (t *Partition) NextID() sandflake.ID {
-	return t.idgen.Next()
+func (t *Partition) NextIndex() uint64 {
+	return atomic.AddUint64(t.lastIndex, 1)
 }
 
-func (p *Partition) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Message) error) error {
+func (p *Partition) ForRange(min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error {
 	var lastKey []byte
 	switch p.topic.Kind {
 	case sgproto.TopicKind_TimerKind:

@@ -5,7 +5,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/storage"
 )
@@ -63,10 +62,10 @@ func (s *StorageCommons) LastKVForPrefix(prefix, suffix []byte) []byte {
 }
 
 func (s *StorageCommons) ForEach(fn func(msg *sgproto.Message) error) error {
-	return s.ForRange(sandflake.Nil, sandflake.MaxID, fn)
+	return s.ForRange(sgproto.Nil, sgproto.MaxOffset, fn)
 }
 
-func (s *StorageCommons) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Message) error) error {
+func (s *StorageCommons) ForRange(min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error {
 	it := NewMessageIterator(s, &storage.IterOptions{
 		Reverse:     false,
 		FetchValues: true,
@@ -74,7 +73,7 @@ func (s *StorageCommons) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Me
 	defer it.Close()
 
 	var m *sgproto.Message
-	if min == sandflake.Nil {
+	if min == sgproto.Nil {
 		m = it.Rewind()
 	} else {
 		m = it.Seek(min)

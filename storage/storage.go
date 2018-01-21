@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 )
 
@@ -16,7 +15,7 @@ type Storage interface {
 	LastKeyForPrefix(prefix []byte) []byte
 	LastKVForPrefix(prefix, suffix []byte) []byte
 	ForEach(fn func(msg *sgproto.Message) error) error
-	ForRange(min, max sandflake.ID, fn func(msg *sgproto.Message) error) error
+	ForRange(min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error
 	ForEachWALEntry(min []byte, fn func(msg *sgproto.Message) error) error
 }
 

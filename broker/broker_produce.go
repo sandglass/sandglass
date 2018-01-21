@@ -8,7 +8,6 @@ import (
 	"github.com/celrenheit/sandglass/topic"
 	"github.com/sirupsen/logrus"
 
-	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 )
 
@@ -50,18 +49,14 @@ func (b *Broker) Produce(ctx context.Context, req *sgproto.ProduceMessageRequest
 		return leader.Produce(ctx, req)
 	}
 
-	// FIXME: this is shit, should be after Put
-	res := &sgproto.ProduceResponse{}
-	for _, msg := range req.Messages {
-		if msg.Offset == sandflake.Nil {
-			msg.Offset = b.idgen.Next()
-		}
-		res.Offsets = append(res.Offsets, msg.Offset)
-	}
-
 	err := p.BatchPutMessages(req.Messages)
 	if err != nil {
 		return nil, err
+	}
+
+	res := &sgproto.ProduceResponse{}
+	for _, msg := range req.Messages {
+		res.Offsets = append(res.Offsets, msg.Offset)
 	}
 
 	return res, nil
