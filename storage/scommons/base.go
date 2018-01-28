@@ -2,6 +2,7 @@ package scommons
 
 import (
 	"bytes"
+	"encoding/binary"
 
 	"github.com/gogo/protobuf/proto"
 
@@ -10,8 +11,9 @@ import (
 )
 
 var (
-	ViewPrefix = []byte{1, 'v'}
-	WalPrefix  = []byte{1, 'w'}
+	PendingPrefix = []byte{1, 'p'}
+	ViewPrefix    = []byte{1, 'v'}
+	WalPrefix     = []byte{1, 'w'}
 )
 
 type StorageCommons struct {
@@ -110,6 +112,48 @@ func (s *StorageCommons) ForEachWALEntry(min []byte, fn func(msg *sgproto.Messag
 	for ; it.ValidForPrefix(WalPrefix); it.Next() {
 		value := it.Item().Value
 
+		var msg sgproto.Message
+		if err := proto.Unmarshal(value, &msg); err != nil {
+			return err
+		}
+
+		if err := fn(&msg); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *StorageCommons) ForRangeWAL(min, max uint64, fn func(msg *sgproto.Message) error) error {
+	it := s.Iter(&storage.IterOptions{
+		FetchValues: true,
+	})
+	defer it.Close()
+
+	var (
+		minKey, maxKey []byte
+	)
+	if min == 0 {
+		it.Seek(WalPrefix)
+	} else {
+		minKey, maxKey = make([]byte, 8), make([]byte, 8)
+		binary.BigEndian.PutUint64(minKey[:], min)
+		binary.BigEndian.PutUint64(maxKey[:], max)
+		minKey = PrependPrefix(WalPrefix, minKey)
+		maxKey = PrependPrefix(WalPrefix, maxKey)
+		it.Seek(minKey)
+		if it.ValidForPrefix(WalPrefix) && bytes.Compare(minKey, it.Item().Key) == 0 { // skipping first since it is already in the replica
+			it.Next()
+		}
+	}
+
+	for ; it.ValidForPrefix(WalPrefix); it.Next() {
+		if maxKey != nil && bytes.Compare(it.Item().Key, maxKey) > 0 {
+			break
+		}
+
+		value := it.Item().Value
 		var msg sgproto.Message
 		if err := proto.Unmarshal(value, &msg); err != nil {
 			return err

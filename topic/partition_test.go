@@ -1,6 +1,7 @@
 package topic
 
 import (
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -37,6 +38,12 @@ func TestTimerStorage(t *testing.T) {
 	})
 	require.Nil(t, err)
 
+	err = p.applyPendingToWal()
+	require.Nil(t, err)
+
+	err = p.WalToView(0, math.MaxUint64)
+	require.Nil(t, err)
+
 	gotMsg, err := p.GetMessage(id, nil, nil)
 	require.Nil(t, err)
 	require.Equal(t, id, gotMsg.Offset)
@@ -65,6 +72,12 @@ func TestKVStorage(t *testing.T) {
 		Key:    key,
 		Value:  value,
 	})
+	require.Nil(t, err)
+
+	err = p.applyPendingToWal()
+	require.Nil(t, err)
+
+	err = p.WalToView(0, math.MaxUint64)
 	require.Nil(t, err)
 
 	gotMsg, err := p.GetMessage(sgproto.Nil, key, nil)
@@ -96,6 +109,12 @@ func TestLastMessage(t *testing.T) {
 		Key:    key,
 		Value:  value,
 	})
+	require.Nil(t, err)
+
+	err = p.applyPendingToWal()
+	require.Nil(t, err)
+
+	err = p.WalToView(0, math.MaxUint64)
 	require.Nil(t, err)
 
 	gotKey := p.LastWALEntry()

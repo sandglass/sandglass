@@ -38,7 +38,8 @@ type Partition struct {
 	bf  *bloom.BloomFilter // TODO: persist bloom filter
 	ibf boom.Filter
 
-	lastIndex *uint64
+	lastIndex  *uint64
+	pendingKey []byte
 }
 
 func (t *Partition) InitStore(basePath string) error {
@@ -49,12 +50,19 @@ func (t *Partition) InitStore(basePath string) error {
 		return err
 	}
 
+	t.pendingKey = scommons.PrependPrefix(scommons.PendingPrefix, []byte{0})
+
+	mo := &storage.MergeOperator{
+		Key:       t.pendingKey,
+		MergeFunc: mergeFunc,
+	}
+
 	var err error
 	switch t.topic.StorageDriver {
 	case sgproto.StorageDriver_Badger:
-		t.db, err = badger.NewStorage(msgdir)
+		t.db, err = badger.NewStorage(msgdir, mo)
 	case sgproto.StorageDriver_RocksDB:
-		t.db, err = rocksdb.NewStorage(msgdir)
+		t.db, err = rocksdb.NewStorage(msgdir, mo)
 	default:
 		return fmt.Errorf("unknown storage driver: %v for topic: %v", t.topic.StorageDriver, t.topic.Name)
 	}
@@ -75,6 +83,103 @@ func (t *Partition) InitStore(basePath string) error {
 	}
 	t.lastIndex = &index
 	return nil
+}
+
+func mergeFunc(existing, value []byte) ([]byte, bool) {
+	var operation sgproto.MergeOperation
+	err := proto.Unmarshal(value, &operation)
+	if err != nil {
+		return nil, false
+	}
+
+	var state sgproto.MergeState
+	err = proto.Unmarshal(existing, &state)
+	if err != nil {
+		return nil, false
+	}
+
+	switch operation.Operation {
+	case sgproto.MergeOperation_APPEND:
+		state.Messages = append(state.Messages, operation.Messages...)
+	case sgproto.MergeOperation_CUT:
+		if len(operation.Messages) <= int(operation.N) {
+			state.Messages = nil
+		} else {
+			state.Messages = state.Messages[operation.N:]
+		}
+	}
+
+	newState, err := proto.Marshal(&state)
+	if err != nil {
+		return nil, false
+	}
+
+	return newState, true
+}
+
+func (p *Partition) applyPendingToWal() error {
+	fn := func(val []byte) ([]*storage.Entry, []byte, error) {
+		var state sgproto.MergeState
+		err := proto.Unmarshal(val, &state)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		entries := []*storage.Entry{}
+		for _, msg := range state.Messages {
+			storagekey := p.getStorageKey(msg)
+			val, err := proto.Marshal(msg)
+			if err != nil {
+				return nil, nil, err
+			}
+			//    t.bf.Add(storagekey)
+			//    t.ibf.Add(storagekey)
+			// entries = append(entries, &storage.Entry{
+			// 	Key:   storagekey,
+			// 	Value: val,
+			// })
+			entries = append(entries, &storage.Entry{
+				Key:   p.newWALKey(storagekey, msg.Index),
+				Value: val,
+			})
+		}
+
+		operation, err := proto.Marshal(&sgproto.MergeOperation{
+			Operation: sgproto.MergeOperation_CUT,
+			N:         int32(len(state.Messages)),
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return entries, operation, nil
+	}
+
+	return p.db.ProcessMergedKey(p.pendingKey, fn)
+}
+
+func (p *Partition) WalToView(start, end uint64) error {
+	entries := []*storage.Entry{}
+	err := p.db.ForRangeWAL(start, end, func(msg *sgproto.Message) error {
+		storagekey := p.getStorageKey(msg)
+
+		b, err := proto.Marshal(msg)
+		if err != nil {
+			return err
+		}
+
+		entries = append(entries, &storage.Entry{
+			Key:   storagekey,
+			Value: b,
+		})
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return p.db.BatchPut(entries)
 }
 
 func (t *Partition) String() string {
@@ -160,10 +265,10 @@ func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 	return msg.Offset != sgproto.Nil, nil
 }
 
-func (t *Partition) newWALKey(index uint64, key []byte) []byte {
+func (t *Partition) newWALKey(prefix []byte, index uint64) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, index)
-	return bytes.Join([][]byte{scommons.WalPrefix, b, key}, storage.Separator)
+	return bytes.Join([][]byte{scommons.WalPrefix, prefix, b}, storage.Separator)
 }
 
 func (t *Partition) PutMessage(msg *sgproto.Message) error {
@@ -177,9 +282,10 @@ func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
 
 	now := time.Now().UTC()
 
-	dataEntries := make([]*storage.Entry, len(msgs))
-	walEntries := make([]*storage.Entry, len(msgs))
-	for i, msg := range msgs {
+	var mo sgproto.MergeOperation
+	mo.Operation = sgproto.MergeOperation_APPEND
+
+	for _, msg := range msgs {
 		if msg.Index == 0 {
 			msg.Index = t.NextIndex()
 		}
@@ -187,29 +293,15 @@ func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
 			msg.Offset = sgproto.NewOffset(msg.Index, now.Add(msg.ConsumeIn))
 		}
 		msg.ProducedAt = now
+	}
+	mo.Messages = msgs
 
-		storagekey := t.getStorageKey(msg)
-		val, err := proto.Marshal(msg)
-		if err != nil {
-			return err
-		}
-		t.bf.Add(storagekey)
-		t.ibf.Add(storagekey)
-		dataEntries[i] = &storage.Entry{
-			Key:   storagekey,
-			Value: val,
-		}
-		walEntries[i] = &storage.Entry{
-			Key:   t.newWALKey(msg.Index, storagekey),
-			Value: val,
-		}
+	b, err := proto.Marshal(&mo)
+	if err != nil {
+		return err
 	}
 
-	entries := make([]*storage.Entry, 2*len(msgs))
-	copy(entries[:len(msgs)], dataEntries)
-	copy(entries[len(msgs):], walEntries)
-
-	return t.db.BatchPut(entries)
+	return t.db.Merge(t.pendingKey, b)
 }
 
 func (t *Partition) NextIndex() uint64 {
