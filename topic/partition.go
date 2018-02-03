@@ -2,12 +2,16 @@ package topic
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/tylertreat/BoomFilters"
 
@@ -40,6 +44,10 @@ type Partition struct {
 
 	lastIndex  *uint64
 	pendingKey []byte
+
+	ctxPending    context.Context
+	cancelPending context.CancelFunc
+	wg            sync.WaitGroup
 }
 
 func (t *Partition) InitStore(basePath string) error {
@@ -82,6 +90,8 @@ func (t *Partition) InitStore(basePath string) error {
 		index = msg.Index
 	}
 	t.lastIndex = &index
+
+	t.LaunchPendingLoop()
 	return nil
 }
 
@@ -115,6 +125,24 @@ func mergeFunc(existing, value []byte) ([]byte, bool) {
 	}
 
 	return newState, true
+}
+
+func (p *Partition) LaunchPendingLoop() {
+	p.ctxPending, p.cancelPending = context.WithCancel(context.Background())
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		for {
+			select {
+			case <-p.ctxPending.Done():
+				return
+			case <-time.After(100 * time.Millisecond):
+				if err := p.applyPendingToWal(); err != nil {
+					logrus.WithError(err).Printf("apply pending loop")
+				}
+			}
+		}
+	}()
 }
 
 func (p *Partition) applyPendingToWal() error {
@@ -338,6 +366,10 @@ func (p *Partition) ForRange(min, max sgproto.Offset, fn func(msg *sgproto.Messa
 }
 
 func (p *Partition) Close() error {
+	if p.cancelPending != nil {
+		p.cancelPending()
+	}
+	p.wg.Wait()
 	return p.db.Close()
 }
 
