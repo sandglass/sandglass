@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -314,9 +313,6 @@ func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
 	mo.Operation = sgproto.MergeOperation_APPEND
 
 	for _, msg := range msgs {
-		if msg.Index == 0 {
-			msg.Index = t.NextIndex()
-		}
 		if msg.Offset == sgproto.Nil {
 			msg.Offset = sgproto.NewOffset(msg.Index, now.Add(msg.ConsumeIn))
 		}
@@ -332,8 +328,26 @@ func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
 	return t.db.Merge(t.pendingKey, b)
 }
 
-func (t *Partition) NextIndex() uint64 {
-	return atomic.AddUint64(t.lastIndex, 1)
+func (p *Partition) WALBatchPutMessages(msgs []*sgproto.Message) error {
+	if len(msgs) == 0 {
+		return nil
+	}
+
+	entries := []*storage.Entry{}
+	for _, msg := range msgs {
+		storagekey := p.getStorageKey(msg)
+		val, err := proto.Marshal(msg)
+		if err != nil {
+			return err
+		}
+
+		entries = append(entries, &storage.Entry{
+			Key:   p.newWALKey(storagekey, msg.Index),
+			Value: val,
+		})
+	}
+
+	return p.db.BatchPut(entries)
 }
 
 func (p *Partition) ForRange(min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error {

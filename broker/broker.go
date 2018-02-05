@@ -542,7 +542,7 @@ func (b *Broker) TriggerSyncRequest() error {
 					msgs = append(msgs, msg)
 					if len(msgs) == 1000 {
 						n += len(msgs)
-						if err := p.BatchPutMessages(msgs); err != nil {
+						if err := p.WALBatchPutMessages(msgs); err != nil {
 							return err
 						}
 					}
@@ -550,7 +550,7 @@ func (b *Broker) TriggerSyncRequest() error {
 
 				if len(msgs) > 0 {
 					n += len(msgs)
-					if err := p.BatchPutMessages(msgs); err != nil {
+					if err := p.WALBatchPutMessages(msgs); err != nil {
 						return err
 					}
 				}
