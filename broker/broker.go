@@ -78,6 +78,8 @@ type Broker struct {
 	raft           *raft.Store
 
 	reconcileCh chan serf.Member
+
+	server *Server
 }
 
 func New(conf *Config) (*Broker, error) {
@@ -123,6 +125,7 @@ func New(conf *Config) (*Broker, error) {
 		eventEmitter: watchy.New(),
 		reconcileCh:  make(chan serf.Member, 64),
 	}
+	b.server = NewServer(b, net.JoinHostPort(conf.BindAddr, conf.GRPCPort), net.JoinHostPort(conf.BindAddr, conf.HTTPPort))
 	return b, nil
 }
 
@@ -157,6 +160,11 @@ func (b *Broker) Stop(ctx context.Context) error {
 				gracefulCh <- errors.Wrapf(err, "error while closing peer: %v", peer.Name)
 				return
 			}
+		}
+
+		if err := b.server.Shutdown(ctx); err != nil {
+			gracefulCh <- err
+			return
 		}
 
 		close(gracefulCh)
@@ -240,6 +248,13 @@ func (b *Broker) getNodeByRaftAddr(addr string) *sandglass.Node {
 }
 
 func (b *Broker) Bootstrap() error {
+	go func() {
+		err := b.server.Start()
+		if err != nil {
+			b.WithError(err).Printf("error starting up server")
+		}
+	}()
+
 	b.Debugf("Bootstrapping %s...", b.Name())
 	b.Debugf("config: %+v", b.Conf())
 	b.readyListeners = append(b.readyListeners,
@@ -632,8 +647,4 @@ func extractPeer(m serf.Member) (*sandglass.Node, error) {
 
 func (b *Broker) Topics() []*topic.Topic {
 	return b.raft.GetTopics()
-}
-
-func (b *Broker) GetTopic(name string) *topic.Topic {
-	return b.raft.GetTopic(name)
 }

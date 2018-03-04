@@ -5,7 +5,6 @@ import (
 	"log"
 	"net"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -25,7 +24,6 @@ import (
 	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/broker"
-	"github.com/celrenheit/sandglass/server"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,10 +48,10 @@ func TestSandglass(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err := brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(t, err)
 
-	err = brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
 	require.Len(t, brokers[0].Members(), n)
@@ -83,7 +81,7 @@ func TestSandglass(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// time.Sleep(2000 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	b := getController(brokers)
 	err = b.TryAdvanceHWMark(context.TODO())
@@ -98,7 +96,7 @@ func TestSandglass(t *testing.T) {
 		From:      sgproto.Nil,
 		To:        sgproto.MaxOffset,
 	}
-	err = brokers[0].FetchRange(ctx, req, func(keymsg *sgproto.Message) error {
+	err = brokers[0].FetchRangeFn(ctx, req, func(keymsg *sgproto.Message) error {
 		count++
 		return nil
 	})
@@ -132,10 +130,10 @@ func TestKVTopic(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err := brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(t, err)
 
-	err = brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
 	require.Len(t, brokers[0].Members(), n)
@@ -165,7 +163,7 @@ func TestKVTopic(t *testing.T) {
 		From:      sgproto.Nil,
 		To:        sgproto.MaxOffset,
 	}
-	err = brokers[0].FetchRange(ctx, req, func(msg *sgproto.Message) error {
+	err = brokers[0].FetchRangeFn(ctx, req, func(msg *sgproto.Message) error {
 		require.Equal(t, "my_key", string(msg.Key))
 		count++
 		return nil
@@ -190,10 +188,10 @@ func TestACK(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err := brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(t, err)
 
-	err = brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
 	require.Len(t, brokers[0].Members(), n)
@@ -210,31 +208,27 @@ func TestACK(t *testing.T) {
 	}
 
 	offset := sgproto.NewOffset(1, time.Now())
-	ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", offset)
-	require.Nil(t, err)
-	require.True(t, ok)
+	ack(t, b, topic.Name, topic.Partitions[0].Id, "group1", offset)
 
-	got, err := b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
+	got := lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
 	require.Equal(t, sgproto.Nil, got)
 
-	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
+	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
 
 	offset2 := sgproto.NewOffset(2, time.Now())
-	ok, err = b.Commit(ctx, topic.Name, topic.Partitions[0].Id, "group1", offset2)
-	require.Nil(t, err)
-	require.True(t, ok)
+	commit(t, b, topic.Name, topic.Partitions[0].Id, "group1", offset2)
 
-	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
+	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Commited)
 	require.Nil(t, err)
 	require.Equal(t, offset2, got)
 
-	got, err = b.LastOffset(ctx, topic.Name, topic.Partitions[0].Id, "group1",
+	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Acknowledged)
 	require.Nil(t, err)
 	require.Equal(t, offset, got)
@@ -251,10 +245,10 @@ func TestConsume(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err := brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(t, err)
 
-	err = brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
 	require.Len(t, brokers[0].Members(), n)
@@ -291,8 +285,7 @@ func TestConsume(t *testing.T) {
 	var got sgproto.Offset
 	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
 		count++
-		ok, err := b.Acknowledge(ctx, topic.Name, topic.Partitions[0].Id, "group1", msg.Offset)
-		require.True(t, ok)
+		ack(t, b, topic.Name, topic.Partitions[0].Id, "group1", msg.Offset)
 		got = msg.Offset
 		return err
 	})
@@ -371,10 +364,10 @@ func TestSyncRequest(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err := brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(t, err)
 
-	err = brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(t, err)
 
 	require.Len(t, brokers[0].Members(), n)
@@ -452,10 +445,10 @@ func BenchmarkKVTopicGet(b *testing.B) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	err := brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(b, err)
 
-	err = brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(b, err)
 
 	require.Len(b, brokers[0].Members(), n)
@@ -500,10 +493,10 @@ func BenchmarkConsume(b *testing.B) {
 		NumPartitions:     3,
 		StorageDriver:     sgproto.StorageDriver_Badger,
 	}
-	err := brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
 	require.Nil(b, err)
 
-	err = brokers[0].CreateTopic(ctx, createTopicParams)
+	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
 	require.NotNil(b, err)
 
 	require.Len(b, brokers[0].Members(), n)
@@ -574,23 +567,6 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 		brokers = append(brokers, newBroker(tb, i, dc.String(), bind_addr, advertise_addr, gossip_port, grpc_port, http_port, raft_port, basepath))
 	}
 
-	servers := []*server.Server{}
-	var doneServers sync.WaitGroup
-	for i := 0; i < n; i++ {
-		grpc_addr := net.JoinHostPort(brokers[i].Conf().BindAddr, brokers[i].Conf().GRPCPort)
-		http_addr := net.JoinHostPort(brokers[i].Conf().BindAddr, brokers[i].Conf().HTTPPort)
-
-		server := server.New(brokers[i], grpc_addr, http_addr)
-		doneServers.Add(1)
-		go func() {
-			defer doneServers.Done()
-			server.Start()
-			// require.Nil(t, err)
-		}()
-
-		servers = append(servers, server)
-	}
-
 	peers := []string{}
 	for _, b := range brokers[1:] {
 		peers = append(peers, net.JoinHostPort(b.Conf().AdvertiseAddr, b.Conf().GossipPort))
@@ -616,11 +592,6 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 			require.Nil(tb, err)
 		}
 		time.Sleep(200 * time.Millisecond)
-		for _, s := range servers {
-			err := s.Shutdown(context.Background())
-			require.Nil(tb, err)
-		}
-		doneServers.Wait()
 		for _, p := range paths {
 			os.RemoveAll(p)
 		}
@@ -670,4 +641,37 @@ func RandomAddr() string {
 	}
 	defer l.Close()
 	return l.Addr().String()
+}
+
+func ack(t *testing.T, b *broker.Broker, topic, partition, group string, offset sgproto.Offset) {
+	resp, err := b.Acknowledge(ctx, &sgproto.MarkRequest{
+		Topic:         topic,
+		Partition:     partition,
+		ConsumerGroup: group,
+		Offsets:       []sgproto.Offset{offset},
+	})
+	require.Nil(t, err)
+	require.True(t, resp.Success)
+}
+
+func commit(t *testing.T, b *broker.Broker, topic, partition, group string, offset sgproto.Offset) {
+	resp, err := b.Commit(ctx, &sgproto.MarkRequest{
+		Topic:         topic,
+		Partition:     partition,
+		ConsumerGroup: group,
+		Offsets:       []sgproto.Offset{offset},
+	})
+	require.Nil(t, err)
+	require.True(t, resp.Success)
+}
+
+func lastOffset(t *testing.T, b *broker.Broker, topic, partition, group string, kind sgproto.MarkKind) sgproto.Offset {
+	resp, err := b.LastOffset(ctx, &sgproto.LastOffsetRequest{
+		Topic:         topic,
+		Partition:     partition,
+		ConsumerGroup: group,
+		Kind:          kind,
+	})
+	require.Nil(t, err)
+	return resp.Offset
 }

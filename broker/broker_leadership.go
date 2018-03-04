@@ -28,13 +28,15 @@ func (b *Broker) monitorLeadership() error {
 		})
 	}
 
+	var (
+		weAreLeaderCh chan struct{}
+		leaderLoop    sync.WaitGroup
+	)
+
 	for {
 		if b.raft == nil {
 			continue
 		}
-
-		var weAreLeaderCh chan struct{}
-		var leaderLoop sync.WaitGroup
 
 		select {
 		case <-b.shutdownCh:
@@ -82,7 +84,7 @@ func (b *Broker) leaderLoop(leaderStop chan struct{}) {
 	if !exists {
 		operation := func() error {
 			logger.Debugf("creating consumer offset topic")
-			err := b.CreateTopic(context.TODO(), &sgproto.TopicConfig{
+			_, err := b.CreateTopic(context.TODO(), &sgproto.TopicConfig{
 				Name:              ConsumerOffsetTopicName,
 				Kind:              sgproto.TopicKind_KVKind,
 				NumPartitions:     50,

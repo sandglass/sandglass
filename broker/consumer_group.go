@@ -86,13 +86,13 @@ func (c *ConsumerGroup) consumeLoop() {
 		c.mu.Unlock()
 	}()
 
-	lastCommited, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Commited)
+	lastCommited, err := c.broker.lastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Commited)
 	if err != nil {
 		c.logger.WithError(err).Debugf("got error when fetching last committed offset")
 		return
 	}
 
-	lastConsumed, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Consumed)
+	lastConsumed, err := c.broker.lastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Consumed)
 	if err != nil {
 		c.logger.WithError(err).Debugf("got error when fetching last consumed offset")
 		return
@@ -115,14 +115,19 @@ func (c *ConsumerGroup) consumeLoop() {
 			}
 
 			commit := func(offset sgproto.Offset) {
-				_, err := c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, lastMessage.Offset)
+				_, err := c.broker.Commit(context.TODO(), &sgproto.MarkRequest{
+					Topic:         c.topic,
+					Partition:     c.partition,
+					ConsumerGroup: c.name,
+					Offsets:       []sgproto.Offset{lastMessage.Offset},
+				})
 				if err != nil {
 					c.logger.WithError(err).Debugf("unable to commit")
 				}
 			}
 
 			i := 0
-			err := c.broker.FetchRange(context.TODO(), req, func(m *sgproto.Message) error {
+			err := c.broker.FetchRangeFn(context.TODO(), req, func(m *sgproto.Message) error {
 				if m.Offset.Equal(lastCommited) { // skip first item, since it is already committed
 					lastMessage = m
 					return nil
@@ -200,7 +205,7 @@ func (c *ConsumerGroup) consumeLoop() {
 						}
 
 						// TODO: Should handle this in higher level method
-						t := c.broker.GetTopic(ConsumerOffsetTopicName)
+						t := c.broker.getTopic(ConsumerOffsetTopicName)
 						p := t.ChoosePartitionForKey(markedMsg.Key)
 						markedMsg.ClusteringKey = generateClusterKey(m.Offset, state.Kind)
 
@@ -236,7 +241,7 @@ func (c *ConsumerGroup) consumeLoop() {
 			To:        now,
 		}
 
-		return c.broker.FetchRange(context.TODO(), req, func(m *sgproto.Message) error {
+		return c.broker.FetchRangeFn(context.TODO(), req, func(m *sgproto.Message) error {
 			// skip the first if it is the same as the starting point
 			if lastConsumed == m.Offset {
 				return nil
@@ -285,7 +290,12 @@ loop:
 	}
 
 	if m != nil && !m.Offset.Equal(lastConsumed) {
-		_, err := c.broker.MarkConsumed(context.TODO(), c.topic, c.partition, c.name, m.Offset)
+		_, err := c.broker.MarkConsumed(context.TODO(), &sgproto.MarkRequest{
+			Topic:         c.topic,
+			Partition:     c.partition,
+			ConsumerGroup: c.name,
+			Offsets:       []sgproto.Offset{m.Offset},
+		})
 		if err != nil {
 			c.logger.WithError(err).Debugf("unable to mark as consumed")
 		}

@@ -15,7 +15,7 @@ import (
 	"github.com/grpc/grpc-go/status"
 )
 
-func (b *Broker) FetchRange(ctx context.Context, req *sgproto.FetchRangeRequest, fn func(msg *sgproto.Message) error) error {
+func (b *Broker) FetchRangeFn(ctx context.Context, req *sgproto.FetchRangeRequest, fn func(msg *sgproto.Message) error) error {
 	topic := b.getTopic(req.Topic)
 	if topic == nil {
 		return ErrTopicNotFound
@@ -53,7 +53,7 @@ func (b *Broker) FetchRange(ctx context.Context, req *sgproto.FetchRangeRequest,
 	return p.ForRange(req.From, req.To, fn)
 }
 
-func (b *Broker) FetchFromSync(topicName, partition string, from []byte, fn func(msg *sgproto.Message) error) error {
+func (b *Broker) fetchFromSync(topicName, partition string, from []byte, fn func(msg *sgproto.Message) error) error {
 	topic := b.getTopic(topicName)
 	if topic == nil {
 		return ErrTopicNotFound
@@ -104,7 +104,7 @@ func (b *Broker) Get(ctx context.Context, topicName string, partition string, ke
 	return b.getFromPartition(ctx, topicName, p, key)
 }
 
-func (b *Broker) HasKey(ctx context.Context, topicName string, partition string, key, clusterKey []byte) (bool, error) {
+func (b *Broker) hasKey(ctx context.Context, topicName string, partition string, key, clusterKey []byte) (bool, error) {
 	t := b.getTopic(topicName)
 	var p *topic.Partition
 	if partition != "" {

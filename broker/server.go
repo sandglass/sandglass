@@ -1,4 +1,4 @@
-package server
+package broker
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip"
 
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/broker"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/sirupsen/logrus"
 )
@@ -20,13 +19,13 @@ type Server struct {
 	logger             *logrus.Entry
 	server             *grpc.Server
 	httpServer         *http.Server
-	broker             *broker.Broker
+	broker             *Broker
 	cancel             func()
 	lis                net.Listener
 	wg                 sync.WaitGroup
 }
 
-func New(b *broker.Broker, grpcAddr, httpAddr string) *Server {
+func NewServer(b *Broker, grpcAddr, httpAddr string) *Server {
 	return &Server{
 		httpAddr: httpAddr,
 		grpcAddr: grpcAddr,
@@ -41,7 +40,7 @@ func (s *Server) Start() (err error) {
 		return err
 	}
 	s.server = grpc.NewServer()
-	svc := newService(s.broker)
+	svc := s.broker
 	sgproto.RegisterBrokerServiceServer(s.server, svc)
 	sgproto.RegisterInternalServiceServer(s.server, svc)
 
