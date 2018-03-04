@@ -119,7 +119,11 @@ func mergeFunc(existing, value []byte) ([]byte, bool) {
 	case sgproto.MergeOperation_APPEND:
 		state.Messages = append(state.Messages, operation.Messages...)
 	case sgproto.MergeOperation_CUT:
-		state.Messages = state.Messages[operation.N:]
+		if len(state.Messages) < int(operation.N) {
+			state.Messages = nil
+		} else {
+			state.Messages = state.Messages[operation.N:]
+		}
 	}
 
 	newState, err := proto.Marshal(&state)
