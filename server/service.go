@@ -173,5 +173,9 @@ func (s *service) FetchFromSync(req *sgproto.FetchFromSyncRequest, stream sgprot
 	})
 }
 
+func (s *service) EndOfLog(ctx context.Context, req *sgproto.EndOfLogRequest) (*sgproto.EndOfLogReply, error) {
+	return s.broker.EndOfLog(ctx, req)
+}
+
 var _ sgproto.BrokerServiceServer = (*service)(nil)
 var _ sgproto.InternalServiceServer = (*service)(nil)

@@ -2,7 +2,6 @@ package topic
 
 import (
 	"math"
-	"sync"
 	"testing"
 	"time"
 
@@ -38,7 +37,7 @@ func TestTimerStorage(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	err = p.applyPendingToWal()
+	err = p.ApplyPendingToWal()
 	require.Nil(t, err)
 
 	err = p.WalToView(0, math.MaxUint64)
@@ -74,7 +73,7 @@ func TestKVStorage(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	err = p.applyPendingToWal()
+	err = p.ApplyPendingToWal()
 	require.Nil(t, err)
 
 	err = p.WalToView(0, math.MaxUint64)
@@ -111,7 +110,7 @@ func TestLastMessage(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	err = p.applyPendingToWal()
+	err = p.ApplyPendingToWal()
 	require.Nil(t, err)
 
 	err = p.WalToView(0, math.MaxUint64)
@@ -121,7 +120,7 @@ func TestLastMessage(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, gotKey)
 
-	gotMsg, err := p.LastMessage()
+	gotMsg, err := p.EndOfLog()
 	require.Nil(t, err)
 	require.NotNil(t, gotMsg)
 	require.Equal(t, string(key), string(gotMsg.Key))
@@ -150,14 +149,14 @@ func BenchmarkStorageDrivers(b *testing.B) {
 			value := []byte("value")
 
 			var firstId sgproto.Offset
-			var once sync.Once
+			// var once sync.Once
 			b.Run("put", func(b *testing.B) {
 				b.ReportAllocs()
 				b.RunParallel(func(pb *testing.PB) {
 					for pb.Next() {
-						once.Do(func() {
-							firstId = sgproto.NewOffset(p.NextIndex(), time.Unix(0, 0))
-						})
+						// once.Do(func() {
+						// 	firstId = sgproto.NewOffset(p.next, time.Unix(0, 0))
+						// })
 						err := p.PutMessage(&sgproto.Message{
 							Key:   key,
 							Value: value,

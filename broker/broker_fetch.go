@@ -67,6 +67,32 @@ func (b *Broker) FetchFromSync(topicName, partition string, from []byte, fn func
 	return p.RangeFromWAL(from, fn)
 }
 
+func (b *Broker) EndOfLog(ctx context.Context, req *sgproto.EndOfLogRequest) (*sgproto.EndOfLogReply, error) {
+	topic := b.getTopic(req.Topic)
+	if topic == nil {
+		return nil, ErrTopicNotFound
+	}
+
+	if req.Partition == "" {
+		return nil, ErrNoPartitionSet
+	}
+
+	p := topic.GetPartition(req.Partition)
+	var index uint64
+	msg, err := p.EndOfLog()
+	if err != nil {
+		return nil, err
+	}
+
+	if msg != nil {
+		index = msg.Index
+	}
+
+	return &sgproto.EndOfLogReply{
+		Index: index,
+	}, nil
+}
+
 func (b *Broker) Get(ctx context.Context, topicName string, partition string, key []byte) (*sgproto.Message, error) {
 	t := b.getTopic(topicName)
 	var p *topic.Partition

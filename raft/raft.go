@@ -33,6 +33,7 @@ const (
 	SetPartitionLeaderBulkOp = "SetPartitionLeaderBulkOp"
 	AddNode                  = "AddNode"
 	DeleteNode               = "DeleteNode"
+	SetHWMarks               = "SetHWMarks"
 )
 
 type Config struct {
@@ -67,6 +68,7 @@ type state struct {
 	Members          map[string]struct{}
 	Topics           map[string]*topic.Topic
 	PartitionLeaders map[string]map[string]string
+	PartitionHWMarks map[string]map[string]uint64
 }
 
 func newState() *state {
@@ -74,6 +76,7 @@ func newState() *state {
 		Members:          map[string]struct{}{},
 		Topics:           map[string]*topic.Topic{},
 		PartitionLeaders: map[string]map[string]string{},
+		PartitionHWMarks: map[string]map[string]uint64{},
 	}
 }
 
@@ -111,6 +114,9 @@ func (s *Store) Init(bootstrap bool, serf *serf.Serf, reconcileCh chan serf.Memb
 	config.SnapshotInterval = 5 * time.Second
 	s.notifyCh = make(chan bool, 1)
 	config.NotifyCh = s.notifyCh
+
+	s.wg.Add(1)
+	go s.monitorLeadership()
 
 	addr, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
@@ -163,9 +169,6 @@ func (s *Store) Init(bootstrap bool, serf *serf.Serf, reconcileCh chan serf.Memb
 		return fmt.Errorf("new raft: %s", err)
 	}
 	s.raft = ra
-
-	s.wg.Add(1)
-	go s.monitorLeadership()
 
 	return nil
 }
@@ -426,6 +429,8 @@ func (f *fsm) Apply(l *raft.Log) (value interface{}) {
 		err = f.applyAddOrDeleteNode(true, c.Payload)
 	case DeleteNode:
 		err = f.applyAddOrDeleteNode(false, c.Payload)
+	case SetHWMarks:
+		err = f.applySetHWMarks(c.Payload)
 	default:
 		f.logger.WithField("operation", c.Op).Warnf("unrecognized operation")
 		return fmt.Errorf("unrecognized command op: %s", c.Op)
@@ -548,6 +553,51 @@ func (f *fsm) applySetPartitionLeaderBulk(d []byte) error {
 	return nil
 }
 
+func (f *fsm) applySetHWMarks(d []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var s setHWMarks
+	if err := json.Unmarshal(d, &s); err != nil {
+		return err
+	}
+
+	setMap := func(m map[string]map[string]uint64, t, p string, v uint64) map[string]map[string]uint64 {
+		if m == nil {
+			m = make(map[string]map[string]uint64)
+		}
+
+		if m[t] == nil {
+			m[t] = make(map[string]uint64)
+		}
+
+		m[t][p] = v
+
+		return m
+	}
+
+	// merging states
+	for t, p := range s.State {
+		for p, hwMark := range p {
+			if oldHWMark, ok := f.state.PartitionHWMarks[t][p]; !ok || oldHWMark < hwMark {
+				f.state.PartitionHWMarks = setMap(f.state.PartitionHWMarks, t, p, hwMark)
+				if err := f.state.Topics[t].GetPartition(p).WalToView(oldHWMark, hwMark); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Store) GetHWMark(topic, partition string) uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.state.PartitionHWMarks[topic][partition]
+}
+
 type command struct {
 	Op      string          `json:"op,omitempty"`
 	Payload json.RawMessage `json:"payload,omitempty"`
@@ -594,6 +644,14 @@ func (s *Store) GetPartitionLeader(topic, partition string) (string, bool) {
 
 	leader, ok := partitions[partition]
 	return leader, ok
+}
+
+type setHWMarks struct {
+	State map[string]map[string]uint64
+}
+
+func (s *Store) SetPartitionHWMark(v map[string]map[string]uint64) error {
+	return s.raftApplyCommand(SetHWMarks, &setHWMarks{State: v})
 }
 
 type setPartitionLeaderPayload struct {

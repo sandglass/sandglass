@@ -61,11 +61,11 @@ func TestSandglass(t *testing.T) {
 		require.Len(t, brokers[i].Topics(), 2)
 	}
 
-	part := getTopicFromBroker(brokers[0], "payments").Partitions[0].Id
+	part := getTopicFromBroker(brokers[0], "payments").Partitions[0]
 	for i := 0; i < 1000; i++ {
 		_, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     "payments",
-			Partition: part,
+			Partition: part.Id,
 			Messages: []*sgproto.Message{
 				{
 					Value: []byte(strconv.Itoa(i)),
@@ -75,10 +75,26 @@ func TestSandglass(t *testing.T) {
 		require.Nil(t, err)
 	}
 
+	err = part.ApplyPendingToWal()
+	require.NoError(t, err)
+
+	for _, b := range brokers {
+		err := b.TriggerSyncRequest()
+		require.NoError(t, err)
+	}
+
+	// time.Sleep(2000 * time.Millisecond)
+
+	b := getController(brokers)
+	err = b.TryAdvanceHWMark(context.TODO())
+	require.NoError(t, err)
+
+	time.Sleep(1100 * time.Millisecond)
+
 	var count int
 	req := &sgproto.FetchRangeRequest{
 		Topic:     "payments",
-		Partition: part,
+		Partition: part.Id,
 		From:      sgproto.Nil,
 		To:        sgproto.MaxOffset,
 	}
@@ -89,6 +105,20 @@ func TestSandglass(t *testing.T) {
 	require.Nil(t, err)
 
 	require.Equal(t, 1000, count)
+}
+
+func getController(brokers []*broker.Broker) *broker.Broker {
+	return getBrokerByName(brokers, brokers[0].GetController().Name)
+}
+
+func getBrokerByName(brokers []*broker.Broker, name string) *broker.Broker {
+	for _, b := range brokers {
+		if b.Name() == name {
+			return b
+		}
+	}
+
+	panic("getBrokerByName('" + name + "') not found")
 }
 
 func TestKVTopic(t *testing.T) {
@@ -382,7 +412,7 @@ func TestSyncRequest(t *testing.T) {
 		if sgutils.StringSliceHasString(part.Replicas, b.Name()) {
 			tt := getTopicFromBroker(b, createTopicParams.Name)
 			p := tt.GetPartition(part.Id)
-			lastMsg, err := p.LastMessage()
+			lastMsg, err := p.EndOfLog()
 			require.NoError(t, err)
 			var lastOffset sgproto.Offset
 			if lastMsg != nil {
@@ -585,6 +615,7 @@ func makeNBrokers(tb testing.TB, n int) (brokers []*broker.Broker, destroyFn fun
 			err := b.Stop(context.Background())
 			require.Nil(tb, err)
 		}
+		time.Sleep(200 * time.Millisecond)
 		for _, s := range servers {
 			err := s.Shutdown(context.Background())
 			require.Nil(tb, err)
@@ -611,7 +642,7 @@ func newBroker(tb testing.TB, i int, dc, bind_addr, adv_addr, gossip_port, grpc_
 		GRPCPort:                grpc_port,
 		HTTPPort:                http_port,
 		RaftPort:                raft_port,
-		BootstrapRaft:           i == 0,
+		BootstrapRaft:           true,
 		LoggingLevel:            &lvl,
 		OffsetReplicationFactor: 2,
 	}
