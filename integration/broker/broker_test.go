@@ -48,16 +48,7 @@ func TestSandglass(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
-	require.Nil(t, err)
-
-	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
-	require.NotNil(t, err)
-
-	require.Len(t, brokers[0].Members(), n)
-	for i := 0; i < n; i++ {
-		require.Len(t, brokers[i].Topics(), 2)
-	}
+	createTopic(t, brokers, createTopicParams)
 
 	part := getTopicFromBroker(brokers[0], "payments").Partitions[0]
 	for i := 0; i < 1000; i++ {
@@ -73,21 +64,7 @@ func TestSandglass(t *testing.T) {
 		require.Nil(t, err)
 	}
 
-	err = part.ApplyPendingToWal()
-	require.NoError(t, err)
-
-	for _, b := range brokers {
-		err := b.TriggerSyncRequest()
-		require.NoError(t, err)
-	}
-
-	time.Sleep(200 * time.Millisecond)
-
-	b := getController(brokers)
-	err = b.TryAdvanceHWMark(context.TODO())
-	require.NoError(t, err)
-
-	time.Sleep(1100 * time.Millisecond)
+	syncAndAdvance(t, brokers)
 
 	var count int
 	req := &sgproto.FetchRangeRequest{
@@ -96,13 +73,28 @@ func TestSandglass(t *testing.T) {
 		From:      sgproto.Nil,
 		To:        sgproto.MaxOffset,
 	}
-	err = brokers[0].FetchRangeFn(ctx, req, func(keymsg *sgproto.Message) error {
+	err := brokers[0].FetchRangeFn(ctx, req, func(keymsg *sgproto.Message) error {
 		count++
 		return nil
 	})
 	require.Nil(t, err)
 
 	require.Equal(t, 1000, count)
+}
+
+func syncAndAdvance(t *testing.T, brokers []*broker.Broker) {
+	for _, b := range brokers {
+		err := b.TriggerSyncRequest()
+		require.NoError(t, err)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	b := getController(brokers)
+	err := b.TryAdvanceHWMark(context.TODO())
+	require.NoError(t, err)
+
+	time.Sleep(1100 * time.Millisecond)
 }
 
 func getController(brokers []*broker.Broker) *broker.Broker {
@@ -130,16 +122,7 @@ func TestKVTopic(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
-	require.Nil(t, err)
-
-	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
-	require.NotNil(t, err)
-
-	require.Len(t, brokers[0].Members(), n)
-	for i := 0; i < n; i++ {
-		require.Len(t, brokers[i].Topics(), 2)
-	}
+	createTopic(t, brokers, createTopicParams)
 
 	part := getTopicFromBroker(brokers[0], "payments").Partitions[0].Id
 	for i := 0; i < 1000; i++ {
@@ -156,6 +139,8 @@ func TestKVTopic(t *testing.T) {
 		require.Nil(t, err)
 	}
 
+	syncAndAdvance(t, brokers)
+
 	var count int
 	req := &sgproto.FetchRangeRequest{
 		Topic:     "payments",
@@ -163,7 +148,7 @@ func TestKVTopic(t *testing.T) {
 		From:      sgproto.Nil,
 		To:        sgproto.MaxOffset,
 	}
-	err = brokers[0].FetchRangeFn(ctx, req, func(msg *sgproto.Message) error {
+	err := brokers[0].FetchRangeFn(ctx, req, func(msg *sgproto.Message) error {
 		require.Equal(t, "my_key", string(msg.Key))
 		count++
 		return nil
@@ -188,36 +173,21 @@ func TestACK(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
-	require.Nil(t, err)
-
-	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
-	require.NotNil(t, err)
-
-	require.Len(t, brokers[0].Members(), n)
-	for i := 0; i < n; i++ {
-		require.Len(t, brokers[i].Topics(), 2)
-	}
+	topic := createTopic(t, brokers, createTopicParams)
 
 	b := brokers[2]
-	var topic *topic.Topic
-	for _, t := range brokers[0].Topics() {
-		if t.Name == createTopicParams.Name {
-			topic = t
-		}
-	}
+
+	syncAndAdvance(t, brokers)
 
 	offset := sgproto.NewOffset(1, time.Now())
 	ack(t, b, topic.Name, topic.Partitions[0].Id, "group1", offset)
 
 	got := lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Commited)
-	require.Nil(t, err)
 	require.Equal(t, sgproto.Nil, got)
 
 	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Acknowledged)
-	require.Nil(t, err)
 	require.Equal(t, offset, got)
 
 	offset2 := sgproto.NewOffset(2, time.Now())
@@ -225,13 +195,35 @@ func TestACK(t *testing.T) {
 
 	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Commited)
-	require.Nil(t, err)
 	require.Equal(t, offset2, got)
 
 	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Acknowledged)
-	require.Nil(t, err)
 	require.Equal(t, offset, got)
+}
+
+func createTopic(t *testing.T, brokers []*broker.Broker, createTopicParams *sgproto.TopicConfig) *topic.Topic {
+	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
+	require.Nil(t, err)
+
+	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
+	require.NotNil(t, err)
+
+	n := len(brokers)
+	require.Len(t, brokers[0].Members(), n)
+	for i := 0; i < n; i++ {
+		require.Len(t, brokers[i].Topics(), 2)
+	}
+
+	var topic *topic.Topic
+	for _, t := range brokers[0].Topics() {
+		if t.Name == createTopicParams.Name {
+			topic = t
+		}
+	}
+
+	require.NotNil(t, topic)
+	return topic
 }
 
 func TestConsume(t *testing.T) {
@@ -245,24 +237,9 @@ func TestConsume(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
-	require.Nil(t, err)
-
-	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
-	require.NotNil(t, err)
-
-	require.Len(t, brokers[0].Members(), n)
-	for i := 0; i < n; i++ {
-		require.Len(t, brokers[i].Topics(), 2)
-	}
+	topic := createTopic(t, brokers, createTopicParams)
 
 	b := brokers[2]
-	var topic *topic.Topic
-	for _, t := range brokers[0].Topics() {
-		if t.Name == createTopicParams.Name {
-			topic = t
-		}
-	}
 
 	var want sgproto.Offset
 	for i := 0; i < 30; i++ {
@@ -280,14 +257,16 @@ func TestConsume(t *testing.T) {
 		want = res.Offsets[0]
 	}
 
+	syncAndAdvance(t, brokers)
+
 	fmt.Println("-----------------------------")
 	var count int
 	var got sgproto.Offset
-	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+	err := b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
 		count++
 		ack(t, b, topic.Name, topic.Partitions[0].Id, "group1", msg.Offset)
 		got = msg.Offset
-		return err
+		return nil
 	})
 	require.Nil(t, err)
 	require.Equal(t, 30, count)
@@ -306,6 +285,8 @@ func TestConsume(t *testing.T) {
 		require.Nil(t, err)
 		want = res.Offsets[len(res.Offsets)-1]
 	}
+
+	syncAndAdvance(t, brokers)
 
 	fmt.Println("-----------------------------")
 	count = 0
@@ -364,16 +345,7 @@ func TestSyncRequest(t *testing.T) {
 		ReplicationFactor: 2,
 		NumPartitions:     3,
 	}
-	_, err := brokers[0].CreateTopic(ctx, createTopicParams)
-	require.Nil(t, err)
-
-	_, err = brokers[0].CreateTopic(ctx, createTopicParams)
-	require.NotNil(t, err)
-
-	require.Len(t, brokers[0].Members(), n)
-	for i := 0; i < n; i++ {
-		require.Len(t, brokers[i].Topics(), 2)
-	}
+	createTopic(t, brokers, createTopicParams)
 
 	topic := getTopicFromBroker(brokers[0], createTopicParams.Name)
 

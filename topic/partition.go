@@ -49,6 +49,13 @@ type Partition struct {
 	wg            sync.WaitGroup
 
 	logger *logrus.Entry
+
+	incomming chan *incommingRequest
+}
+
+type incommingRequest struct {
+	messages []*sgproto.Message
+	resp     chan error
 }
 
 func (t *Partition) InitStore(basePath string) error {
@@ -65,17 +72,12 @@ func (t *Partition) InitStore(basePath string) error {
 
 	t.pendingKey = scommons.PrependPrefix(scommons.PendingPrefix, []byte{0})
 
-	mo := &storage.MergeOperator{
-		Key:       t.pendingKey,
-		MergeFunc: mergeFunc,
-	}
-
 	var err error
 	switch t.topic.StorageDriver {
 	case sgproto.StorageDriver_Badger:
-		t.db, err = badger.NewStorage(msgdir, mo)
+		t.db, err = badger.NewStorage(msgdir)
 	case sgproto.StorageDriver_RocksDB:
-		t.db, err = rocksdb.NewStorage(msgdir, mo)
+		t.db, err = rocksdb.NewStorage(msgdir)
 	default:
 		return fmt.Errorf("unknown storage driver: %v for topic: %v", t.topic.StorageDriver, t.topic.Name)
 	}
@@ -97,42 +99,14 @@ func (t *Partition) InitStore(basePath string) error {
 	t.lastIndex = index
 
 	if t.ctxPending == nil {
-		t.LaunchPendingLoop()
+		t.incomming = make(chan *incommingRequest)
+		t.applyPendingToWalLoop()
 	}
+
 	return nil
 }
 
-func mergeFunc(existing, value []byte) ([]byte, bool) {
-	var operation sgproto.MergeOperation
-	err := proto.Unmarshal(value, &operation)
-	if err != nil {
-		return nil, false
-	}
-
-	var state sgproto.MergeState
-	err = proto.Unmarshal(existing, &state)
-	if err != nil {
-		return nil, false
-	}
-
-	switch operation.Operation {
-	case sgproto.MergeOperation_APPEND:
-		state.Messages = append(state.Messages, operation.Messages...)
-	case sgproto.MergeOperation_CUT:
-		if len(state.Messages) >= int(operation.N) {
-			state.Messages = state.Messages[operation.N:]
-		}
-	}
-
-	newState, err := proto.Marshal(&state)
-	if err != nil {
-		return nil, false
-	}
-
-	return newState, true
-}
-
-func (p *Partition) LaunchPendingLoop() {
+func (p *Partition) applyPendingToWalLoop() {
 	p.ctxPending, p.cancelPending = context.WithCancel(context.Background())
 	p.wg.Add(1)
 	go func() {
@@ -141,60 +115,42 @@ func (p *Partition) LaunchPendingLoop() {
 			select {
 			case <-p.ctxPending.Done():
 				return
-			case <-time.After(100 * time.Millisecond):
-				if err := p.ApplyPendingToWal(); err != nil {
-					p.logger.WithError(err).Debugf("apply pending loop")
-				}
+			case req := <-p.incomming:
+				req.resp <- p.storeMessages(req.messages)
 			}
 		}
 	}()
 }
 
-func (p *Partition) ApplyPendingToWal() error {
-	fn := func(val []byte) ([]*storage.Entry, []byte, error) {
-		var state sgproto.MergeState
-		err := proto.Unmarshal(val, &state)
+func (p *Partition) storeMessages(msgs []*sgproto.Message) error {
+	index := p.lastIndex
+
+	var entries []*storage.Entry
+	for _, msg := range msgs {
+		msg.Index = p.lastIndex
+		msg.Offset = sgproto.NewOffset(msg.Index, msg.ProducedAt.Add(msg.ConsumeIn))
+		val, err := proto.Marshal(msg)
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
-
-		entries := []*storage.Entry{}
-		for _, msg := range state.Messages {
-			//    t.bf.Add(storagekey)
-			//    t.ibf.Add(storagekey)
-			// entries = append(entries, &storage.Entry{
-			// 	Key:   storagekey,
-			// 	Value: val,
-			// })
-			p.lastIndex++
-			msg.Index = p.lastIndex
-			msg.Offset = sgproto.NewOffset(msg.Index, msg.ProducedAt.Add(msg.ConsumeIn))
-			val, err := proto.Marshal(msg)
-			if err != nil {
-				return nil, nil, err
-			}
-			entries = append(entries, &storage.Entry{
-				Key:   p.newWALKey(msg),
-				Value: val,
-			})
-		}
-
-		operation, err := proto.Marshal(&sgproto.MergeOperation{
-			Operation: sgproto.MergeOperation_CUT,
-			N:         int32(len(state.Messages)),
+		entries = append(entries, &storage.Entry{
+			Key:   p.newWALKey(msg),
+			Value: val,
 		})
-		if err != nil {
-			return nil, nil, err
-		}
 
-		if len(entries) == 0 {
-			return nil, nil, nil
-		}
-
-		return entries, operation, nil
+		index++
 	}
 
-	return p.db.ProcessMergedKey(p.pendingKey, fn)
+	if len(entries) == 0 {
+		return nil
+	}
+
+	if err := p.db.BatchPut(entries); err != nil {
+		return err
+	}
+
+	p.lastIndex = index
+	return nil
 }
 
 func (p *Partition) WalToView(start, end uint64) error {
@@ -321,20 +277,18 @@ func (t *Partition) BatchPutMessages(msgs []*sgproto.Message) error {
 
 	now := time.Now().UTC()
 
-	var mo sgproto.MergeOperation
-	mo.Operation = sgproto.MergeOperation_APPEND
-
 	for _, msg := range msgs {
 		msg.ProducedAt = now
 	}
-	mo.Messages = msgs
 
-	b, err := proto.Marshal(&mo)
-	if err != nil {
-		return err
+	req := &incommingRequest{
+		messages: msgs,
+		resp:     make(chan error, 1),
 	}
 
-	return t.db.Merge(t.pendingKey, b)
+	t.incomming <- req
+
+	return <-req.resp
 }
 
 func (p *Partition) WALBatchPutMessages(msgs []*sgproto.Message) error {
