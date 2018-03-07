@@ -1,7 +1,6 @@
 package broker
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/topic"
 )
 
@@ -108,7 +106,7 @@ func (b *Broker) GetMarkStateMessage(ctx context.Context, req *sgproto.GetMarkRe
 		return res, nil
 	}
 
-	key := generatePrefixConsumerOffsetKey(pk, req.Offset)
+	key := generatePrefixConsumerOffsetKey(req.Topic, req.Partition, req.ConsumerGroup, req.Offset)
 
 	msg, err := p.GetMessage(sgproto.Nil, key, nil)
 	if err != nil {
@@ -151,17 +149,25 @@ func (b *Broker) isAcknoweldged(ctx context.Context, topicName, partition, consu
 }
 
 func partitionKey(topicName, partitionName, consumerGroup string) []byte {
-	return bytes.Join([][]byte{
-		[]byte("offsets"),
-		[]byte(topicName),
-		[]byte(partitionName),
-		[]byte(consumerGroup),
-	}, storage.Separator)
+	b, err := proto.Marshal(&sgproto.MarkedOffsetStorageKey{
+		Prefix:        "offsets",
+		Topic:         topicName,
+		Partition:     partitionName,
+		ConsumerGroup: consumerGroup,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
 
 func generateClusterKey(offset sgproto.Offset, kind sgproto.MarkKind) []byte {
-	return bytes.Join([][]byte{
-		offset.Bytes(),
-		[]byte{byte(kind)},
-	}, storage.Separator)
+	b, err := proto.Marshal(&sgproto.MarkedOffsetStorageKey{
+		Offset: &offset,
+		Kind:   kind,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return b
 }

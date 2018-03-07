@@ -1,16 +1,15 @@
 package broker
 
 import (
-	"bytes"
 	"context"
 	"io"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
 
 	"google.golang.org/grpc/codes"
 
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/topic"
 	"github.com/grpc/grpc-go/status"
 )
@@ -173,9 +172,16 @@ func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.P
 	return p.HasKey(key, clusterKey)
 }
 
-func generatePrefixConsumerOffsetKey(partitionKey []byte, offset sgproto.Offset) []byte {
-	return bytes.Join([][]byte{
-		partitionKey,
-		offset.Bytes(),
-	}, storage.Separator)
+func generatePrefixConsumerOffsetKey(topicName, partitionName, consumerGroup string, offset sgproto.Offset) []byte {
+	b, err := proto.Marshal(&sgproto.MarkedOffsetStorageKey{
+		Prefix:        "offsets",
+		Topic:         topicName,
+		Partition:     partitionName,
+		ConsumerGroup: consumerGroup,
+		Offset:        &offset,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
