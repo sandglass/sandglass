@@ -33,10 +33,12 @@
 			"revisionTime": "2017-12-28T22:56:34Z"
 		},
 		{
-			"checksumSHA1": "r1qn1qHfmSA/vnL/n0neok3x0qI=",
+			"checksumSHA1": "8ATUzNKLnGJ1Hbp9iUI00yB5U5M=",
 			"path": "github.com/celrenheit/sandglass-grpc/go/sgproto",
-			"revision": "34b094d625c35cd5236db750e6c24984a2cf58b4",
-			"revisionTime": "2018-02-24T19:50:50Z"
+			"revision": "dcddd117b966c63b56c7e15fd546f56aeffe299d",
+			"revisionTime": "2018-03-07T20:09:36Z",
+			"version": "feature/change-offset",
+			"versionExact": "feature/change-offset"
 		},
 		{
 			"checksumSHA1": "Zlk5zPiw+3u9pyy4kNThpKDaYmE=",
