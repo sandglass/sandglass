@@ -177,10 +177,11 @@ func TestACK(t *testing.T) {
 
 	b := brokers[2]
 
-	syncAndAdvance(t, brokers)
-
-	offset := sgproto.NewOffset(1, time.Now())
+	date := time.Now()
+	offset := sgproto.NewOffset(1, date)
 	ack(t, b, topic.Name, topic.Partitions[0].Id, "group1", offset)
+
+	syncAndAdvance(t, brokers)
 
 	got := lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Commited)
@@ -190,8 +191,10 @@ func TestACK(t *testing.T) {
 		sgproto.MarkKind_Acknowledged)
 	require.Equal(t, offset, got)
 
-	offset2 := sgproto.NewOffset(2, time.Now())
+	offset2 := sgproto.NewOffset(2, date)
 	commit(t, b, topic.Name, topic.Partitions[0].Id, "group1", offset2)
+
+	syncAndAdvance(t, brokers)
 
 	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
 		sgproto.MarkKind_Commited)
@@ -272,6 +275,7 @@ func TestConsume(t *testing.T) {
 	require.Equal(t, 30, count)
 	require.Equal(t, want, got)
 
+	syncAndAdvance(t, brokers)
 	for i := 0; i < 20; i++ {
 		res, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
 			Topic:     "payments",
@@ -299,6 +303,8 @@ func TestConsume(t *testing.T) {
 	require.Equal(t, 20, count)
 	require.Equal(t, want, got)
 
+	syncAndAdvance(t, brokers)
+
 	count = 0
 	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
 		count++
@@ -306,6 +312,8 @@ func TestConsume(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, 0, count)
+
+	syncAndAdvance(t, brokers)
 
 	broker.RedeliveryTimeout = 100 * time.Millisecond // this should trigger redelivery
 	broker.MaxRedeliveryCount = 3
@@ -320,9 +328,9 @@ func TestConsume(t *testing.T) {
 		})
 		require.Nil(t, err)
 		require.Equal(t, 20, count)
-	}
 
-	time.Sleep(150 * time.Millisecond)
+		syncAndAdvance(t, brokers)
+	}
 
 	count = 0
 	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {

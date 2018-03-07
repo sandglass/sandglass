@@ -123,12 +123,14 @@ func (p *Partition) applyPendingToWalLoop() {
 }
 
 func (p *Partition) storeMessages(msgs []*sgproto.Message) error {
-	index := p.lastIndex
+	index := p.lastIndex + 1
 
 	var entries []*storage.Entry
 	for _, msg := range msgs {
-		msg.Index = p.lastIndex
-		msg.Offset = sgproto.NewOffset(msg.Index, msg.ProducedAt.Add(msg.ConsumeIn))
+		msg.Index = index
+		if msg.Offset == sgproto.Nil {
+			msg.Offset = sgproto.NewOffset(msg.Index, msg.ProducedAt.Add(msg.ConsumeIn))
+		}
 		val, err := proto.Marshal(msg)
 		if err != nil {
 			return err
@@ -149,7 +151,7 @@ func (p *Partition) storeMessages(msgs []*sgproto.Message) error {
 		return err
 	}
 
-	p.lastIndex = index
+	p.lastIndex += uint64(len(msgs))
 	return nil
 }
 

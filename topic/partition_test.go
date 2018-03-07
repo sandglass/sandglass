@@ -37,9 +37,6 @@ func TestTimerStorage(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	err = p.ApplyPendingToWal()
-	require.Nil(t, err)
-
 	err = p.WalToView(0, math.MaxUint64)
 	require.Nil(t, err)
 
@@ -71,9 +68,6 @@ func TestKVStorage(t *testing.T) {
 		Key:    key,
 		Value:  value,
 	})
-	require.Nil(t, err)
-
-	err = p.ApplyPendingToWal()
 	require.Nil(t, err)
 
 	err = p.WalToView(0, math.MaxUint64)
@@ -108,9 +102,6 @@ func TestLastMessage(t *testing.T) {
 		Key:    key,
 		Value:  value,
 	})
-	require.Nil(t, err)
-
-	err = p.ApplyPendingToWal()
 	require.Nil(t, err)
 
 	err = p.WalToView(0, math.MaxUint64)
