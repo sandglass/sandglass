@@ -64,6 +64,10 @@ func (b *Broker) fetchFromSync(topicName, partition string, from []byte, fn func
 	}
 
 	p := topic.GetPartition(partition)
+	if p == nil {
+		return ErrPartitionNotFound
+	}
+
 	return p.RangeFromWAL(from, fn)
 }
 
