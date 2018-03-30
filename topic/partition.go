@@ -400,8 +400,8 @@ func (p *Partition) getMessageByStorageKey(k []byte) (*sgproto.Message, error) {
 }
 
 func joinKeys(key, clusterKey []byte) []byte {
-	b := make([]byte, len(key)+len(clusterKey))
-	copy(b[:len(key)], key)
-	copy(b[len(key):], clusterKey)
-	return b
+	return bytes.Join([][]byte{
+		key,
+		clusterKey,
+	}, storage.Separator)
 }
