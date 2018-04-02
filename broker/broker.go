@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	ConsumerOffsetTopicName = "consumer_offsets"
+	ConsumerOffsetTopicName = "__consumer_offsets"
 )
 
 var DefaultStateCheckInterval = 1 * time.Second
