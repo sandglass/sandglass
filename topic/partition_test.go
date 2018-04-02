@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/celrenheit/sandglass/storage"
+	"github.com/celrenheit/sandglass/storage/rocksdb"
+
 	"io/ioutil"
 
 	"os"
@@ -24,7 +27,7 @@ func TestTimerStorage(t *testing.T) {
 	require.Nil(t, err)
 	defer os.RemoveAll(dir)
 
-	err = p.InitStore(dir)
+	err = p.InitStore(mustNewStore(t, dir))
 	require.Nil(t, err)
 
 	key := []byte("batman")
@@ -57,7 +60,7 @@ func TestKVStorage(t *testing.T) {
 	require.Nil(t, err)
 	defer os.RemoveAll(dir)
 
-	err = p.InitStore(dir)
+	err = p.InitStore(mustNewStore(t, dir))
 	require.Nil(t, err)
 
 	key := []byte("batman")
@@ -91,7 +94,7 @@ func TestLastMessage(t *testing.T) {
 	require.Nil(t, err)
 	defer os.RemoveAll(dir)
 
-	err = p.InitStore(dir)
+	err = p.InitStore(mustNewStore(t, dir))
 	require.Nil(t, err)
 
 	key := []byte("batman")
@@ -132,7 +135,7 @@ func BenchmarkStorageDrivers(b *testing.B) {
 			require.Nil(b, err)
 			defer os.RemoveAll(dir)
 
-			err = p.InitStore(dir)
+			err = p.InitStore(mustNewStore(b, dir))
 			require.Nil(b, err)
 			// defer p.Close()
 
@@ -181,4 +184,10 @@ func BenchmarkStorageDrivers(b *testing.B) {
 			})
 		})
 	}
+}
+
+func mustNewStore(tb testing.TB, dir string) storage.Storage {
+	s, err := rocksdb.NewStorage(dir)
+	require.NoError(tb, err)
+	return s
 }
