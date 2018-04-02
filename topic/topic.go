@@ -171,18 +171,18 @@ func (t *Topic) Close() error {
 	return t.db.Close()
 }
 
-func (t *Topic) ForEach(fn func(msg *sgproto.Message) error) error {
-	return t.ForRange(sgproto.Nil, sgproto.MaxOffset, fn)
+func (t *Topic) ForEach(channel string, fn func(msg *sgproto.Message) error) error {
+	return t.ForRange(channel, sgproto.Nil, sgproto.MaxOffset, fn)
 }
 
-func (t *Topic) ForRange(min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error {
+func (t *Topic) ForRange(channel string, min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error {
 	// FIXME
 	var mu sync.Mutex
 	var group errgroup.Group
 	for _, p := range t.Partitions {
 		p := p
 		group.Go(func() error {
-			return p.ForRange(min, max, func(msg *sgproto.Message) error {
+			return p.ForRange(channel, min, max, func(msg *sgproto.Message) error {
 				mu.Lock()
 				err := fn(msg)
 				mu.Unlock()

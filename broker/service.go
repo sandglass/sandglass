@@ -47,7 +47,7 @@ func (b *Broker) FetchRange(req *sgproto.FetchRangeRequest, stream sgproto.Broke
 }
 
 func (b *Broker) ConsumeFromGroup(req *sgproto.ConsumeFromGroupRequest, stream sgproto.BrokerService_ConsumeFromGroupServer) error {
-	return b.Consume(stream.Context(), req.Topic, req.Partition, req.ConsumerGroupName, req.ConsumerName, func(msg *sgproto.Message) error {
+	return b.Consume(stream.Context(), req, func(msg *sgproto.Message) error {
 		return stream.Send(msg)
 	})
 }
@@ -57,7 +57,7 @@ func (b *Broker) GetByKey(ctx context.Context, req *sgproto.GetRequest) (*sgprot
 		return nil, fmt.Errorf("can only be used with a key")
 	}
 
-	return b.Get(ctx, req.Topic, req.Partition, req.Key)
+	return b.Get(ctx, req)
 }
 
 func (b *Broker) HasKey(ctx context.Context, req *sgproto.GetRequest) (*sgproto.HasResponse, error) {
@@ -65,7 +65,7 @@ func (b *Broker) HasKey(ctx context.Context, req *sgproto.GetRequest) (*sgproto.
 		return nil, fmt.Errorf("can only be used with a key")
 	}
 
-	exists, err := b.hasKey(ctx, req.Topic, req.Partition, req.Key, req.ClusteringKey)
+	exists, err := b.hasKey(ctx, req.Topic, req.Partition, req.Channel, req.Key, req.ClusteringKey)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (b *Broker) Mark(ctx context.Context, req *sgproto.MarkRequest) (*sgproto.M
 }
 
 func (b *Broker) LastOffset(ctx context.Context, req *sgproto.LastOffsetRequest) (*sgproto.LastOffsetReply, error) {
-	offset, err := b.lastOffset(ctx, req.Topic, req.Partition, req.ConsumerGroup, req.Kind)
+	offset, err := b.lastOffset(ctx, req.Topic, req.Partition, req.Channel, req.ConsumerGroup, req.Kind)
 	return &sgproto.LastOffsetReply{
 		Offset: offset,
 	}, err

@@ -2,6 +2,7 @@ package broker
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -26,17 +27,19 @@ type ConsumerGroup struct {
 	broker    *Broker
 	topic     string
 	partition string
+	channel   string
 	name      string
 	mu        sync.RWMutex
 	receivers []*receiver
 	logger    *logrus.Entry
 }
 
-func NewConsumerGroup(b *Broker, topic, partition, name string) *ConsumerGroup {
+func NewConsumerGroup(b *Broker, topic, partition, channel, name string) *ConsumerGroup {
 	return &ConsumerGroup{
 		broker:    b,
 		name:      name,
 		topic:     topic,
+		channel:   channel,
 		partition: partition,
 		logger: b.WithFields(logrus.Fields{
 			"topic":          topic,
@@ -85,14 +88,14 @@ func (c *ConsumerGroup) consumeLoop() {
 		c.receivers = c.receivers[:0]
 		c.mu.Unlock()
 	}()
-
-	lastCommited, err := c.broker.lastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Commited)
+	fmt.Println("consumeLoop", c.topic, c.partition, c.channel)
+	lastCommited, err := c.broker.lastOffset(context.TODO(), c.topic, c.partition, c.channel, c.name, sgproto.MarkKind_Commited)
 	if err != nil {
 		c.logger.WithError(err).Debugf("got error when fetching last committed offset")
 		return
 	}
 
-	lastConsumed, err := c.broker.lastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Consumed)
+	lastConsumed, err := c.broker.lastOffset(context.TODO(), c.topic, c.partition, c.channel, c.name, sgproto.MarkKind_Consumed)
 	if err != nil {
 		c.logger.WithError(err).Debugf("got error when fetching last consumed offset")
 		return
@@ -110,6 +113,7 @@ func (c *ConsumerGroup) consumeLoop() {
 			req := &sgproto.FetchRangeRequest{
 				Topic:     c.topic,
 				Partition: c.partition,
+				Channel:   c.channel,
 				From:      lastCommited,
 				To:        lastConsumed,
 			}
@@ -118,6 +122,7 @@ func (c *ConsumerGroup) consumeLoop() {
 				_, err := c.broker.Commit(context.TODO(), &sgproto.MarkRequest{
 					Topic:         c.topic,
 					Partition:     c.partition,
+					Channel:       c.channel,
 					ConsumerGroup: c.name,
 					Offsets:       []sgproto.Offset{lastMessage.Offset},
 				})
@@ -137,6 +142,7 @@ func (c *ConsumerGroup) consumeLoop() {
 				markedMsg, err := c.broker.GetMarkStateMessage(context.TODO(), &sgproto.GetMarkRequest{
 					Topic:         c.topic,
 					Partition:     c.partition,
+					Channel:       c.channel,
 					ConsumerGroup: c.name,
 					Offset:        m.Offset,
 				})
@@ -179,6 +185,7 @@ func (c *ConsumerGroup) consumeLoop() {
 						_, err := c.broker.Mark(context.Background(), &sgproto.MarkRequest{
 							Topic:         c.topic,
 							Partition:     c.partition,
+							Channel:       c.channel,
 							ConsumerGroup: c.name,
 							Offsets:       []sgproto.Offset{m.Offset},
 							State: &sgproto.MarkState{
@@ -209,6 +216,7 @@ func (c *ConsumerGroup) consumeLoop() {
 						p := t.ChoosePartitionForKey(markedMsg.Key)
 						markedMsg.ClusteringKey = generateClusterKey(m.Offset, state.Kind)
 
+						// TODO: should we add channel here
 						if _, err := c.broker.Produce(context.TODO(), &sgproto.ProduceMessageRequest{
 							Topic:     ConsumerOffsetTopicName,
 							Partition: p.Id,
@@ -237,6 +245,7 @@ func (c *ConsumerGroup) consumeLoop() {
 		req := &sgproto.FetchRangeRequest{
 			Topic:     c.topic,
 			Partition: c.partition,
+			Channel:   c.channel,
 			From:      lastConsumed,
 			To:        now,
 		}

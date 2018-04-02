@@ -60,7 +60,7 @@ func (b *Broker) mark(ctx context.Context, req *sgproto.MarkRequest) (bool, erro
 	return res != nil, err
 }
 
-func (b *Broker) lastOffset(ctx context.Context, topicName, partitionName, consumerGroup string, kind sgproto.MarkKind) (sgproto.Offset, error) {
+func (b *Broker) lastOffset(ctx context.Context, topicName, partitionName, channel string, consumerGroup string, kind sgproto.MarkKind) (sgproto.Offset, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
 	pk := partitionKey(topicName, partitionName, consumerGroup)
 	p := topic.ChoosePartitionForKey(pk)
@@ -86,7 +86,7 @@ func (b *Broker) lastOffset(ctx context.Context, topicName, partitionName, consu
 
 	lastKind := byte(kind)
 
-	return b.last(p, pk, lastKind)
+	return b.last(p, channel, pk, lastKind)
 }
 
 func (b *Broker) GetMarkStateMessage(ctx context.Context, req *sgproto.GetMarkRequest) (*sgproto.Message, error) {
@@ -110,7 +110,7 @@ func (b *Broker) GetMarkStateMessage(ctx context.Context, req *sgproto.GetMarkRe
 
 	key := generatePrefixConsumerOffsetKey(pk, req.Offset)
 
-	msg, err := p.GetMessage(sgproto.Nil, key, nil)
+	msg, err := p.GetMessage(req.Channel, sgproto.Nil, key, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -122,8 +122,8 @@ func (b *Broker) GetMarkStateMessage(ctx context.Context, req *sgproto.GetMarkRe
 	return msg, nil
 }
 
-func (b *Broker) last(p *topic.Partition, pk []byte, kind byte) (sgproto.Offset, error) {
-	msg, err := p.GetMessage(sgproto.Nil, pk, []byte{kind})
+func (b *Broker) last(p *topic.Partition, channel string, pk []byte, kind byte) (sgproto.Offset, error) {
+	msg, err := p.GetMessage(channel, sgproto.Nil, pk, []byte{kind})
 	if err != nil {
 		return sgproto.Nil, err
 	}
@@ -139,7 +139,7 @@ func (b *Broker) last(p *topic.Partition, pk []byte, kind byte) (sgproto.Offset,
 	return msg.Offset, nil
 }
 
-func (b *Broker) isAcknoweldged(ctx context.Context, topicName, partition, consumerGroup string, offset sgproto.Offset) (bool, error) {
+func (b *Broker) isAcknoweldged(ctx context.Context, topicName, partition, channel string, consumerGroup string, offset sgproto.Offset) (bool, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
 	if topic == nil {
 		return false, ErrTopicNotFound
@@ -147,7 +147,7 @@ func (b *Broker) isAcknoweldged(ctx context.Context, topicName, partition, consu
 	pk := partitionKey(topicName, partition, consumerGroup)
 	p := topic.ChoosePartitionForKey(pk)
 	clusterKey := generateClusterKey(offset, sgproto.MarkKind_Acknowledged)
-	return b.hasKeyInPartition(ctx, ConsumerOffsetTopicName, p, pk, clusterKey)
+	return b.hasKeyInPartition(ctx, ConsumerOffsetTopicName, p, channel, pk, clusterKey)
 }
 
 func partitionKey(topicName, partitionName, consumerGroup string) []byte {

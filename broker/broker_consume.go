@@ -11,13 +11,13 @@ import (
 	"github.com/celrenheit/sandglass/storage"
 )
 
-func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGroup, consumerName string, fn func(msg *sgproto.Message) error) error {
+func (b *Broker) Consume(ctx context.Context, req *sgproto.ConsumeFromGroupRequest, fn func(msg *sgproto.Message) error) error {
 	offsetTopic := b.getTopic(ConsumerOffsetTopicName)
 	if offsetTopic == nil {
 		return ErrTopicNotFound
 	}
 
-	pk := partitionKey(topicName, partition, consumerGroup)
+	pk := partitionKey(req.Topic, req.Partition, req.ConsumerGroupName)
 	offsetPartition := offsetTopic.ChoosePartitionForKey(pk)
 	if offsetPartition == nil {
 		return ErrPartitionNotFound
@@ -28,7 +28,7 @@ func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGrou
 		return ErrNoLeaderFound
 	}
 
-	topic := b.getTopic(topicName)
+	topic := b.getTopic(req.Topic)
 	if topic == nil {
 		return ErrTopicNotFound
 	}
@@ -37,12 +37,7 @@ func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGrou
 		b.WithFields(logrus.Fields{
 			"leader": leader.Name,
 		}).Debugf("consuming from remote")
-		stream, err := leader.ConsumeFromGroup(ctx, &sgproto.ConsumeFromGroupRequest{
-			Topic:             topicName,
-			Partition:         partition,
-			ConsumerGroupName: consumerGroup,
-			ConsumerName:      consumerName,
-		})
+		stream, err := leader.ConsumeFromGroup(ctx, req)
 		if err != nil {
 			return err
 		}
@@ -64,12 +59,12 @@ func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGrou
 		return nil
 	}
 
-	p := topic.GetPartition(partition)
+	p := topic.GetPartition(req.Partition)
 	if p == nil {
 		return ErrPartitionNotFound
 	}
-	cg := b.getConsumerGroup(topicName, partition, consumerGroup)
-	msgCh, closeCh, err := cg.Consume(consumerName)
+	cg := b.getConsumerGroup(req.Topic, req.Partition, req.Channel, req.ConsumerGroupName)
+	msgCh, closeCh, err := cg.Consume(req.ConsumerName)
 	if err != nil {
 		return err
 	}
@@ -84,8 +79,8 @@ func (b *Broker) Consume(ctx context.Context, topicName, partition, consumerGrou
 	return nil
 }
 
-func (b *Broker) getConsumerGroup(topicName, partition string, name string) *ConsumerGroup {
-	key := strings.Join([]string{topicName, partition, name}, string(storage.Separator))
+func (b *Broker) getConsumerGroup(topicName, partition, channel string, name string) *ConsumerGroup {
+	key := strings.Join([]string{topicName, partition, channel, name}, string(storage.Separator))
 	c := b.getConsumer(key)
 	if c != nil {
 		return c
@@ -94,7 +89,7 @@ func (b *Broker) getConsumerGroup(topicName, partition string, name string) *Con
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	c = NewConsumerGroup(b, topicName, partition, name)
+	c = NewConsumerGroup(b, topicName, partition, channel, name)
 	b.consumers[key] = c
 
 	return c
