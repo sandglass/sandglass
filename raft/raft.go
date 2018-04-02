@@ -62,6 +62,7 @@ type Store struct {
 	reconcileCh chan serf.Member
 
 	transport *raft.NetworkTransport
+	topicsDir string
 }
 
 type state struct {
@@ -88,6 +89,7 @@ func New(conf Config, logger *logrus.Entry) *Store {
 		newTopicChan:     make(chan *topic.Topic, 10),
 		leaderChangeChan: make(chan bool, 10),
 		shutdownCh:       make(chan struct{}),
+		topicsDir:        filepath.Join(conf.Dir, "topics"),
 	}
 }
 
@@ -129,12 +131,13 @@ func (s *Store) Init(bootstrap bool, serf *serf.Serf, reconcileCh chan serf.Memb
 	}
 	s.transport = transport
 
-	snapshots, err := raft.NewFileSnapshotStore(s.conf.Dir, retainSnapshotCount, os.Stderr)
+	raftDir := filepath.Join(s.conf.Dir, "raft")
+	snapshots, err := raft.NewFileSnapshotStore(raftDir, retainSnapshotCount, os.Stderr)
 	if err != nil {
 		return err
 	}
 
-	logStore, err := raftboltdb.NewBoltStore(filepath.Join(s.conf.Dir, "raft.db"))
+	logStore, err := raftboltdb.NewBoltStore(filepath.Join(raftDir, "raft.db"))
 	if err != nil {
 		return err
 	}
@@ -468,7 +471,7 @@ func (f *fsm) applySetTopic(b []byte) error {
 	f.logger.Debugf("applyCreateTopic %v", t.Name)
 
 	if !f.HasTopic(t.Name) {
-		err := t.InitStore(f.conf.Dir)
+		err := t.InitStore(f.topicsDir)
 		if err != nil {
 			return err
 		}
@@ -524,7 +527,7 @@ func (f *fsm) Restore(rc io.ReadCloser) error {
 
 	f.state = restoredState
 	for _, t := range f.state.Topics {
-		if err := t.InitStore(f.conf.Dir); err != nil {
+		if err := t.InitStore(f.topicsDir); err != nil {
 			return err
 		}
 	}

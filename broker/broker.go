@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -318,7 +319,7 @@ func (b *Broker) Bootstrap() error {
 		Name:     b.conf.Name,
 		BindAddr: net.JoinHostPort(b.conf.BindAddr, b.conf.RaftPort),
 		AdvAddr:  net.JoinHostPort(advAddr, b.conf.RaftPort),
-		Dir:      b.conf.DBPath,
+		Dir:      filepath.Join(b.conf.DBPath, "data"),
 	}, b.Entry)
 
 	if err := b.raft.Init(b.conf.BootstrapRaft, cluster, b.reconcileCh); err != nil {
