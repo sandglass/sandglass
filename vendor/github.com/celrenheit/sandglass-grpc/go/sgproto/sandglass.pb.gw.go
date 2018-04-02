@@ -199,6 +199,10 @@ func request_BrokerService_ConsumeFromGroup_0(ctx context.Context, marshaler run
 
 }
 
+var (
+	filter_BrokerService_ConsumeFromGroup_1 = &utilities.DoubleArray{Encoding: map[string]int{"topic": 0, "partition": 1, "consumerGroupName": 2, "consumerName": 3}, Base: []int{1, 1, 2, 3, 4, 0, 0, 0, 0}, Check: []int{0, 1, 1, 1, 1, 2, 3, 4, 5}}
+)
+
 func request_BrokerService_ConsumeFromGroup_1(ctx context.Context, marshaler runtime.Marshaler, client BrokerServiceClient, req *http.Request, pathParams map[string]string) (BrokerService_ConsumeFromGroupClient, runtime.ServerMetadata, error) {
 	var protoReq ConsumeFromGroupRequest
 	var metadata runtime.ServerMetadata
@@ -252,6 +256,10 @@ func request_BrokerService_ConsumeFromGroup_1(ctx context.Context, marshaler run
 
 	if err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "consumerName", err)
+	}
+
+	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_BrokerService_ConsumeFromGroup_1); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
 	stream, err := client.ConsumeFromGroup(ctx, &protoReq)
