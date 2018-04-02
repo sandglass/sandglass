@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -17,10 +16,7 @@ import (
 	"github.com/celrenheit/sandflake"
 
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/sgutils"
 	"github.com/celrenheit/sandglass/storage"
-	"github.com/celrenheit/sandglass/storage/badger"
-	"github.com/celrenheit/sandglass/storage/rocksdb"
 	"github.com/celrenheit/sandglass/storage/scommons"
 	"github.com/gogo/protobuf/proto"
 	"github.com/willf/bloom"
@@ -57,32 +53,14 @@ type incommingRequest struct {
 	resp     chan error
 }
 
-func (t *Partition) InitStore(basePath string) error {
+func (t *Partition) InitStore(db storage.Storage) error {
 	t.logger = logrus.WithFields(logrus.Fields{
 		"component": "partition",
 		"partition": t.Id,
 	})
 	t.bf = bloom.NewWithEstimates(1e3, 1e-2)
 	t.ibf = boom.NewInverseBloomFilter(1e3)
-	msgdir := filepath.Join(basePath, t.Id)
-	if err := sgutils.MkdirIfNotExist(msgdir); err != nil {
-		return err
-	}
-
-	var err error
-	switch t.topic.StorageDriver {
-	case sgproto.StorageDriver_Badger:
-		t.db, err = badger.NewStorage(msgdir)
-	case sgproto.StorageDriver_RocksDB:
-		t.db, err = rocksdb.NewStorage(msgdir)
-	default:
-		return fmt.Errorf("unknown storage driver: %v for topic: %v", t.topic.StorageDriver, t.topic.Name)
-	}
-	if err != nil {
-		return err
-	}
-
-	t.basepath = basePath
+	t.db = db
 
 	var index uint64
 	msg, err := t.EndOfLog()
@@ -355,7 +333,7 @@ func (p *Partition) Close() error {
 		p.cancelPending()
 	}
 	p.wg.Wait()
-	return p.db.Close()
+	return nil
 }
 
 func (p *Partition) Iter() storage.MessageIterator {
