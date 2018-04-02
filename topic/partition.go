@@ -41,8 +41,7 @@ type Partition struct {
 	bf  *bloom.BloomFilter // TODO: persist bloom filter
 	ibf boom.Filter
 
-	lastIndex  uint64
-	pendingKey []byte
+	lastIndex uint64
 
 	ctxPending    context.Context
 	cancelPending context.CancelFunc
@@ -69,8 +68,6 @@ func (t *Partition) InitStore(basePath string) error {
 	if err := sgutils.MkdirIfNotExist(msgdir); err != nil {
 		return err
 	}
-
-	t.pendingKey = scommons.PrependPrefix(scommons.PendingPrefix, []byte{0})
 
 	var err error
 	switch t.topic.StorageDriver {
@@ -157,7 +154,7 @@ func (p *Partition) storeMessages(msgs []*sgproto.Message) error {
 
 func (p *Partition) WalToView(start, end uint64) error {
 	entries := []*storage.Entry{}
-	err := p.db.ForRangeWAL(start, end, func(msg *sgproto.Message) error {
+	err := p.db.ForRangeWAL(p.prependPrefixWAL(), start, end, func(msg *sgproto.Message) error {
 		storagekey := p.getStorageKey(msg)
 
 		b, err := proto.Marshal(msg)
@@ -196,13 +193,13 @@ func (t *Partition) getStorageKey(msg *sgproto.Message) []byte {
 	default:
 		panic("INVALID STORAGE KIND: " + t.topic.Kind.String())
 	}
-	return scommons.PrependPrefix(scommons.ViewPrefix, storekey)
+	return t.prependPrefixView(storekey)
 }
 
 func (s *Partition) GetMessage(offset sgproto.Offset, k, suffix []byte) (*sgproto.Message, error) {
 	switch s.topic.Kind {
 	case sgproto.TopicKind_TimerKind:
-		val, err := s.db.Get(scommons.PrependPrefix(scommons.ViewPrefix, offset[:]))
+		val, err := s.db.Get(s.prependPrefixView(offset[:]))
 		if err != nil {
 			return nil, err
 		}
@@ -215,7 +212,7 @@ func (s *Partition) GetMessage(offset sgproto.Offset, k, suffix []byte) (*sgprot
 
 		return &msg, nil
 	case sgproto.TopicKind_KVKind:
-		val := s.db.LastKVForPrefix(scommons.PrependPrefix(scommons.ViewPrefix, k), suffix)
+		val := s.db.LastKVForPrefix(s.prependPrefixView(k), suffix)
 		if val == nil {
 			return nil, nil
 		}
@@ -232,6 +229,16 @@ func (s *Partition) GetMessage(offset sgproto.Offset, k, suffix []byte) (*sgprot
 	}
 }
 
+func (s *Partition) prependPrefixView(keys ...[]byte) []byte {
+	base := [][]byte{scommons.ViewPrefix, []byte(s.topic.Name), []byte(s.Id)}
+	return scommons.Join(append(base, keys...)...)
+}
+
+func (s *Partition) prependPrefixWAL(keys ...[]byte) []byte {
+	base := [][]byte{scommons.WalPrefix, []byte(s.topic.Name), []byte(s.Id)}
+	return scommons.Join(append(base, keys...)...)
+}
+
 func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 	switch t.topic.Kind {
 	case sgproto.TopicKind_KVKind:
@@ -240,7 +247,7 @@ func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 	}
 
 	pk := joinKeys(key, clusterKey)
-	existKey := scommons.PrependPrefix(scommons.ViewPrefix, pk)
+	existKey := t.prependPrefixView(pk)
 
 	if t.ibf.Test(existKey) {
 		return true, nil
@@ -265,7 +272,7 @@ func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 func (t *Partition) newWALKey(msg *sgproto.Message) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, msg.Index)
-	return bytes.Join([][]byte{scommons.WalPrefix, b}, storage.Separator)
+	return t.prependPrefixWAL(b)
 }
 
 func (t *Partition) PutMessage(msg *sgproto.Message) error {
@@ -318,12 +325,12 @@ func (p *Partition) ForRange(min, max sgproto.Offset, fn func(msg *sgproto.Messa
 	var lastKey []byte
 	switch p.topic.Kind {
 	case sgproto.TopicKind_TimerKind:
-		return p.db.ForRange(min, max, func(msg *sgproto.Message) error {
+		return p.db.ForRange(p.prependPrefixView(), min, max, func(msg *sgproto.Message) error {
 			err := fn(msg)
 			return err
 		})
 	case sgproto.TopicKind_KVKind:
-		it := scommons.NewMessageIterator(p.db, &storage.IterOptions{
+		it := scommons.NewMessageIterator(p.prependPrefixView(), p.db, &storage.IterOptions{
 			FetchValues: true,
 			Reverse:     true,
 		})
@@ -352,22 +359,22 @@ func (p *Partition) Close() error {
 }
 
 func (p *Partition) Iter() storage.MessageIterator {
-	return scommons.NewMessageIterator(p.db, &storage.IterOptions{
+	return scommons.NewMessageIterator(p.prependPrefixView(), p.db, &storage.IterOptions{
 		FetchValues: true,
 		Reverse:     false,
 	})
 }
 
 func (p *Partition) RangeFromWAL(min []byte, fn func(*sgproto.Message) error) error {
-	return p.db.ForEachWALEntry(min, fn)
+	return p.db.ForEachWALEntry(p.prependPrefixWAL(), min, fn)
 }
 
 func (p *Partition) LastWALEntry() []byte {
-	return p.db.LastKeyForPrefix(scommons.WalPrefix)
+	return p.db.LastKeyForPrefix(p.prependPrefixWAL())
 }
 
 func (p *Partition) EndOfLog() (*sgproto.Message, error) {
-	value := p.db.LastKVForPrefix(scommons.WalPrefix, nil)
+	value := p.db.LastKVForPrefix(p.prependPrefixWAL(), nil)
 	if len(value) == 0 {
 		return nil, nil
 	}

@@ -63,12 +63,12 @@ func (s *StorageCommons) LastKVForPrefix(prefix, suffix []byte) []byte {
 	return nil
 }
 
-func (s *StorageCommons) ForEach(fn func(msg *sgproto.Message) error) error {
-	return s.ForRange(sgproto.Nil, sgproto.MaxOffset, fn)
+func (s *StorageCommons) ForEach(prefix []byte, fn func(msg *sgproto.Message) error) error {
+	return s.ForRange(prefix, sgproto.Nil, sgproto.MaxOffset, fn)
 }
 
-func (s *StorageCommons) ForRange(min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error {
-	it := NewMessageIterator(s, &storage.IterOptions{
+func (s *StorageCommons) ForRange(prefix []byte, min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error {
+	it := NewMessageIterator(prefix, s, &storage.IterOptions{
 		Reverse:     false,
 		FetchValues: true,
 	})
@@ -94,22 +94,22 @@ func (s *StorageCommons) ForRange(min, max sgproto.Offset, fn func(msg *sgproto.
 	return nil
 }
 
-func (s *StorageCommons) ForEachWALEntry(min []byte, fn func(msg *sgproto.Message) error) error {
+func (s *StorageCommons) ForEachWALEntry(prefix []byte, min []byte, fn func(msg *sgproto.Message) error) error {
 	it := s.Iter(&storage.IterOptions{
 		FetchValues: true,
 	})
 	defer it.Close()
 
 	if len(min) == 0 {
-		it.Seek(WalPrefix)
+		it.Seek(prefix)
 	} else {
 		it.Seek(min)
-		if it.ValidForPrefix(WalPrefix) && bytes.Compare(min, it.Item().Key) == 0 { // skipping first since it is already in the replica
+		if it.ValidForPrefix(prefix) && bytes.Compare(min, it.Item().Key) == 0 { // skipping first since it is already in the replica
 			it.Next()
 		}
 	}
 
-	for ; it.ValidForPrefix(WalPrefix); it.Next() {
+	for ; it.ValidForPrefix(prefix); it.Next() {
 		value := it.Item().Value
 
 		var msg sgproto.Message
@@ -125,7 +125,7 @@ func (s *StorageCommons) ForEachWALEntry(min []byte, fn func(msg *sgproto.Messag
 	return nil
 }
 
-func (s *StorageCommons) ForRangeWAL(min, max uint64, fn func(msg *sgproto.Message) error) error {
+func (s *StorageCommons) ForRangeWAL(prefix []byte, min, max uint64, fn func(msg *sgproto.Message) error) error {
 	it := s.Iter(&storage.IterOptions{
 		FetchValues: true,
 	})
@@ -135,20 +135,20 @@ func (s *StorageCommons) ForRangeWAL(min, max uint64, fn func(msg *sgproto.Messa
 		minKey, maxKey []byte
 	)
 	if min == 0 {
-		it.Seek(WalPrefix)
+		it.Seek(prefix)
 	} else {
 		minKey, maxKey = make([]byte, 8), make([]byte, 8)
 		binary.BigEndian.PutUint64(minKey[:], min)
 		binary.BigEndian.PutUint64(maxKey[:], max)
-		minKey = PrependPrefix(WalPrefix, minKey)
-		maxKey = PrependPrefix(WalPrefix, maxKey)
+		minKey = Join(prefix, minKey)
+		maxKey = Join(prefix, maxKey)
 		it.Seek(minKey)
-		if it.ValidForPrefix(WalPrefix) && bytes.Compare(minKey, it.Item().Key) == 0 { // skipping first since it is already in the replica
+		if it.ValidForPrefix(prefix) && bytes.Compare(minKey, it.Item().Key) == 0 { // skipping first since it is already in the replica
 			it.Next()
 		}
 	}
 
-	for ; it.ValidForPrefix(WalPrefix); it.Next() {
+	for ; it.ValidForPrefix(prefix); it.Next() {
 		if maxKey != nil && bytes.Compare(it.Item().Key, maxKey) > 0 {
 			break
 		}
@@ -167,6 +167,6 @@ func (s *StorageCommons) ForRangeWAL(min, max uint64, fn func(msg *sgproto.Messa
 	return nil
 }
 
-func PrependPrefix(prefix, key []byte) []byte {
-	return bytes.Join([][]byte{prefix, key}, storage.Separator)
+func Join(keys ...[]byte) []byte {
+	return bytes.Join(keys, storage.Separator)
 }

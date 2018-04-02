@@ -7,20 +7,21 @@ import (
 )
 
 type messageIter struct {
-	iter storage.Iterator
-	opts *storage.IterOptions
+	prefix []byte
+	iter   storage.Iterator
+	opts   *storage.IterOptions
 }
 
-func NewMessageIterator(s storage.Storage, opts *storage.IterOptions) storage.MessageIterator {
-	return &messageIter{s.Iter(opts), opts}
+func NewMessageIterator(prefix []byte, s storage.Storage, opts *storage.IterOptions) storage.MessageIterator {
+	return &messageIter{prefix, s.Iter(opts), opts}
 }
 
 func (i *messageIter) Rewind() *sgproto.Message {
 	i.iter.Rewind()
 	if !i.opts.Reverse {
-		i.iter.Seek(ViewPrefix)
+		i.iter.Seek(i.prefix)
 	} else {
-		i.iter.Seek(PrependPrefix(ViewPrefix, []byte{'~', '~'}))
+		i.iter.Seek(Join(i.prefix, []byte{'~', '~'}))
 	}
 
 	if i.Valid() {
@@ -31,7 +32,7 @@ func (i *messageIter) Rewind() *sgproto.Message {
 }
 
 func (i *messageIter) Seek(id sgproto.Offset) *sgproto.Message {
-	i.iter.Seek(PrependPrefix(ViewPrefix, id[:]))
+	i.iter.Seek(Join(i.prefix, id[:]))
 	if i.Valid() {
 		return i.getCurrent()
 	}
@@ -40,11 +41,11 @@ func (i *messageIter) Seek(id sgproto.Offset) *sgproto.Message {
 }
 
 func (i *messageIter) Valid() bool {
-	return i.iter.ValidForPrefix(ViewPrefix)
+	return i.iter.ValidForPrefix(i.prefix)
 }
 
 func (i *messageIter) ValidForPrefix(prefix []byte) bool {
-	return i.iter.ValidForPrefix(PrependPrefix(ViewPrefix, prefix))
+	return i.iter.ValidForPrefix(Join(i.prefix, prefix))
 }
 
 func (i *messageIter) Next() *sgproto.Message {

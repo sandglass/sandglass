@@ -16,10 +16,10 @@ type Storage interface {
 	Close() error
 	LastKeyForPrefix(prefix []byte) []byte
 	LastKVForPrefix(prefix, suffix []byte) []byte
-	ForEach(fn func(msg *sgproto.Message) error) error
-	ForRange(min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error
-	ForEachWALEntry(min []byte, fn func(msg *sgproto.Message) error) error
-	ForRangeWAL(min, max uint64, fn func(msg *sgproto.Message) error) error
+	ForEach(prefix []byte, fn func(msg *sgproto.Message) error) error
+	ForRange(prefix []byte, min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error
+	ForEachWALEntry(prefix []byte, min []byte, fn func(msg *sgproto.Message) error) error
+	ForRangeWAL(prefix []byte, min, max uint64, fn func(msg *sgproto.Message) error) error
 }
 
 type Entry struct {
