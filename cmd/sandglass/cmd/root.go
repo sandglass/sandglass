@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -32,7 +31,6 @@ import (
 	"time"
 
 	"github.com/celrenheit/sandglass/broker"
-	"github.com/celrenheit/sandglass/server"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -91,14 +89,6 @@ var RootCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
-		server := server.New(b, net.JoinHostPort(conf.BindAddr, conf.GRPCPort), net.JoinHostPort(conf.BindAddr, conf.HTTPPort))
-		go func() {
-			err := server.Start()
-			if err != nil {
-				log.Println(errors.Cause(err))
-			}
-		}()
-
 		fmt.Println(warningColor("WARNING: This code is a very early release, it contains bugs and should not be used in production environments."))
 
 		fmt.Println("")
@@ -118,11 +108,6 @@ Beware of the sandstorm.
 		gracefully.Shutdown()
 		b.Debug("graceful shutdown")
 		ctx := context.Background()
-
-		b.Debug("shutting down http server")
-		if err := server.Shutdown(ctx); err != nil {
-			log.Println(errors.Cause(err))
-		}
 
 		b.Debug("shutting down broker")
 		if err := b.Stop(ctx); err != nil {

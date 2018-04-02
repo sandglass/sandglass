@@ -121,7 +121,7 @@ FOLLOW:
 		panic(err)
 	}
 
-	ackFn := func(offsets []sandflake.ID) error {
+	ackFn := func(offsets []sgproto.Offset) error {
 		_, err := client.Acknowledge(context.Background(), &sgproto.MarkRequest{
 			Topic:         topic,
 			Partition:     partition,
@@ -132,7 +132,7 @@ FOLLOW:
 		return err
 	}
 
-	offsets := []sandflake.ID{}
+	offsets := []sgproto.Offset{}
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {

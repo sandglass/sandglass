@@ -9,14 +9,13 @@ import (
 
 	"google.golang.org/grpc/codes"
 
-	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/topic"
 	"github.com/grpc/grpc-go/status"
 )
 
-func (b *Broker) FetchRange(ctx context.Context, req *sgproto.FetchRangeRequest, fn func(msg *sgproto.Message) error) error {
+func (b *Broker) FetchRangeFn(ctx context.Context, req *sgproto.FetchRangeRequest, fn func(msg *sgproto.Message) error) error {
 	topic := b.getTopic(req.Topic)
 	if topic == nil {
 		return ErrTopicNotFound
@@ -54,7 +53,7 @@ func (b *Broker) FetchRange(ctx context.Context, req *sgproto.FetchRangeRequest,
 	return p.ForRange(req.From, req.To, fn)
 }
 
-func (b *Broker) FetchFromSync(topicName, partition string, from []byte, fn func(msg *sgproto.Message) error) error {
+func (b *Broker) fetchFromSync(topicName, partition string, from []byte, fn func(msg *sgproto.Message) error) error {
 	topic := b.getTopic(topicName)
 	if topic == nil {
 		return ErrTopicNotFound
@@ -65,7 +64,37 @@ func (b *Broker) FetchFromSync(topicName, partition string, from []byte, fn func
 	}
 
 	p := topic.GetPartition(partition)
+	if p == nil {
+		return ErrPartitionNotFound
+	}
+
 	return p.RangeFromWAL(from, fn)
+}
+
+func (b *Broker) EndOfLog(ctx context.Context, req *sgproto.EndOfLogRequest) (*sgproto.EndOfLogReply, error) {
+	topic := b.getTopic(req.Topic)
+	if topic == nil {
+		return nil, ErrTopicNotFound
+	}
+
+	if req.Partition == "" {
+		return nil, ErrNoPartitionSet
+	}
+
+	p := topic.GetPartition(req.Partition)
+	var index uint64
+	msg, err := p.EndOfLog()
+	if err != nil {
+		return nil, err
+	}
+
+	if msg != nil {
+		index = msg.Index
+	}
+
+	return &sgproto.EndOfLogReply{
+		Index: index,
+	}, nil
 }
 
 func (b *Broker) Get(ctx context.Context, topicName string, partition string, key []byte) (*sgproto.Message, error) {
@@ -79,7 +108,7 @@ func (b *Broker) Get(ctx context.Context, topicName string, partition string, ke
 	return b.getFromPartition(ctx, topicName, p, key)
 }
 
-func (b *Broker) HasKey(ctx context.Context, topicName string, partition string, key, clusterKey []byte) (bool, error) {
+func (b *Broker) hasKey(ctx context.Context, topicName string, partition string, key, clusterKey []byte) (bool, error) {
 	t := b.getTopic(topicName)
 	var p *topic.Partition
 	if partition != "" {
@@ -108,7 +137,7 @@ func (b *Broker) getFromPartition(ctx context.Context, topic string, p *topic.Pa
 		})
 	}
 
-	msg, err := p.GetMessage(sandflake.Nil, key, nil)
+	msg, err := p.GetMessage(sgproto.Nil, key, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +173,7 @@ func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.P
 	return p.HasKey(key, clusterKey)
 }
 
-func generatePrefixConsumerOffsetKey(partitionKey []byte, offset sandflake.ID) []byte {
+func generatePrefixConsumerOffsetKey(partitionKey []byte, offset sgproto.Offset) []byte {
 	return bytes.Join([][]byte{
 		partitionKey,
 		offset.Bytes(),

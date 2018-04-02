@@ -7,9 +7,11 @@ import (
 
 	"fmt"
 
-	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
 	"github.com/celrenheit/sandglass/sgutils"
+	"github.com/celrenheit/sandglass/storage"
+	"github.com/celrenheit/sandglass/storage/badger"
+	"github.com/celrenheit/sandglass/storage/rocksdb"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -22,6 +24,7 @@ type Topic struct {
 	StorageDriver     sgproto.StorageDriver
 
 	basepath string
+	db       storage.Storage
 }
 
 func (t *Topic) Validate() error {
@@ -50,6 +53,19 @@ func (t *Topic) InitStore(basePath string) error {
 		return fmt.Errorf("Num partitions should be > 0")
 	}
 
+	var err error
+	switch t.StorageDriver {
+	case sgproto.StorageDriver_Badger:
+		t.db, err = badger.NewStorage(msgdir)
+	case sgproto.StorageDriver_RocksDB:
+		t.db, err = rocksdb.NewStorage(msgdir)
+	default:
+		return fmt.Errorf("unknown storage driver: %v for topic: %v", t.StorageDriver, t.Name)
+	}
+	if err != nil {
+		return err
+	}
+
 	for _, p := range t.Partitions {
 		err := t.initPartition(p)
 		if err != nil {
@@ -62,7 +78,7 @@ func (t *Topic) InitStore(basePath string) error {
 
 func (t *Topic) initPartition(p *Partition) error {
 	p.topic = t
-	err := p.InitStore(t.basepath)
+	err := p.InitStore(t.db)
 	if err != nil {
 		return err
 	}
@@ -120,9 +136,6 @@ func (t *Topic) PutMessage(partition string, msg *sgproto.Message) error {
 	} else {
 		p = t.ChoosePartition(msg)
 	}
-	if msg.Offset == sandflake.Nil {
-		msg.Offset = p.NextID()
-	}
 
 	return p.PutMessage(msg)
 }
@@ -151,14 +164,18 @@ func (t *Topic) Close() error {
 	for _, p := range t.Partitions {
 		group.Go(p.Close)
 	}
-	return group.Wait()
+	if err := group.Wait(); err != nil {
+		return err
+	}
+
+	return t.db.Close()
 }
 
 func (t *Topic) ForEach(fn func(msg *sgproto.Message) error) error {
-	return t.ForRange(sandflake.Nil, sandflake.MaxID, fn)
+	return t.ForRange(sgproto.Nil, sgproto.MaxOffset, fn)
 }
 
-func (t *Topic) ForRange(min, max sandflake.ID, fn func(msg *sgproto.Message) error) error {
+func (t *Topic) ForRange(min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error {
 	// FIXME
 	var mu sync.Mutex
 	var group errgroup.Group

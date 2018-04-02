@@ -1,16 +1,15 @@
 package topic
 
 import (
-	"sync"
+	"math"
 	"testing"
+	"time"
 
 	"io/ioutil"
 
 	"os"
 
-	"github.com/celrenheit/sandflake"
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/storage/scommons"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,12 +29,15 @@ func TestTimerStorage(t *testing.T) {
 
 	key := []byte("batman")
 	value := []byte("value")
-	id := p.idgen.Next()
+	id := sgproto.NewOffset(1, time.Unix(0, 0))
 	err = p.PutMessage(&sgproto.Message{
 		Offset: id,
 		Key:    key,
 		Value:  value,
 	})
+	require.Nil(t, err)
+
+	err = p.WalToView(0, math.MaxUint64)
 	require.Nil(t, err)
 
 	gotMsg, err := p.GetMessage(id, nil, nil)
@@ -60,7 +62,7 @@ func TestKVStorage(t *testing.T) {
 
 	key := []byte("batman")
 	value := []byte("value")
-	id := p.idgen.Next()
+	id := sgproto.NewOffset(1, time.Unix(0, 0))
 	err = p.PutMessage(&sgproto.Message{
 		Offset: id,
 		Key:    key,
@@ -68,7 +70,10 @@ func TestKVStorage(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	gotMsg, err := p.GetMessage(sandflake.Nil, key, nil)
+	err = p.WalToView(0, math.MaxUint64)
+	require.Nil(t, err)
+
+	gotMsg, err := p.GetMessage(sgproto.Nil, key, nil)
 	require.Nil(t, err)
 	require.NotNil(t, gotMsg)
 	require.Equal(t, string(key), string(gotMsg.Key))
@@ -91,7 +96,7 @@ func TestLastMessage(t *testing.T) {
 
 	key := []byte("batman")
 	value := []byte("value")
-	id := p.idgen.Next()
+	id := sgproto.NewOffset(1, time.Unix(0, 0))
 	err = p.PutMessage(&sgproto.Message{
 		Offset: id,
 		Key:    key,
@@ -99,12 +104,14 @@ func TestLastMessage(t *testing.T) {
 	})
 	require.Nil(t, err)
 
+	err = p.WalToView(0, math.MaxUint64)
+	require.Nil(t, err)
+
 	gotKey := p.LastWALEntry()
 	require.Nil(t, err)
 	require.NotNil(t, gotKey)
-	require.Equal(t, string(key), string(gotKey[len(scommons.WalPrefix)+1+sandflake.Size+1+len(scommons.ViewPrefix)+1:]))
 
-	gotMsg, err := p.LastMessage()
+	gotMsg, err := p.EndOfLog()
 	require.Nil(t, err)
 	require.NotNil(t, gotMsg)
 	require.Equal(t, string(key), string(gotMsg.Key))
@@ -132,20 +139,18 @@ func BenchmarkStorageDrivers(b *testing.B) {
 			key := []byte("batman")
 			value := []byte("value")
 
-			var firstId sandflake.ID
-			var once sync.Once
+			var firstId sgproto.Offset
+			// var once sync.Once
 			b.Run("put", func(b *testing.B) {
 				b.ReportAllocs()
 				b.RunParallel(func(pb *testing.PB) {
 					for pb.Next() {
-						id := p.idgen.Next()
-						once.Do(func() {
-							firstId = id
-						})
+						// once.Do(func() {
+						// 	firstId = sgproto.NewOffset(p.next, time.Unix(0, 0))
+						// })
 						err := p.PutMessage(&sgproto.Message{
-							Offset: id,
-							Key:    key,
-							Value:  value,
+							Key:   key,
+							Value: value,
 						})
 						require.Nil(b, err)
 					}
@@ -167,7 +172,7 @@ func BenchmarkStorageDrivers(b *testing.B) {
 				b.ReportAllocs()
 				b.RunParallel(func(pb *testing.PB) {
 					for pb.Next() {
-						err := p.ForRange(sandflake.Nil, sandflake.MaxID, func(msg *sgproto.Message) error {
+						err := p.ForRange(sgproto.Nil, sgproto.MaxOffset, func(msg *sgproto.Message) error {
 							return nil
 						})
 						require.Nil(b, err)

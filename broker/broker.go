@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,7 +33,7 @@ import (
 )
 
 const (
-	ConsumerOffsetTopicName = "consumer_offsets"
+	ConsumerOffsetTopicName = "__consumer_offsets"
 )
 
 var DefaultStateCheckInterval = 1 * time.Second
@@ -78,6 +79,8 @@ type Broker struct {
 	raft           *raft.Store
 
 	reconcileCh chan serf.Member
+
+	server *Server
 }
 
 func New(conf *Config) (*Broker, error) {
@@ -123,6 +126,7 @@ func New(conf *Config) (*Broker, error) {
 		eventEmitter: watchy.New(),
 		reconcileCh:  make(chan serf.Member, 64),
 	}
+	b.server = NewServer(b, net.JoinHostPort(conf.BindAddr, conf.GRPCPort), net.JoinHostPort(conf.BindAddr, conf.HTTPPort))
 	return b, nil
 }
 
@@ -157,6 +161,11 @@ func (b *Broker) Stop(ctx context.Context) error {
 				gracefulCh <- errors.Wrapf(err, "error while closing peer: %v", peer.Name)
 				return
 			}
+		}
+
+		if err := b.server.Shutdown(ctx); err != nil {
+			gracefulCh <- err
+			return
 		}
 
 		close(gracefulCh)
@@ -240,6 +249,13 @@ func (b *Broker) getNodeByRaftAddr(addr string) *sandglass.Node {
 }
 
 func (b *Broker) Bootstrap() error {
+	go func() {
+		err := b.server.Start()
+		if err != nil {
+			b.WithError(err).Printf("error starting up server")
+		}
+	}()
+
 	b.Debugf("Bootstrapping %s...", b.Name())
 	b.Debugf("config: %+v", b.Conf())
 	b.readyListeners = append(b.readyListeners,
@@ -303,7 +319,7 @@ func (b *Broker) Bootstrap() error {
 		Name:     b.conf.Name,
 		BindAddr: net.JoinHostPort(b.conf.BindAddr, b.conf.RaftPort),
 		AdvAddr:  net.JoinHostPort(advAddr, b.conf.RaftPort),
-		Dir:      b.conf.DBPath,
+		Dir:      filepath.Join(b.conf.DBPath, "data"),
 	}, b.Entry)
 
 	if err := b.raft.Init(b.conf.BootstrapRaft, cluster, b.reconcileCh); err != nil {
@@ -542,7 +558,7 @@ func (b *Broker) TriggerSyncRequest() error {
 					msgs = append(msgs, msg)
 					if len(msgs) == 1000 {
 						n += len(msgs)
-						if err := p.BatchPutMessages(msgs); err != nil {
+						if err := p.WALBatchPutMessages(msgs); err != nil {
 							return err
 						}
 					}
@@ -550,7 +566,7 @@ func (b *Broker) TriggerSyncRequest() error {
 
 				if len(msgs) > 0 {
 					n += len(msgs)
-					if err := p.BatchPutMessages(msgs); err != nil {
+					if err := p.WALBatchPutMessages(msgs); err != nil {
 						return err
 					}
 				}
@@ -632,8 +648,4 @@ func extractPeer(m serf.Member) (*sandglass.Node, error) {
 
 func (b *Broker) Topics() []*topic.Topic {
 	return b.raft.GetTopics()
-}
-
-func (b *Broker) GetTopic(name string) *topic.Topic {
-	return b.raft.GetTopic(name)
 }

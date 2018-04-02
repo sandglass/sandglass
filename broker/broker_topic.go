@@ -46,23 +46,23 @@ func (b *Broker) watchTopic() error {
 	}
 }
 
-func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.TopicConfig) error {
+func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.TopicConfig) (*sgproto.TopicReply, error) {
 	if params.Name == "" {
-		return ErrInvalidTopicName
+		return nil, ErrInvalidTopicName
 	}
 
 	if !b.IsController() {
 		leader := b.GetController()
 		if leader == nil {
-			return ErrNoLeaderFound
+			return nil, ErrNoLeaderFound
 		}
 		b.WithField("leader", leader).Debugf("forward CreateTopic")
 		_, err := leader.CreateTopic(ctx, params)
-		return err
+		return nil, err
 	}
 
 	if b.topicExists(params.Name) {
-		return ErrTopicAlreadyExist
+		return nil, ErrTopicAlreadyExist
 	}
 
 	t := &topic.Topic{
@@ -81,7 +81,7 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.TopicConfig) e
 
 		replicas, ok := b.selectReplicasForPartition(t, p)
 		if !ok {
-			return ErrUnableToSelectReplicas
+			return nil, ErrUnableToSelectReplicas
 		}
 
 		p.Replicas = replicas
@@ -89,7 +89,7 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.TopicConfig) e
 	}
 	topicCreatedCh := b.eventEmitter.Once("topics:created:" + t.Name)
 	if err := b.raft.CreateTopic(t); err != nil {
-		return err
+		return nil, err
 	}
 
 	partitionLeaders := map[string]map[string]string{
@@ -103,19 +103,19 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.TopicConfig) e
 
 	err := b.raft.SetPartitionLeaderBulkOp(partitionLeaders)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	select {
 	case <-topicCreatedCh:
 	case <-time.After(10 * time.Second):
-		return fmt.Errorf("timed out creating topic: %v", t.Name)
+		return nil, fmt.Errorf("timed out creating topic: %v", t.Name)
 	}
 
 	if t.ReplicationFactor > 1 {
 		qry, err := b.cluster.Query("wait-for-topic", []byte(t.Name), &serf.QueryParam{})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		defer qry.Close()
 
@@ -129,10 +129,11 @@ func (b *Broker) CreateTopic(ctx context.Context, params *sgproto.TopicConfig) e
 		}
 
 		if acks < ((members / 2) + 1) {
-			return fmt.Errorf("unable to have quorum")
+			return nil, fmt.Errorf("unable to have quorum")
 		}
 	}
-	return nil
+
+	return &sgproto.TopicReply{Success: true}, nil
 }
 
 func (b *Broker) getTopic(name string) *topic.Topic {

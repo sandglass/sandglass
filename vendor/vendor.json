@@ -33,10 +33,10 @@
 			"revisionTime": "2017-12-28T22:56:34Z"
 		},
 		{
-			"checksumSHA1": "rEzEwORtm30wE2hUiPgIfinbheE=",
+			"checksumSHA1": "r1qn1qHfmSA/vnL/n0neok3x0qI=",
 			"path": "github.com/celrenheit/sandglass-grpc/go/sgproto",
-			"revision": "709de2adcfa04cc51cfc3c9e27e54febee3daf10",
-			"revisionTime": "2017-12-26T19:11:01Z"
+			"revision": "34b094d625c35cd5236db750e6c24984a2cf58b4",
+			"revisionTime": "2018-02-24T19:50:50Z"
 		},
 		{
 			"checksumSHA1": "Zlk5zPiw+3u9pyy4kNThpKDaYmE=",
@@ -132,6 +132,12 @@
 		{
 			"checksumSHA1": "HPVQZu059/Rfw2bAWM538bVTcUc=",
 			"path": "github.com/gogo/protobuf/sortkeys",
+			"revision": "160de10b2537169b5ae3e7e221d28269ef40d311",
+			"revisionTime": "2018-01-04T10:21:28Z"
+		},
+		{
+			"checksumSHA1": "RFxAlnHGwHp7EnZnywy+MlFfqv4=",
+			"path": "github.com/gogo/protobuf/types",
 			"revision": "160de10b2537169b5ae3e7e221d28269ef40d311",
 			"revisionTime": "2018-01-04T10:21:28Z"
 		},
@@ -314,10 +320,10 @@
 			"revisionTime": "2018-01-10T03:48:51Z"
 		},
 		{
-			"checksumSHA1": "GkLDHYGJBqRUgtzAinQmCC1nrwg=",
+			"checksumSHA1": "dYIbrzGJOeDrLOivaWM0Jw8n3/Y=",
 			"path": "github.com/hashicorp/raft",
-			"revision": "0919aa6a43618e19335d2ac609d4ff079ce75ed8",
-			"revisionTime": "2017-12-04T23:09:17Z"
+			"revision": "a3fb4581fb07b16ecf1c3361580d4bdb17de9d98",
+			"revisionTime": "2018-02-12T22:15:04Z"
 		},
 		{
 			"checksumSHA1": "Y2PM65le0fGtiD12RaKknBscFys=",

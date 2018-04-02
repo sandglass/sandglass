@@ -10,7 +10,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/celrenheit/sandflake"
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/celrenheit/sandglass-grpc/go/sgproto"
@@ -87,13 +86,13 @@ func (c *ConsumerGroup) consumeLoop() {
 		c.mu.Unlock()
 	}()
 
-	lastCommited, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Commited)
+	lastCommited, err := c.broker.lastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Commited)
 	if err != nil {
 		c.logger.WithError(err).Debugf("got error when fetching last committed offset")
 		return
 	}
 
-	lastConsumed, err := c.broker.LastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Consumed)
+	lastConsumed, err := c.broker.lastOffset(context.TODO(), c.topic, c.partition, c.name, sgproto.MarkKind_Consumed)
 	if err != nil {
 		c.logger.WithError(err).Debugf("got error when fetching last consumed offset")
 		return
@@ -115,15 +114,20 @@ func (c *ConsumerGroup) consumeLoop() {
 				To:        lastConsumed,
 			}
 
-			commit := func(offset sandflake.ID) {
-				_, err := c.broker.Commit(context.TODO(), c.topic, c.partition, c.name, lastMessage.Offset)
+			commit := func(offset sgproto.Offset) {
+				_, err := c.broker.Commit(context.TODO(), &sgproto.MarkRequest{
+					Topic:         c.topic,
+					Partition:     c.partition,
+					ConsumerGroup: c.name,
+					Offsets:       []sgproto.Offset{lastMessage.Offset},
+				})
 				if err != nil {
 					c.logger.WithError(err).Debugf("unable to commit")
 				}
 			}
 
 			i := 0
-			err := c.broker.FetchRange(context.TODO(), req, func(m *sgproto.Message) error {
+			err := c.broker.FetchRangeFn(context.TODO(), req, func(m *sgproto.Message) error {
 				if m.Offset.Equal(lastCommited) { // skip first item, since it is already committed
 					lastMessage = m
 					return nil
@@ -166,7 +170,7 @@ func (c *ConsumerGroup) consumeLoop() {
 				}
 				lastMessage = m
 
-				if c.shouldRedeliver(m.Index, state) {
+				if c.shouldRedeliver(m, state) {
 					msgCh <- m // deliver
 
 					// those calls should be batched
@@ -176,7 +180,7 @@ func (c *ConsumerGroup) consumeLoop() {
 							Topic:         c.topic,
 							Partition:     c.partition,
 							ConsumerGroup: c.name,
-							Offsets:       []sandflake.ID{m.Offset},
+							Offsets:       []sgproto.Offset{m.Offset},
 							State: &sgproto.MarkState{
 								Kind:          sgproto.MarkKind_Consumed,
 								DeliveryCount: 1,
@@ -201,7 +205,7 @@ func (c *ConsumerGroup) consumeLoop() {
 						}
 
 						// TODO: Should handle this in higher level method
-						t := c.broker.GetTopic(ConsumerOffsetTopicName)
+						t := c.broker.getTopic(ConsumerOffsetTopicName)
 						p := t.ChoosePartitionForKey(markedMsg.Key)
 						markedMsg.ClusteringKey = generateClusterKey(m.Offset, state.Kind)
 
@@ -229,7 +233,7 @@ func (c *ConsumerGroup) consumeLoop() {
 		})
 	}
 	group.Go(func() error {
-		now := sandflake.NewID(time.Now().UTC(), sandflake.MaxID.WorkerID(), sandflake.MaxID.Sequence(), sandflake.MaxID.RandomBytes())
+		now := sgproto.NewOffset(sgproto.MaxOffset.Index(), time.Now())
 		req := &sgproto.FetchRangeRequest{
 			Topic:     c.topic,
 			Partition: c.partition,
@@ -237,7 +241,7 @@ func (c *ConsumerGroup) consumeLoop() {
 			To:        now,
 		}
 
-		return c.broker.FetchRange(context.TODO(), req, func(m *sgproto.Message) error {
+		return c.broker.FetchRangeFn(context.TODO(), req, func(m *sgproto.Message) error {
 			// skip the first if it is the same as the starting point
 			if lastConsumed == m.Offset {
 				return nil
@@ -286,14 +290,19 @@ loop:
 	}
 
 	if m != nil && !m.Offset.Equal(lastConsumed) {
-		_, err := c.broker.MarkConsumed(context.TODO(), c.topic, c.partition, c.name, m.Offset)
+		_, err := c.broker.MarkConsumed(context.TODO(), &sgproto.MarkRequest{
+			Topic:         c.topic,
+			Partition:     c.partition,
+			ConsumerGroup: c.name,
+			Offsets:       []sgproto.Offset{m.Offset},
+		})
 		if err != nil {
 			c.logger.WithError(err).Debugf("unable to mark as consumed")
 		}
 	}
 }
 
-func (c *ConsumerGroup) shouldRedeliver(index sandflake.ID, state sgproto.MarkState) bool {
+func (c *ConsumerGroup) shouldRedeliver(m *sgproto.Message, state sgproto.MarkState) bool {
 	switch state.Kind {
 	case sgproto.MarkKind_NotAcknowledged:
 		return true
@@ -302,7 +311,7 @@ func (c *ConsumerGroup) shouldRedeliver(index sandflake.ID, state sgproto.MarkSt
 		if state.DeliveryCount > 0 {
 			dur *= time.Duration(state.DeliveryCount)
 		}
-		return index.Time().Add(dur).Before(time.Now().UTC())
+		return m.ProducedAt.Add(dur).Before(time.Now().UTC())
 	case sgproto.MarkKind_Acknowledged, sgproto.MarkKind_Commited:
 		return false
 	default:
