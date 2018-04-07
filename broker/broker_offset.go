@@ -17,7 +17,7 @@ import (
 
 func (b *Broker) mark(ctx context.Context, req *sgproto.MarkRequest) (bool, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
-	p := topic.ChoosePartitionForKey(partitionKey(req.Topic, req.Partition, req.ConsumerGroup))
+	p := topic.ChoosePartitionForKey(partitionKey(req.Topic, req.Partition, req.Channel, req.ConsumerGroup))
 
 	n := b.getPartitionLeader(ConsumerOffsetTopicName, p.Id)
 	if n == nil {
@@ -46,7 +46,7 @@ func (b *Broker) mark(ctx context.Context, req *sgproto.MarkRequest) (bool, erro
 	for _, offset := range req.Offsets {
 		msgs = append(msgs, &sgproto.Message{
 			Offset:        offset,
-			Key:           partitionKey(req.Topic, req.Partition, req.ConsumerGroup),
+			Key:           partitionKey(req.Topic, req.Partition, req.Channel, req.ConsumerGroup),
 			ClusteringKey: generateClusterKey(offset, req.State.Kind),
 			Value:         value,
 		})
@@ -62,7 +62,7 @@ func (b *Broker) mark(ctx context.Context, req *sgproto.MarkRequest) (bool, erro
 
 func (b *Broker) lastOffset(ctx context.Context, topicName, partitionName, channel string, consumerGroup string, kind sgproto.MarkKind) (sgproto.Offset, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
-	pk := partitionKey(topicName, partitionName, consumerGroup)
+	pk := partitionKey(topicName, partitionName, channel, consumerGroup)
 	p := topic.ChoosePartitionForKey(pk)
 
 	n := b.getPartitionLeader(ConsumerOffsetTopicName, p.Id)
@@ -74,6 +74,7 @@ func (b *Broker) lastOffset(ctx context.Context, topicName, partitionName, chann
 		res, err := n.LastOffset(ctx, &sgproto.LastOffsetRequest{
 			Topic:         topicName,
 			Partition:     partitionName,
+			Channel:       channel,
 			ConsumerGroup: consumerGroup,
 			Kind:          kind,
 		})
@@ -91,7 +92,7 @@ func (b *Broker) lastOffset(ctx context.Context, topicName, partitionName, chann
 
 func (b *Broker) GetMarkStateMessage(ctx context.Context, req *sgproto.GetMarkRequest) (*sgproto.Message, error) {
 	topic := b.getTopic(ConsumerOffsetTopicName)
-	pk := partitionKey(req.Topic, req.Partition, req.ConsumerGroup)
+	pk := partitionKey(req.Topic, req.Partition, req.Channel, req.ConsumerGroup)
 	p := topic.ChoosePartitionForKey(pk)
 
 	n := b.getPartitionLeader(ConsumerOffsetTopicName, p.Id)
@@ -144,17 +145,18 @@ func (b *Broker) isAcknoweldged(ctx context.Context, topicName, partition, chann
 	if topic == nil {
 		return false, ErrTopicNotFound
 	}
-	pk := partitionKey(topicName, partition, consumerGroup)
+	pk := partitionKey(topicName, partition, channel, consumerGroup)
 	p := topic.ChoosePartitionForKey(pk)
 	clusterKey := generateClusterKey(offset, sgproto.MarkKind_Acknowledged)
 	return b.hasKeyInPartition(ctx, ConsumerOffsetTopicName, p, channel, pk, clusterKey)
 }
 
-func partitionKey(topicName, partitionName, consumerGroup string) []byte {
+func partitionKey(topicName, partitionName, channel, consumerGroup string) []byte {
 	return bytes.Join([][]byte{
 		[]byte("offsets"),
 		[]byte(topicName),
 		[]byte(partitionName),
+		[]byte(channel),
 		[]byte(consumerGroup),
 	}, storage.Separator)
 }

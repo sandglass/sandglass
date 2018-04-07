@@ -133,6 +133,7 @@ func (b *Broker) getFromPartition(ctx context.Context, topic string, p *topic.Pa
 		return leader.GetByKey(ctx, &sgproto.GetRequest{
 			Topic:     topic,
 			Partition: p.Id,
+			Channel:   channel,
 			Key:       key,
 		})
 	}

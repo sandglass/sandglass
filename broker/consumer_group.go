@@ -2,7 +2,6 @@ package broker
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -88,7 +87,7 @@ func (c *ConsumerGroup) consumeLoop() {
 		c.receivers = c.receivers[:0]
 		c.mu.Unlock()
 	}()
-	fmt.Println("consumeLoop", c.topic, c.partition, c.channel)
+
 	lastCommited, err := c.broker.lastOffset(context.TODO(), c.topic, c.partition, c.channel, c.name, sgproto.MarkKind_Commited)
 	if err != nil {
 		c.logger.WithError(err).Debugf("got error when fetching last committed offset")
@@ -302,6 +301,7 @@ loop:
 		_, err := c.broker.MarkConsumed(context.TODO(), &sgproto.MarkRequest{
 			Topic:         c.topic,
 			Partition:     c.partition,
+			Channel:       c.channel,
 			ConsumerGroup: c.name,
 			Offsets:       []sgproto.Offset{m.Offset},
 		})

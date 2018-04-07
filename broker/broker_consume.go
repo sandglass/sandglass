@@ -17,7 +17,7 @@ func (b *Broker) Consume(ctx context.Context, req *sgproto.ConsumeFromGroupReque
 		return ErrTopicNotFound
 	}
 
-	pk := partitionKey(req.Topic, req.Partition, req.ConsumerGroupName)
+	pk := partitionKey(req.Topic, req.Partition, req.Channel, req.ConsumerGroupName)
 	offsetPartition := offsetTopic.ChoosePartitionForKey(pk)
 	if offsetPartition == nil {
 		return ErrPartitionNotFound
