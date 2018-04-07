@@ -45,6 +45,7 @@ func (b *Broker) mark(ctx context.Context, req *sgproto.MarkRequest) (bool, erro
 	msgs := make([]*sgproto.Message, 0, len(req.Offsets))
 	for _, offset := range req.Offsets {
 		msgs = append(msgs, &sgproto.Message{
+			Channel:       ConsumerOffsetMainChannel,
 			Offset:        offset,
 			Key:           partitionKey(req.Topic, req.Partition, req.Channel, req.ConsumerGroup),
 			ClusteringKey: generateClusterKey(offset, req.State.Kind),
@@ -87,7 +88,7 @@ func (b *Broker) lastOffset(ctx context.Context, topicName, partitionName, chann
 
 	lastKind := byte(kind)
 
-	return b.last(p, channel, pk, lastKind)
+	return b.last(p, ConsumerOffsetMainChannel, pk, lastKind)
 }
 
 func (b *Broker) GetMarkStateMessage(ctx context.Context, req *sgproto.GetMarkRequest) (*sgproto.Message, error) {
@@ -111,7 +112,7 @@ func (b *Broker) GetMarkStateMessage(ctx context.Context, req *sgproto.GetMarkRe
 
 	key := generatePrefixConsumerOffsetKey(pk, req.Offset)
 
-	msg, err := p.GetMessage(req.Channel, sgproto.Nil, key, nil)
+	msg, err := p.GetMessage(ConsumerOffsetMainChannel, sgproto.Nil, key, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +125,7 @@ func (b *Broker) GetMarkStateMessage(ctx context.Context, req *sgproto.GetMarkRe
 }
 
 func (b *Broker) last(p *topic.Partition, channel string, pk []byte, kind byte) (sgproto.Offset, error) {
-	msg, err := p.GetMessage(channel, sgproto.Nil, pk, []byte{kind})
+	msg, err := p.GetMessage(ConsumerOffsetMainChannel, sgproto.Nil, pk, []byte{kind})
 	if err != nil {
 		return sgproto.Nil, err
 	}
@@ -148,7 +149,7 @@ func (b *Broker) isAcknoweldged(ctx context.Context, topicName, partition, chann
 	pk := partitionKey(topicName, partition, channel, consumerGroup)
 	p := topic.ChoosePartitionForKey(pk)
 	clusterKey := generateClusterKey(offset, sgproto.MarkKind_Acknowledged)
-	return b.hasKeyInPartition(ctx, ConsumerOffsetTopicName, p, channel, pk, clusterKey)
+	return b.hasKeyInPartition(ctx, ConsumerOffsetTopicName, p, ConsumerOffsetMainChannel, pk, clusterKey)
 }
 
 func partitionKey(topicName, partitionName, channel, consumerGroup string) []byte {

@@ -185,28 +185,28 @@ func TestACK(t *testing.T) {
 
 	date := time.Now()
 	offset := sgproto.NewOffset(1, date)
-	ack(t, b, topic.Name, topic.Partitions[0].Id, "group1", offset)
+	ack(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1", offset)
 
 	syncAndAdvance(t, brokers)
 
-	got := lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
+	got := lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1",
 		sgproto.MarkKind_Commited)
 	require.Equal(t, sgproto.Nil, got)
 
-	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
+	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1",
 		sgproto.MarkKind_Acknowledged)
 	require.Equal(t, offset, got)
 
 	offset2 := sgproto.NewOffset(2, date)
-	commit(t, b, topic.Name, topic.Partitions[0].Id, "group1", offset2)
+	commit(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1", offset2)
 
 	syncAndAdvance(t, brokers)
 
-	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
+	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1",
 		sgproto.MarkKind_Commited)
 	require.Equal(t, offset2, got)
 
-	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
+	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1",
 		sgproto.MarkKind_Acknowledged)
 	require.Equal(t, offset, got)
 }
@@ -280,7 +280,7 @@ func TestConsume(t *testing.T) {
 		ConsumerName:      "cons1",
 	}, func(msg *sgproto.Message) error {
 		count++
-		ack(t, b, topic.Name, topic.Partitions[0].Id, "group1", msg.Offset)
+		ack(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1", msg.Offset)
 		got = msg.Offset
 		return nil
 	})
@@ -440,6 +440,116 @@ func TestSyncRequest(t *testing.T) {
 	require.Len(t, lastOffsets, len(part.Replicas))
 	for host, offset := range lastOffsets {
 		require.Equal(t, lastPublishedID, offset, "host '%v' does not match", host)
+	}
+}
+
+func TestChannels(t *testing.T) {
+	n := 3
+	brokers, destroyFn := makeNBrokers(t, n)
+	defer destroyFn()
+
+	createTopicParams := &sgproto.TopicConfig{
+		Name:              "payments",
+		Kind:              sgproto.TopicKind_TimerKind,
+		ReplicationFactor: 2,
+		NumPartitions:     3,
+	}
+	topic := createTopic(t, brokers, createTopicParams)
+
+	b := brokers[2]
+
+	//
+
+	produce := func(channel string, n int) sgproto.Offset {
+		var want sgproto.Offset
+		for i := 0; i < n; i++ {
+			res, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
+				Topic:     "payments",
+				Partition: topic.Partitions[0].Id,
+				Messages: []*sgproto.Message{
+					{
+						Channel: channel,
+						Key:     []byte("my_key"),
+						Value:   []byte(strconv.Itoa(i)),
+					},
+				},
+			})
+			require.Nil(t, err)
+			want = res.Offsets[0]
+		}
+		syncAndAdvance(t, brokers)
+		return want
+	}
+
+	consume := func(channel, group string) (int, sgproto.Offset) {
+		var count int
+		var got sgproto.Offset
+		err := b.Consume(ctx, &sgproto.ConsumeFromGroupRequest{
+			Topic:             "payments",
+			Partition:         topic.Partitions[0].Id,
+			Channel:           channel,
+			ConsumerGroupName: group,
+			ConsumerName:      "cons1",
+		}, func(msg *sgproto.Message) error {
+			count++
+			ack(t, b, topic.Name, topic.Partitions[0].Id, channel, group, msg.Offset)
+			got = msg.Offset
+			return nil
+		})
+		require.Nil(t, err)
+		syncAndAdvance(t, brokers)
+		return count, got
+	}
+
+	//
+	{
+		want := produce("master", 30)
+
+		count, got := consume("master", "group1")
+		require.Equal(t, 30, count)
+		require.Equal(t, want, got)
+	}
+
+	//
+
+	{
+		want := produce("chan1", 15)
+
+		{
+			count, got := consume("chan1", "group1")
+			require.Equal(t, 15, count)
+			require.Equal(t, want, got)
+		}
+		{
+			count, _ := consume("chan1", "group1")
+			require.Equal(t, 0, count)
+		}
+
+		{
+			count, got := consume("chan1", "group2")
+			require.Equal(t, 15, count)
+			require.Equal(t, want, got)
+		}
+		{
+			count, _ := consume("chan1", "group2")
+			require.Equal(t, 0, count)
+		}
+	}
+
+	//
+
+	{
+		want := produce("chan2", 15)
+
+		{
+			count, got := consume("chan2", "group1")
+			require.Equal(t, 15, count)
+			require.Equal(t, want, got)
+		}
+		{
+			count, _ := consume("chan2", "group1")
+			require.Equal(t, 0, count)
+		}
 	}
 }
 
@@ -666,11 +776,11 @@ func RandomAddr() string {
 	return l.Addr().String()
 }
 
-func ack(t *testing.T, b *broker.Broker, topic, partition, group string, offset sgproto.Offset) {
+func ack(t *testing.T, b *broker.Broker, topic, partition, channel, group string, offset sgproto.Offset) {
 	resp, err := b.Acknowledge(ctx, &sgproto.MarkRequest{
 		Topic:         topic,
 		Partition:     partition,
-		Channel:       "master",
+		Channel:       channel,
 		ConsumerGroup: group,
 		Offsets:       []sgproto.Offset{offset},
 	})
@@ -678,24 +788,24 @@ func ack(t *testing.T, b *broker.Broker, topic, partition, group string, offset 
 	require.True(t, resp.Success)
 }
 
-func commit(t *testing.T, b *broker.Broker, topic, partition, group string, offset sgproto.Offset) {
+func commit(t *testing.T, b *broker.Broker, topic, partition, channel, group string, offset sgproto.Offset) {
 	resp, err := b.Commit(ctx, &sgproto.MarkRequest{
 		Topic:         topic,
 		Partition:     partition,
 		ConsumerGroup: group,
-		Channel:       "master",
+		Channel:       channel,
 		Offsets:       []sgproto.Offset{offset},
 	})
 	require.Nil(t, err)
 	require.True(t, resp.Success)
 }
 
-func lastOffset(t *testing.T, b *broker.Broker, topic, partition, group string, kind sgproto.MarkKind) sgproto.Offset {
+func lastOffset(t *testing.T, b *broker.Broker, topic, partition, channel, group string, kind sgproto.MarkKind) sgproto.Offset {
 	resp, err := b.LastOffset(ctx, &sgproto.LastOffsetRequest{
 		Topic:         topic,
 		Partition:     partition,
 		ConsumerGroup: group,
-		Channel:       "master",
+		Channel:       channel,
 		Kind:          kind,
 	})
 	require.Nil(t, err)

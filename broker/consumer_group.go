@@ -87,7 +87,6 @@ func (c *ConsumerGroup) consumeLoop() {
 		c.receivers = c.receivers[:0]
 		c.mu.Unlock()
 	}()
-
 	lastCommited, err := c.broker.lastOffset(context.TODO(), c.topic, c.partition, c.channel, c.name, sgproto.MarkKind_Commited)
 	if err != nil {
 		c.logger.WithError(err).Debugf("got error when fetching last committed offset")
