@@ -146,6 +146,7 @@ func TestKVTopic(t *testing.T) {
 		Topic:     "payments",
 		Partition: part,
 		From:      sgproto.Nil,
+		Channel:   "master",
 		To:        sgproto.MaxOffset,
 	}
 	err := brokers[0].FetchRangeFn(ctx, req, func(msg *sgproto.Message) error {
@@ -157,7 +158,12 @@ func TestKVTopic(t *testing.T) {
 
 	require.Equal(t, 1, count)
 
-	msg, err := brokers[0].Get(ctx, "payments", part, []byte("my_key"))
+	msg, err := brokers[0].Get(ctx, &sgproto.GetRequest{
+		Topic:     "payments",
+		Partition: part,
+		Channel:   "master",
+		Key:       []byte("my_key"),
+	})
 	require.NoError(t, err)
 	require.Equal(t, "999", string(msg.Value))
 }
@@ -179,28 +185,28 @@ func TestACK(t *testing.T) {
 
 	date := time.Now()
 	offset := sgproto.NewOffset(1, date)
-	ack(t, b, topic.Name, topic.Partitions[0].Id, "group1", offset)
+	ack(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1", offset)
 
 	syncAndAdvance(t, brokers)
 
-	got := lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
+	got := lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1",
 		sgproto.MarkKind_Commited)
 	require.Equal(t, sgproto.Nil, got)
 
-	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
+	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1",
 		sgproto.MarkKind_Acknowledged)
 	require.Equal(t, offset, got)
 
 	offset2 := sgproto.NewOffset(2, date)
-	commit(t, b, topic.Name, topic.Partitions[0].Id, "group1", offset2)
+	commit(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1", offset2)
 
 	syncAndAdvance(t, brokers)
 
-	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
+	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1",
 		sgproto.MarkKind_Commited)
 	require.Equal(t, offset2, got)
 
-	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "group1",
+	got = lastOffset(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1",
 		sgproto.MarkKind_Acknowledged)
 	require.Equal(t, offset, got)
 }
@@ -251,8 +257,9 @@ func TestConsume(t *testing.T) {
 			Partition: topic.Partitions[0].Id,
 			Messages: []*sgproto.Message{
 				{
-					Key:   []byte("my_key"),
-					Value: []byte(strconv.Itoa(i)),
+					Channel: "master",
+					Key:     []byte("my_key"),
+					Value:   []byte(strconv.Itoa(i)),
 				},
 			},
 		})
@@ -265,9 +272,15 @@ func TestConsume(t *testing.T) {
 	fmt.Println("-----------------------------")
 	var count int
 	var got sgproto.Offset
-	err := b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+	err := b.Consume(ctx, &sgproto.ConsumeFromGroupRequest{
+		Topic:             "payments",
+		Partition:         topic.Partitions[0].Id,
+		Channel:           "master",
+		ConsumerGroupName: "group1",
+		ConsumerName:      "cons1",
+	}, func(msg *sgproto.Message) error {
 		count++
-		ack(t, b, topic.Name, topic.Partitions[0].Id, "group1", msg.Offset)
+		ack(t, b, topic.Name, topic.Partitions[0].Id, "master", "group1", msg.Offset)
 		got = msg.Offset
 		return nil
 	})
@@ -282,7 +295,8 @@ func TestConsume(t *testing.T) {
 			Partition: topic.Partitions[0].Id,
 			Messages: []*sgproto.Message{
 				{
-					Value: []byte(strconv.Itoa(i)),
+					Value:   []byte(strconv.Itoa(i)),
+					Channel: "master",
 				},
 			},
 		})
@@ -294,7 +308,13 @@ func TestConsume(t *testing.T) {
 
 	fmt.Println("-----------------------------")
 	count = 0
-	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+	err = b.Consume(ctx, &sgproto.ConsumeFromGroupRequest{
+		Topic:             "payments",
+		Partition:         topic.Partitions[0].Id,
+		Channel:           "master",
+		ConsumerGroupName: "group1",
+		ConsumerName:      "cons1",
+	}, func(msg *sgproto.Message) error {
 		count++
 		got = msg.Offset
 		return nil
@@ -306,7 +326,13 @@ func TestConsume(t *testing.T) {
 	syncAndAdvance(t, brokers)
 
 	count = 0
-	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+	err = b.Consume(ctx, &sgproto.ConsumeFromGroupRequest{
+		Topic:             "payments",
+		Partition:         topic.Partitions[0].Id,
+		Channel:           "master",
+		ConsumerGroupName: "group1",
+		ConsumerName:      "cons1",
+	}, func(msg *sgproto.Message) error {
 		count++
 		return nil
 	})
@@ -322,7 +348,13 @@ func TestConsume(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 
 		count = 0
-		err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+		err = b.Consume(ctx, &sgproto.ConsumeFromGroupRequest{
+			Topic:             "payments",
+			Partition:         topic.Partitions[0].Id,
+			Channel:           "master",
+			ConsumerGroupName: "group1",
+			ConsumerName:      "cons1",
+		}, func(msg *sgproto.Message) error {
 			count++
 			return nil
 		})
@@ -333,7 +365,13 @@ func TestConsume(t *testing.T) {
 	}
 
 	count = 0
-	err = b.Consume(ctx, "payments", topic.Partitions[0].Id, "group1", "cons1", func(msg *sgproto.Message) error {
+	err = b.Consume(ctx, &sgproto.ConsumeFromGroupRequest{
+		Topic:             "payments",
+		Partition:         topic.Partitions[0].Id,
+		Channel:           "master",
+		ConsumerGroupName: "group1",
+		ConsumerName:      "cons1",
+	}, func(msg *sgproto.Message) error {
 		count++
 		return nil
 	})
@@ -366,8 +404,9 @@ func TestSyncRequest(t *testing.T) {
 			Partition: part.Id,
 			Messages: []*sgproto.Message{
 				{
-					Offset: lastPublishedID,
-					Value:  []byte(strconv.Itoa(i)),
+					Offset:  lastPublishedID,
+					Value:   []byte(strconv.Itoa(i)),
+					Channel: "master",
 				},
 			},
 		})
@@ -401,6 +440,116 @@ func TestSyncRequest(t *testing.T) {
 	require.Len(t, lastOffsets, len(part.Replicas))
 	for host, offset := range lastOffsets {
 		require.Equal(t, lastPublishedID, offset, "host '%v' does not match", host)
+	}
+}
+
+func TestChannels(t *testing.T) {
+	n := 3
+	brokers, destroyFn := makeNBrokers(t, n)
+	defer destroyFn()
+
+	createTopicParams := &sgproto.TopicConfig{
+		Name:              "payments",
+		Kind:              sgproto.TopicKind_TimerKind,
+		ReplicationFactor: 2,
+		NumPartitions:     3,
+	}
+	topic := createTopic(t, brokers, createTopicParams)
+
+	b := brokers[2]
+
+	//
+
+	produce := func(channel string, n int) sgproto.Offset {
+		var want sgproto.Offset
+		for i := 0; i < n; i++ {
+			res, err := brokers[0].Produce(ctx, &sgproto.ProduceMessageRequest{
+				Topic:     "payments",
+				Partition: topic.Partitions[0].Id,
+				Messages: []*sgproto.Message{
+					{
+						Channel: channel,
+						Key:     []byte("my_key"),
+						Value:   []byte(strconv.Itoa(i)),
+					},
+				},
+			})
+			require.Nil(t, err)
+			want = res.Offsets[0]
+		}
+		syncAndAdvance(t, brokers)
+		return want
+	}
+
+	consume := func(channel, group string) (int, sgproto.Offset) {
+		var count int
+		var got sgproto.Offset
+		err := b.Consume(ctx, &sgproto.ConsumeFromGroupRequest{
+			Topic:             "payments",
+			Partition:         topic.Partitions[0].Id,
+			Channel:           channel,
+			ConsumerGroupName: group,
+			ConsumerName:      "cons1",
+		}, func(msg *sgproto.Message) error {
+			count++
+			ack(t, b, topic.Name, topic.Partitions[0].Id, channel, group, msg.Offset)
+			got = msg.Offset
+			return nil
+		})
+		require.Nil(t, err)
+		syncAndAdvance(t, brokers)
+		return count, got
+	}
+
+	//
+	{
+		want := produce("master", 30)
+
+		count, got := consume("master", "group1")
+		require.Equal(t, 30, count)
+		require.Equal(t, want, got)
+	}
+
+	//
+
+	{
+		want := produce("chan1", 15)
+
+		{
+			count, got := consume("chan1", "group1")
+			require.Equal(t, 15, count)
+			require.Equal(t, want, got)
+		}
+		{
+			count, _ := consume("chan1", "group1")
+			require.Equal(t, 0, count)
+		}
+
+		{
+			count, got := consume("chan1", "group2")
+			require.Equal(t, 15, count)
+			require.Equal(t, want, got)
+		}
+		{
+			count, _ := consume("chan1", "group2")
+			require.Equal(t, 0, count)
+		}
+	}
+
+	//
+
+	{
+		want := produce("chan2", 15)
+
+		{
+			count, got := consume("chan2", "group1")
+			require.Equal(t, 15, count)
+			require.Equal(t, want, got)
+		}
+		{
+			count, _ := consume("chan2", "group1")
+			require.Equal(t, 0, count)
+		}
 	}
 }
 
@@ -454,7 +603,11 @@ func BenchmarkKVTopicGet(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			msg, err := brokers[0].Get(ctx, "payments", "", []byte("my_key"))
+			msg, err := brokers[0].Get(ctx, &sgproto.GetRequest{
+				Topic:     "payments",
+				Partition: "",
+				Key:       []byte("my_key"),
+			})
 			require.NoError(b, err)
 			require.Equal(b, "29", string(msg.Value))
 		}
@@ -511,15 +664,15 @@ func BenchmarkConsume(b *testing.B) {
 		var gen sandflake.Generator
 		for i := 0; i < b.N; i++ {
 			count := 0
-			err := brokers[0].Consume(context.Background(),
-				payments.Name,
-				payments.Partitions[0].Id,
-				gen.Next().String(),
-				"consumerName",
-				func(msg *sgproto.Message) error {
-					count++
-					return nil
-				})
+			err := brokers[0].Consume(context.Background(), &sgproto.ConsumeFromGroupRequest{
+				Topic:             payments.Name,
+				Partition:         payments.Partitions[0].Id,
+				ConsumerGroupName: gen.Next().String(),
+				ConsumerName:      "consumerName",
+			}, func(msg *sgproto.Message) error {
+				count++
+				return nil
+			})
 			require.NoError(b, err)
 			require.Equal(b, N, count)
 		}
@@ -623,10 +776,11 @@ func RandomAddr() string {
 	return l.Addr().String()
 }
 
-func ack(t *testing.T, b *broker.Broker, topic, partition, group string, offset sgproto.Offset) {
+func ack(t *testing.T, b *broker.Broker, topic, partition, channel, group string, offset sgproto.Offset) {
 	resp, err := b.Acknowledge(ctx, &sgproto.MarkRequest{
 		Topic:         topic,
 		Partition:     partition,
+		Channel:       channel,
 		ConsumerGroup: group,
 		Offsets:       []sgproto.Offset{offset},
 	})
@@ -634,22 +788,24 @@ func ack(t *testing.T, b *broker.Broker, topic, partition, group string, offset 
 	require.True(t, resp.Success)
 }
 
-func commit(t *testing.T, b *broker.Broker, topic, partition, group string, offset sgproto.Offset) {
+func commit(t *testing.T, b *broker.Broker, topic, partition, channel, group string, offset sgproto.Offset) {
 	resp, err := b.Commit(ctx, &sgproto.MarkRequest{
 		Topic:         topic,
 		Partition:     partition,
 		ConsumerGroup: group,
+		Channel:       channel,
 		Offsets:       []sgproto.Offset{offset},
 	})
 	require.Nil(t, err)
 	require.True(t, resp.Success)
 }
 
-func lastOffset(t *testing.T, b *broker.Broker, topic, partition, group string, kind sgproto.MarkKind) sgproto.Offset {
+func lastOffset(t *testing.T, b *broker.Broker, topic, partition, channel, group string, kind sgproto.MarkKind) sgproto.Offset {
 	resp, err := b.LastOffset(ctx, &sgproto.LastOffsetRequest{
 		Topic:         topic,
 		Partition:     partition,
 		ConsumerGroup: group,
+		Channel:       channel,
 		Kind:          kind,
 	})
 	require.Nil(t, err)

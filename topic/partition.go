@@ -106,6 +106,9 @@ func (p *Partition) storeMessages(msgs []*sgproto.Message) error {
 		if msg.Offset == sgproto.Nil {
 			msg.Offset = sgproto.NewOffset(msg.Index, msg.ProducedAt.Add(msg.ConsumeIn))
 		}
+		if msg.Channel == "" {
+			msg.Channel = "master"
+		}
 		val, err := proto.Marshal(msg)
 		if err != nil {
 			return err
@@ -171,13 +174,13 @@ func (t *Partition) getStorageKey(msg *sgproto.Message) []byte {
 	default:
 		panic("INVALID STORAGE KIND: " + t.topic.Kind.String())
 	}
-	return t.prependPrefixView(storekey)
+	return t.prependPrefixView(msg.Channel, storekey)
 }
 
-func (s *Partition) GetMessage(offset sgproto.Offset, k, suffix []byte) (*sgproto.Message, error) {
+func (s *Partition) GetMessage(channel string, offset sgproto.Offset, k, suffix []byte) (*sgproto.Message, error) {
 	switch s.topic.Kind {
 	case sgproto.TopicKind_TimerKind:
-		val, err := s.db.Get(s.prependPrefixView(offset[:]))
+		val, err := s.db.Get(s.prependPrefixView(channel, offset[:]))
 		if err != nil {
 			return nil, err
 		}
@@ -190,7 +193,7 @@ func (s *Partition) GetMessage(offset sgproto.Offset, k, suffix []byte) (*sgprot
 
 		return &msg, nil
 	case sgproto.TopicKind_KVKind:
-		val := s.db.LastKVForPrefix(s.prependPrefixView(k), suffix)
+		val := s.db.LastKVForPrefix(s.prependPrefixView(channel, k), suffix)
 		if val == nil {
 			return nil, nil
 		}
@@ -207,8 +210,8 @@ func (s *Partition) GetMessage(offset sgproto.Offset, k, suffix []byte) (*sgprot
 	}
 }
 
-func (s *Partition) prependPrefixView(keys ...[]byte) []byte {
-	base := [][]byte{scommons.ViewPrefix, []byte(s.topic.Name), []byte(s.Id)}
+func (s *Partition) prependPrefixView(channel string, keys ...[]byte) []byte {
+	base := [][]byte{scommons.ViewPrefix, []byte(s.topic.Name), []byte(s.Id), []byte(channel)}
 	return scommons.Join(append(base, keys...)...)
 }
 
@@ -217,7 +220,7 @@ func (s *Partition) prependPrefixWAL(keys ...[]byte) []byte {
 	return scommons.Join(append(base, keys...)...)
 }
 
-func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
+func (t *Partition) HasKey(channel string, key, clusterKey []byte) (bool, error) {
 	switch t.topic.Kind {
 	case sgproto.TopicKind_KVKind:
 	default:
@@ -225,7 +228,7 @@ func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 	}
 
 	pk := joinKeys(key, clusterKey)
-	existKey := t.prependPrefixView(pk)
+	existKey := t.prependPrefixView(channel, pk)
 
 	if t.ibf.Test(existKey) {
 		return true, nil
@@ -235,7 +238,7 @@ func (t *Partition) HasKey(key, clusterKey []byte) (bool, error) {
 		return false, nil
 	}
 
-	msg, err := t.GetMessage(sgproto.Nil, pk, nil)
+	msg, err := t.GetMessage(channel, sgproto.Nil, pk, nil)
 	if err != nil {
 		return false, err
 	}
@@ -299,16 +302,16 @@ func (p *Partition) WALBatchPutMessages(msgs []*sgproto.Message) error {
 	return p.db.BatchPut(entries)
 }
 
-func (p *Partition) ForRange(min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error {
+func (p *Partition) ForRange(channel string, min, max sgproto.Offset, fn func(msg *sgproto.Message) error) error {
 	var lastKey []byte
 	switch p.topic.Kind {
 	case sgproto.TopicKind_TimerKind:
-		return p.db.ForRange(p.prependPrefixView(), min, max, func(msg *sgproto.Message) error {
+		return p.db.ForRange(p.prependPrefixView(channel), min, max, func(msg *sgproto.Message) error {
 			err := fn(msg)
 			return err
 		})
 	case sgproto.TopicKind_KVKind:
-		it := scommons.NewMessageIterator(p.prependPrefixView(), p.db, &storage.IterOptions{
+		it := scommons.NewMessageIterator(p.prependPrefixView(channel), p.db, &storage.IterOptions{
 			FetchValues: true,
 			Reverse:     true,
 		})
@@ -336,8 +339,8 @@ func (p *Partition) Close() error {
 	return nil
 }
 
-func (p *Partition) Iter() storage.MessageIterator {
-	return scommons.NewMessageIterator(p.prependPrefixView(), p.db, &storage.IterOptions{
+func (p *Partition) Iter(channel string) storage.MessageIterator {
+	return scommons.NewMessageIterator(p.prependPrefixView(channel), p.db, &storage.IterOptions{
 		FetchValues: true,
 		Reverse:     false,
 	})

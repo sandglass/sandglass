@@ -33,7 +33,8 @@ import (
 )
 
 const (
-	ConsumerOffsetTopicName = "__consumer_offsets"
+	ConsumerOffsetTopicName   = "__consumer_offsets"
+	ConsumerOffsetMainChannel = "master"
 )
 
 var DefaultStateCheckInterval = 1 * time.Second

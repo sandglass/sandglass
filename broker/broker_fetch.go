@@ -50,7 +50,7 @@ func (b *Broker) FetchRangeFn(ctx context.Context, req *sgproto.FetchRangeReques
 	}
 
 	p := topic.GetPartition(req.Partition)
-	return p.ForRange(req.From, req.To, fn)
+	return p.ForRange(req.Channel, req.From, req.To, fn)
 }
 
 func (b *Broker) fetchFromSync(topicName, partition string, from []byte, fn func(msg *sgproto.Message) error) error {
@@ -97,7 +97,18 @@ func (b *Broker) EndOfLog(ctx context.Context, req *sgproto.EndOfLogRequest) (*s
 	}, nil
 }
 
-func (b *Broker) Get(ctx context.Context, topicName string, partition string, key []byte) (*sgproto.Message, error) {
+func (b *Broker) Get(ctx context.Context, req *sgproto.GetRequest) (*sgproto.Message, error) {
+	t := b.getTopic(req.Topic)
+	var p *topic.Partition
+	if req.Partition != "" {
+		p = t.GetPartition(req.Partition)
+	} else {
+		p = t.ChoosePartitionForKey(req.Key)
+	}
+	return b.getFromPartition(ctx, req.Topic, p, req.Channel, req.Key)
+}
+
+func (b *Broker) hasKey(ctx context.Context, topicName, partition, channel string, key, clusterKey []byte) (bool, error) {
 	t := b.getTopic(topicName)
 	var p *topic.Partition
 	if partition != "" {
@@ -105,21 +116,10 @@ func (b *Broker) Get(ctx context.Context, topicName string, partition string, ke
 	} else {
 		p = t.ChoosePartitionForKey(key)
 	}
-	return b.getFromPartition(ctx, topicName, p, key)
+	return b.hasKeyInPartition(ctx, topicName, p, channel, key, clusterKey)
 }
 
-func (b *Broker) hasKey(ctx context.Context, topicName string, partition string, key, clusterKey []byte) (bool, error) {
-	t := b.getTopic(topicName)
-	var p *topic.Partition
-	if partition != "" {
-		p = t.GetPartition(partition)
-	} else {
-		p = t.ChoosePartitionForKey(key)
-	}
-	return b.hasKeyInPartition(ctx, topicName, p, key, clusterKey)
-}
-
-func (b *Broker) getFromPartition(ctx context.Context, topic string, p *topic.Partition, key []byte) (*sgproto.Message, error) {
+func (b *Broker) getFromPartition(ctx context.Context, topic string, p *topic.Partition, channel string, key []byte) (*sgproto.Message, error) {
 	leader := b.getPartitionLeader(topic, p.Id)
 	if leader == nil {
 		return nil, ErrNoLeaderFound
@@ -133,11 +133,12 @@ func (b *Broker) getFromPartition(ctx context.Context, topic string, p *topic.Pa
 		return leader.GetByKey(ctx, &sgproto.GetRequest{
 			Topic:     topic,
 			Partition: p.Id,
+			Channel:   channel,
 			Key:       key,
 		})
 	}
 
-	msg, err := p.GetMessage(sgproto.Nil, key, nil)
+	msg, err := p.GetMessage(channel, sgproto.Nil, key, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +150,7 @@ func (b *Broker) getFromPartition(ctx context.Context, topic string, p *topic.Pa
 	return msg, nil
 }
 
-func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.Partition, key, clusterKey []byte) (bool, error) {
+func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.Partition, channel string, key, clusterKey []byte) (bool, error) {
 	leader := b.getPartitionLeader(topic, p.Id)
 	if leader == nil {
 		return false, ErrNoLeaderFound
@@ -170,7 +171,7 @@ func (b *Broker) hasKeyInPartition(ctx context.Context, topic string, p *topic.P
 		return resp.Exists, nil
 	}
 
-	return p.HasKey(key, clusterKey)
+	return p.HasKey(channel, key, clusterKey)
 }
 
 func generatePrefixConsumerOffsetKey(partitionKey []byte, offset sgproto.Offset) []byte {
