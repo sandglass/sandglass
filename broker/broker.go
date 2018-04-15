@@ -35,6 +35,7 @@ import (
 const (
 	ConsumerOffsetTopicName   = "__consumer_offsets"
 	ConsumerOffsetMainChannel = "master"
+	DeathLetterChannel        = "__death_letter"
 )
 
 var DefaultStateCheckInterval = 1 * time.Second

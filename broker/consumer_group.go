@@ -214,12 +214,34 @@ func (c *ConsumerGroup) consumeLoop() {
 						p := t.ChoosePartitionForKey(markedMsg.Key)
 						markedMsg.ClusteringKey = generateClusterKey(m.Offset, state.Kind)
 
-						// TODO: should we add channel here
-						if _, err := c.broker.Produce(context.TODO(), &sgproto.ProduceMessageRequest{
-							Topic:     ConsumerOffsetTopicName,
-							Partition: p.Id,
-							Messages:  []*sgproto.Message{markedMsg},
-						}); err != nil {
+						var group errgroup.Group
+						group.Go(func() error {
+							// TODO: should we add channel here
+							_, err := c.broker.Produce(context.TODO(), &sgproto.ProduceMessageRequest{
+								Topic:     ConsumerOffsetTopicName,
+								Partition: p.Id,
+								Messages:  []*sgproto.Message{markedMsg},
+							})
+							if err != nil {
+								c.logger.Printf("error marking message as acked (death letter)")
+							}
+							return err
+						})
+						// sending the message to death letter channel
+						m.Channel = DeathLetterChannel
+						group.Go(func() error {
+							_, err := c.broker.Produce(context.TODO(), &sgproto.ProduceMessageRequest{
+								Topic:     c.topic,
+								Partition: c.partition,
+								Messages:  []*sgproto.Message{m},
+							})
+							if err != nil {
+								c.logger.Printf("error producing death letter message")
+							}
+							return err
+						})
+
+						if err := group.Wait(); err != nil {
 							return err
 						}
 					}
