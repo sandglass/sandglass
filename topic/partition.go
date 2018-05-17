@@ -251,9 +251,13 @@ func (t *Partition) HasKey(channel string, key, clusterKey []byte) (bool, error)
 }
 
 func (t *Partition) newWALKey(msg *sgproto.Message) []byte {
+	return t.genWALKey(msg.Index)
+}
+
+func (p *Partition) genWALKey(index uint64) []byte {
 	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, msg.Index)
-	return t.prependPrefixWAL(b)
+	binary.BigEndian.PutUint64(b, index)
+	return p.prependPrefixWAL(b)
 }
 
 func (t *Partition) PutMessage(msg *sgproto.Message) error {
@@ -385,6 +389,13 @@ func (p *Partition) getMessageByStorageKey(k []byte) (*sgproto.Message, error) {
 	}
 
 	return &msg, nil
+}
+
+func (p *Partition) TruncateWALFrom(index uint64) error {
+	prefix := p.prependPrefixWAL()
+	min := p.genWALKey(index)
+
+	return p.db.Truncate(prefix, min, 1000)
 }
 
 func joinKeys(key, clusterKey []byte) []byte {

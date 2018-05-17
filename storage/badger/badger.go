@@ -3,6 +3,8 @@ package badger
 import (
 	"time"
 
+	"github.com/celrenheit/sandglass/sgutils"
+
 	"github.com/celrenheit/sandglass/storage"
 	"github.com/celrenheit/sandglass/storage/scommons"
 	"github.com/dgraph-io/badger"
@@ -127,6 +129,69 @@ func (s *Storage) IterReverse() storage.Iterator {
 
 	txn := s.db.NewTransaction(false)
 	return &iterator{iter: txn.NewIterator(opt), txn: txn}
+}
+
+func (s *Storage) Truncate(prefix, min []byte, batchSize int) error {
+	truncate := func() (bool, error) {
+		txn := s.db.NewTransaction(true)
+		defer txn.Discard()
+
+		it := txn.NewIterator(badger.IteratorOptions{
+			PrefetchValues: false,
+		})
+
+		buf := make([][]byte, 0, batchSize)
+
+		for it.Seek(min); it.ValidForPrefix(prefix) && len(buf) < batchSize; it.Next() {
+			buf = append(buf, sgutils.CopyBytes(it.Item().Key()))
+		}
+
+		if len(buf) == 0 {
+			return false, nil
+		}
+
+		for _, key := range buf {
+			if err := txn.Delete(key); err != nil {
+				return false, err
+			}
+		}
+
+		if err := txn.Commit(nil); err != nil {
+			return false, err
+		}
+
+		return true, nil
+	}
+
+	ok, err := truncate()
+	for ; ok; ok, err = truncate() {
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Storage) Delete(key []byte) error {
+	txn := s.db.NewTransaction(true)
+	defer txn.Discard()
+
+	return txn.Delete(key)
+}
+
+func (s *Storage) BatchDelete(keys [][]byte) error {
+	txn := s.db.NewTransaction(true)
+	defer txn.Discard()
+
+	for _, key := range keys {
+		if err := txn.Delete(key); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *Storage) Close() error {

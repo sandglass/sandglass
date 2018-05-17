@@ -13,6 +13,9 @@ type Storage interface {
 	Merge(key, operation []byte) error
 	ProcessMergedKey(key []byte, fn func(val []byte) ([]*Entry, []byte, error)) error
 	Iter(*IterOptions) Iterator
+	Truncate(prefix, min []byte, batchSize int) error
+	BatchDelete(keys [][]byte) error
+	Delete(key []byte) error
 	Close() error
 	LastKeyForPrefix(prefix []byte) []byte
 	LastKVForPrefix(prefix, suffix []byte) []byte
