@@ -81,15 +81,12 @@ func (h *HashRing) generateCircle() {
 			totalWeight += weight
 		} else {
 			totalWeight += 1
+			h.weights[node] = 1
 		}
 	}
 
 	for _, node := range h.nodes {
-		weight := 1
-
-		if _, ok := h.weights[node]; ok {
-			weight = h.weights[node]
-		}
+		weight := h.weights[node]
 
 		factor := math.Floor(float64(40*len(h.nodes)*weight) / float64(totalWeight))
 
@@ -177,10 +174,8 @@ func (h *HashRing) AddWeightedNode(node string, weight int) *HashRing {
 		return h
 	}
 
-	for _, eNode := range h.nodes {
-		if eNode == node {
-			return h
-		}
+	if _, ok := h.weights[node]; ok {
+		return h
 	}
 
 	nodes := make([]string, len(h.nodes), len(h.nodes)+1)
@@ -232,16 +227,16 @@ func (h *HashRing) UpdateWeightedNode(node string, weight int) *HashRing {
 	return hashRing
 }
 func (h *HashRing) RemoveNode(node string) *HashRing {
+	/* if node isn't exist in hashring, don't refresh hashring */
+	if _, ok := h.weights[node]; !ok {
+		return h
+	}
+
 	nodes := make([]string, 0)
 	for _, eNode := range h.nodes {
 		if eNode != node {
 			nodes = append(nodes, eNode)
 		}
-	}
-
-	/* if node isn't exist in hashring, don't refresh hashring */
-	if len(nodes) == len(h.nodes) {
-		return h
 	}
 
 	weights := make(map[string]int)
