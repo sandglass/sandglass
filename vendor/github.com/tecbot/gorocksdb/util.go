@@ -51,12 +51,6 @@ func cByteSlice(b []byte) *C.char {
 	return c
 }
 
-// stringToChar returns *C.char from string.
-func stringToChar(s string) *C.char {
-	ptrStr := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	return (*C.char)(unsafe.Pointer(ptrStr.Data))
-}
-
 // charSlice converts a C array of *char to a []*C.char.
 func charSlice(data **C.char, len C.int) []*C.char {
 	var value []*C.char

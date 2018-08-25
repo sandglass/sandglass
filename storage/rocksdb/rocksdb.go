@@ -117,6 +117,74 @@ func (s *Store) Iter(opts *storage.IterOptions) storage.Iterator {
 	return &iterator{iter: it, opts: opts}
 }
 
+func (s *Store) Truncate(prefix, min []byte, batchSize int) error {
+	truncate := func() (bool, error) {
+		batch := gorocksdb.NewWriteBatch()
+		defer batch.Destroy()
+
+		ropts := gorocksdb.NewDefaultReadOptions()
+		defer ropts.Destroy()
+
+		it := s.db.NewIterator(ropts)
+
+		buf := make([][]byte, 0, batchSize)
+
+		for it.Seek(min); it.ValidForPrefix(prefix) && len(buf) < batchSize; it.Next() {
+			slice := it.Key()
+			key := sgutils.CopyBytes(slice.Data())
+			buf = append(buf, key)
+			slice.Free()
+		}
+
+		if len(buf) == 0 {
+			return false, nil
+		}
+
+		for _, key := range buf {
+			batch.Delete(key)
+		}
+
+		wopts := gorocksdb.NewDefaultWriteOptions()
+		defer wopts.Destroy()
+
+		if err := s.db.Write(wopts, batch); err != nil {
+			return false, err
+		}
+
+		return true, nil
+	}
+
+	ok, err := truncate()
+	for ; ok; ok, err = truncate() {
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Store) Delete(key []byte) error {
+	wopts := gorocksdb.NewDefaultWriteOptions()
+	defer wopts.Destroy()
+	return s.db.Delete(wopts, key)
+}
+
+func (s *Store) BatchDelete(keys [][]byte) error {
+	batch := gorocksdb.NewWriteBatch()
+	defer batch.Destroy()
+
+	for _, key := range keys {
+		batch.Delete(key)
+	}
+
+	wopts := gorocksdb.NewDefaultWriteOptions()
+	defer wopts.Destroy()
+
+	return s.db.Write(wopts, batch)
+}
+
 func (s *Store) Close() error {
 	s.db.Close()
 	return nil

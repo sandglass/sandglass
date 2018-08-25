@@ -1030,6 +1030,21 @@ func (opts *Options) SetBlockBasedTableFactory(value *BlockBasedTableOptions) {
 	C.rocksdb_options_set_block_based_table_factory(opts.c, value.c)
 }
 
+// SetAllowIngestBehind sets allow_ingest_behind
+// Set this option to true during creation of database if you want
+// to be able to ingest behind (call IngestExternalFile() skipping keys
+// that already exist, rather than overwriting matching keys).
+// Setting this option to true will affect 2 things:
+// 1) Disable some internal optimizations around SST file compression
+// 2) Reserve bottom-most level for ingested files only.
+// 3) Note that num_levels should be >= 3 if this option is turned on.
+//
+// DEFAULT: false
+// Immutable.
+func (opts *Options) SetAllowIngestBehind(value bool) {
+	C.rocksdb_options_set_allow_ingest_behind(opts.c, boolToChar(value))
+}
+
 // Destroy deallocates the Options object.
 func (opts *Options) Destroy() {
 	C.rocksdb_options_destroy(opts.c)

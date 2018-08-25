@@ -230,6 +230,56 @@ func (b *BitSet) NextSet(i uint) (uint, bool) {
 	return 0, false
 }
 
+// NextSetMany returns many next bit sets from the specified index,
+// including possibly the current index and up to cap(buffer).
+// If the returned slice has len zero, then no more set bits were found
+//
+//    buffer := make([]uint, 256)
+//    j := uint(0)
+//    j, buffer = bitmap.NextSetMany(j, buffer)
+//    for ; len(buffer) > 0; j, buffer = bitmap.NextSetMany(j,buffer) {
+//     for k := range buffer {
+//      do something with buffer[k]
+//     }
+//     j += 1
+//    }
+//
+func (b *BitSet) NextSetMany(i uint, buffer []uint) (uint, []uint) {
+	myanswer := buffer[:0]
+
+	x := int(i >> log2WordSize)
+	if x >= len(b.set) {
+		return 0, myanswer
+	}
+	w := b.set[x]
+	w = w >> (i & (wordSize - 1))
+	base := uint(x << 6)
+	capacity := cap(buffer)
+	for len(myanswer) < capacity {
+		for w != 0 {
+			t := w & ((^w) + 1)
+			r := trailingZeroes64(w)
+			myanswer = append(myanswer, r+base)
+			if len(myanswer) == capacity {
+				goto End
+			}
+			w = w ^ t
+		}
+		x += 1
+		if x == len(b.set) {
+			break
+		}
+		base += 64
+		w = b.set[x]
+	}
+End:
+	if len(myanswer) > 0 {
+		return myanswer[len(myanswer)-1], myanswer
+	} else {
+		return 0, myanswer
+	}
+}
+
 // NextClear returns the next clear bit from the specified index,
 // including possibly the current index
 // along with an error code (true = valid, false = no bit found i.e. all bits are set)

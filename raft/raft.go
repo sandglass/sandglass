@@ -548,8 +548,16 @@ func (f *fsm) applySetPartitionLeaderBulk(d []byte) error {
 			f.state.PartitionLeaders[topic] = map[string]string{}
 		}
 
+		t := f.state.Topics[topic]
+
 		for part, leader := range partitions {
 			f.state.PartitionLeaders[topic][part] = leader
+
+			hwMark := f.state.PartitionHWMarks[topic][part]
+			p := t.GetPartition(part)
+			if err := p.TruncateWALFrom(hwMark); err != nil {
+				return err
+			}
 		}
 	}
 
