@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celrenheit/sandglass"
-	"github.com/celrenheit/sandglass/topic"
+	"github.com/sandglass/sandglass"
+	"github.com/sandglass/sandglass/topic"
 	"github.com/sirupsen/logrus"
 
 	"github.com/hashicorp/raft"

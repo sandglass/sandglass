@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/celrenheit/sandflake"
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/topic"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass/topic"
 	"github.com/hashicorp/serf/serf"
 	"github.com/serialx/hashring"
 )

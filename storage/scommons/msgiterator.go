@@ -1,8 +1,8 @@
 package scommons
 
 import (
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/storage"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass/storage"
 	"github.com/gogo/protobuf/proto"
 )
 

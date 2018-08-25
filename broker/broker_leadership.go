@@ -7,12 +7,12 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/sgutils"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass/sgutils"
 	"github.com/cenkalti/backoff"
 	"github.com/sirupsen/logrus"
 
-	"github.com/celrenheit/sandglass"
+	"github.com/sandglass/sandglass"
 )
 
 var (

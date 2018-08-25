@@ -3,10 +3,10 @@ package broker
 import (
 	"math/rand"
 
-	"github.com/celrenheit/sandglass/sgutils"
+	"github.com/sandglass/sandglass/sgutils"
 	"github.com/sirupsen/logrus"
 
-	"github.com/celrenheit/sandglass"
+	"github.com/sandglass/sandglass"
 )
 
 func (b *Broker) IsController() bool {

@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/sirupsen/logrus"
 )

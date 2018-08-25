@@ -6,7 +6,7 @@ Sandglass is a distributed, horizontally scalable, persistent, time ordered mess
 </p>
 
 <p align="center">
-    <a href="https://github.com/celrenheit/sandglass/releases/latest">
+    <a href="https://github.com/sandglass/sandglass/releases/latest">
         <img alt="Release" src="https://img.shields.io/github/release/celrenheit/sandglass.svg?style=flat-square">
     </a>
     <a href="https://travis-ci.org/celrenheit/sandglass">
@@ -65,7 +65,7 @@ On MacOS using [Homebrew](https://brew.sh):
 brew install celrenheit/taps/sandglass
 ```
 
-For other platforms, you can grab binaries [here](https://github.com/celrenheit/sandglass/releases). 
+For other platforms, you can grab binaries [here](https://github.com/sandglass/sandglass/releases). 
 
 ## Getting started
 
@@ -108,7 +108,7 @@ and repeat the same steps described above for another topic and increasing the r
 
 ## Motivation
 
-As previously asked ([#4](https://github.com/celrenheit/sandglass/issues/4)), the purpose of this project might not seem clear. In short, there is two goals. 
+As previously asked ([#4](https://github.com/sandglass/sandglass/issues/4)), the purpose of this project might not seem clear. In short, there is two goals. 
 
 The first is to be able to track each message individually (i.e. not using a single commit offset) to make suitable for asynchronous tasks.
 
@@ -130,12 +130,12 @@ The second is the ability to schedule messages to be consumed in the future. Thi
 #### Installation
 
 ```shell
-go get -u github.com/celrenheit/sandglass-client/go/sg
+go get -u github.com/sandglass/sandglass-client/go/sg
 ```
 
 #### Documentation
 
-The documentation is available on [godoc](https://godoc.org/github.com/celrenheit/sandglass-client/go/sg).
+The documentation is available on [godoc](https://godoc.org/github.com/sandglass/sandglass-client/go/sg).
 
 
 #### Usage
@@ -264,7 +264,7 @@ Interested in having client for one the following languages ?
 
 Support is planned but there is no specific schedule. So, if you are interested to quickly have a client in your language, **help is welcome!**
 
-Check the raw generated code available on https://github.com/celrenheit/sandglass-grpc and feel free to submit your through a pull request to https://github.com/celrenheit/sandglass-client.
+Check the raw generated code available on https://github.com/sandglass/sandglass-grpc and feel free to submit your through a pull request to https://github.com/sandglass/sandglass-client.
 
 
 ## Architecture

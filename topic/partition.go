@@ -15,9 +15,9 @@ import (
 
 	"github.com/celrenheit/sandflake"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/storage"
-	"github.com/celrenheit/sandglass/storage/scommons"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass/storage"
+	"github.com/sandglass/sandglass/storage/scommons"
 	"github.com/gogo/protobuf/proto"
 	"github.com/willf/bloom"
 )

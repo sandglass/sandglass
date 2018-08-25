@@ -17,7 +17,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/celrenheit/sandglass/cmd/cmdcommon"
+	"github.com/sandglass/sandglass/cmd/cmdcommon"
 	"github.com/spf13/cobra"
 )
 

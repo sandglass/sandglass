@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/celrenheit/sandglass/topic"
+	"github.com/sandglass/sandglass/topic"
 	"github.com/sirupsen/logrus"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
 )
 
 var (

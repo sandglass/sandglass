@@ -7,8 +7,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/storage"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass/storage"
 )
 
 func (b *Broker) Consume(ctx context.Context, req *sgproto.ConsumeFromGroupRequest, fn func(msg *sgproto.Message) error) error {

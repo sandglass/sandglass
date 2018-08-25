@@ -7,7 +7,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
 )
 
 func (b *Broker) GetTopic(ctx context.Context, req *sgproto.GetTopicParams) (*sgproto.GetTopicReply, error) {

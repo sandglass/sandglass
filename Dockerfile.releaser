@@ -8,7 +8,7 @@ RUN wget https://github.com/goreleaser/goreleaser/releases/download/v0.35.5/gore
     chmod a+x goreleaser && mv goreleaser /usr/bin/goreleaser
 
 
-WORKDIR $GOPATH/src/github.com/celrenheit/sandglass
+WORKDIR $GOPATH/src/github.com/sandglass/sandglass
 
 
 COPY . ./

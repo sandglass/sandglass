@@ -18,8 +18,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/celrenheit/sandflake"
-	"github.com/celrenheit/sandglass"
-	"github.com/celrenheit/sandglass/raft"
+	"github.com/sandglass/sandglass"
+	"github.com/sandglass/sandglass/raft"
 	"github.com/hashicorp/serf/serf"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -27,9 +27,9 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/topic"
-	"github.com/celrenheit/sandglass/watchy"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass/topic"
+	"github.com/sandglass/sandglass/watchy"
 )
 
 const (

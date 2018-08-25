@@ -9,9 +9,9 @@ import (
 
 	"google.golang.org/grpc/codes"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/storage"
-	"github.com/celrenheit/sandglass/topic"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass/storage"
+	"github.com/sandglass/sandglass/topic"
 	"github.com/grpc/grpc-go/status"
 )
 

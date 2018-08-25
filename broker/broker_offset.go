@@ -10,9 +10,9 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/storage"
-	"github.com/celrenheit/sandglass/topic"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass/storage"
+	"github.com/sandglass/sandglass/topic"
 )
 
 func (b *Broker) mark(ctx context.Context, req *sgproto.MarkRequest) (bool, error) {

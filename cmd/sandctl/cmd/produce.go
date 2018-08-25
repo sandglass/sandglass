@@ -20,9 +20,9 @@ import (
 	"io/ioutil"
 	"log"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
 
-	"github.com/celrenheit/sandglass/cmd/cmdcommon"
+	"github.com/sandglass/sandglass/cmd/cmdcommon"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

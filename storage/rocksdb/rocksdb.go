@@ -5,9 +5,9 @@ package rocksdb
 import (
 	"C"
 
-	"github.com/celrenheit/sandglass/sgutils"
-	"github.com/celrenheit/sandglass/storage"
-	"github.com/celrenheit/sandglass/storage/scommons"
+	"github.com/sandglass/sandglass/sgutils"
+	"github.com/sandglass/sandglass/storage"
+	"github.com/sandglass/sandglass/storage/scommons"
 	"github.com/tecbot/gorocksdb"
 )
 

@@ -20,9 +20,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
 
-	"github.com/celrenheit/sandglass/cmd/cmdcommon"
+	"github.com/sandglass/sandglass/cmd/cmdcommon"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip"
 

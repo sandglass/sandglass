@@ -3,7 +3,7 @@ LABEL Salim Alami <celrenheit+github@gmail.com>
 
 EXPOSE 8080
 
-WORKDIR $GOPATH/src/github.com/celrenheit/sandglass
+WORKDIR $GOPATH/src/github.com/sandglass/sandglass
 
 COPY . ./
 

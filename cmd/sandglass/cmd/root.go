@@ -24,13 +24,13 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/celrenheit/sandglass/cmd/cmdcommon"
+	"github.com/sandglass/sandglass/cmd/cmdcommon"
 
 	"github.com/fatih/color"
 
 	"time"
 
-	"github.com/celrenheit/sandglass/broker"
+	"github.com/sandglass/sandglass/broker"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

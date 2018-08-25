@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
 )
 
 var Separator = []byte{'/'}

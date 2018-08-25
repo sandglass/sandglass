@@ -1,8 +1,8 @@
 package badger
 
 import (
-	"github.com/celrenheit/sandglass/sgutils"
-	"github.com/celrenheit/sandglass/storage"
+	"github.com/sandglass/sandglass/sgutils"
+	"github.com/sandglass/sandglass/storage"
 	"github.com/dgraph-io/badger"
 )
 

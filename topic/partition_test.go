@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celrenheit/sandglass/storage"
-	"github.com/celrenheit/sandglass/storage/rocksdb"
+	"github.com/sandglass/sandglass/storage"
+	"github.com/sandglass/sandglass/storage/rocksdb"
 
 	"io/ioutil"
 
 	"os"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
 	"github.com/stretchr/testify/require"
 )
 

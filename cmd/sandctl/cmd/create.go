@@ -23,9 +23,9 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/celrenheit/sandglass/cmd/cmdcommon"
+	"github.com/sandglass/sandglass/cmd/cmdcommon"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
 	"github.com/spf13/cobra"
 )
 

@@ -14,7 +14,7 @@
 
 package main
 
-import "github.com/celrenheit/sandglass/cmd/sandctl/cmd"
+import "github.com/sandglass/sandglass/cmd/sandctl/cmd"
 
 var (
 	version = "dev"

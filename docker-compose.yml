@@ -4,7 +4,7 @@ services:
     sandglass:
         build: .
         volumes:
-        - ./:/gopath/src/github.com/celrenheit/sandglass
+        - ./:/gopath/src/github.com/sandglass/sandglass
         environment:
         - GODEBUG=netdns=go
         image: celrenheit/sandglass

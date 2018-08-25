@@ -33,7 +33,7 @@ brew:
 
   folder: Formula
 
-  homepage: "https://github.com/celrenheit/sandglass"
+  homepage: "https://github.com/sandglass/sandglass"
 
   description: "Sandglass is a distributed, horizontally scalable, persistent, delayed message queue"
 

@@ -10,10 +10,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/celrenheit/sandglass/sgutils"
+	"github.com/sandglass/sandglass/sgutils"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/celrenheit/sandglass/topic"
+	"github.com/sandglass/sandglass/topic"
 
 	"fmt"
 
@@ -22,8 +22,8 @@ import (
 	"os"
 
 	"github.com/celrenheit/sandflake"
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/broker"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass/broker"
 	"github.com/stretchr/testify/require"
 )
 

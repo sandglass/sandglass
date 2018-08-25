@@ -7,11 +7,11 @@ import (
 
 	"fmt"
 
-	"github.com/celrenheit/sandglass-grpc/go/sgproto"
-	"github.com/celrenheit/sandglass/sgutils"
-	"github.com/celrenheit/sandglass/storage"
-	"github.com/celrenheit/sandglass/storage/badger"
-	"github.com/celrenheit/sandglass/storage/rocksdb"
+	"github.com/sandglass/sandglass-grpc/go/sgproto"
+	"github.com/sandglass/sandglass/sgutils"
+	"github.com/sandglass/sandglass/storage"
+	"github.com/sandglass/sandglass/storage/badger"
+	"github.com/sandglass/sandglass/storage/rocksdb"
 	"golang.org/x/sync/errgroup"
 )
 

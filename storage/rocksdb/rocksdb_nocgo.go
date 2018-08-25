@@ -3,7 +3,7 @@
 package rocksdb
 
 import (
-	"github.com/celrenheit/sandglass/storage/badger"
+	"github.com/sandglass/sandglass/storage/badger"
 )
 
 var NewStorage = badger.NewStorage
