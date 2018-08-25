@@ -11,6 +11,14 @@ type Slice struct {
 	freed bool
 }
 
+type Slices []*Slice
+
+func (slices Slices) Destroy() {
+	for _, s := range slices {
+		s.Free()
+	}
+}
+
 // NewSlice returns a slice with the given data.
 func NewSlice(data *C.char, size C.size_t) *Slice {
 	return &Slice{data, size, false}

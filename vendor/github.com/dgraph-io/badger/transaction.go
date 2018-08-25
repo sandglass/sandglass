@@ -40,7 +40,10 @@ type oracle struct {
 	writeLock  sync.Mutex
 	nextCommit uint64
 
-	readMark y.WaterMark
+	// Either of these is used to determine which versions can be permanently
+	// discarded during compaction.
+	discardTs uint64      // Used by ManagedDB.
+	readMark  y.WaterMark // Used by DB.
 
 	// commits stores a key fingerprint and latest commit counter for it.
 	// refCount is used to clear out commits map to avoid a memory blowup.
@@ -79,6 +82,23 @@ func (o *oracle) commitTs() uint64 {
 	o.Lock()
 	defer o.Unlock()
 	return o.nextCommit
+}
+
+// Any deleted or invalid versions at or below ts would be discarded during
+// compaction to reclaim disk space in LSM tree and thence value log.
+func (o *oracle) setDiscardTs(ts uint64) {
+	o.Lock()
+	defer o.Unlock()
+	o.discardTs = ts
+}
+
+func (o *oracle) discardAtOrBelow() uint64 {
+	if o.isManaged {
+		o.Lock()
+		defer o.Unlock()
+		return o.discardTs
+	}
+	return o.readMark.MinReadTs()
 }
 
 // hasConflict must be called while having a lock.
@@ -149,8 +169,9 @@ type Txn struct {
 	callbacks []func()
 	discarded bool
 
-	size  int64
-	count int64
+	size         int64
+	count        int64
+	numIterators int32
 }
 
 type pendingWritesIterator struct {
@@ -268,10 +289,20 @@ func (txn *Txn) SetWithMeta(key, val []byte, meta byte) error {
 	return txn.SetEntry(e)
 }
 
-// SetWithDiscard acts like SetWithMeta, but adds a marker to discard earlier versions of the key.
+// SetWithDiscard acts like SetWithMeta, but adds a marker to discard earlier
+// versions of the key.
+//
+// This method is only useful if you have set a higher limit for
+// options.NumVersionsToKeep. The default setting is 1, in which case, this
+// function doesn't add any more benefit than just calling the normal
+// SetWithMeta (or Set) function. If however, you have a higher setting for
+// NumVersionsToKeep (in Dgraph, we set it to infinity), you can use this method
+// to indicate that all the older versions can be discarded and removed during
+// compactions.
 //
 // The current transaction keeps a reference to the key and val byte slice
-// arguments. Users must not modify key and val until the end of the transaction.
+// arguments. Users must not modify key and val until the end of the
+// transaction.
 func (txn *Txn) SetWithDiscard(key, val []byte, meta byte) error {
 	e := &Entry{
 		Key:      key,
@@ -283,11 +314,12 @@ func (txn *Txn) SetWithDiscard(key, val []byte, meta byte) error {
 }
 
 // SetWithTTL adds a key-value pair to the database, along with a time-to-live
-// (TTL) setting. A key stored with a TTL would automatically expire after
-// the time has elapsed , and be eligible for garbage collection.
+// (TTL) setting. A key stored with a TTL would automatically expire after the
+// time has elapsed , and be eligible for garbage collection.
 //
 // The current transaction keeps a reference to the key and val byte slice
-// arguments. Users must not modify key and val until the end of the transaction.
+// arguments. Users must not modify key and val until the end of the
+// transaction.
 func (txn *Txn) SetWithTTL(key, val []byte, dur time.Duration) error {
 	expire := time.Now().Add(dur).Unix()
 	e := &Entry{Key: key, Value: val, ExpiresAt: uint64(expire)}
@@ -316,8 +348,8 @@ func (txn *Txn) modify(e *Entry) error {
 	return nil
 }
 
-// SetEntry takes an Entry struct and adds the key-value pair in the struct, along
-// with other metadata to the database.
+// SetEntry takes an Entry struct and adds the key-value pair in the struct,
+// along with other metadata to the database.
 //
 // The current transaction keeps a reference to the entry passed in argument.
 // Users must not modify the entry until the end of the transaction.
@@ -327,12 +359,12 @@ func (txn *Txn) SetEntry(e *Entry) error {
 
 // Delete deletes a key.
 //
-// This is done by adding a delete marker for the key at commit timestamp.
-// Any reads happening before this timestamp would be unaffected. Any reads after
+// This is done by adding a delete marker for the key at commit timestamp.  Any
+// reads happening before this timestamp would be unaffected. Any reads after
 // this commit would see the deletion.
 //
-// The current transaction keeps a reference to the key byte slice argument. Users
-// must not modify the key until the end of the transaction.
+// The current transaction keeps a reference to the key byte slice argument.
+// Users must not modify the key until the end of the transaction.
 func (txn *Txn) Delete(key []byte) error {
 	e := &Entry{
 		Key:  key,
@@ -400,7 +432,7 @@ func (txn *Txn) runCallbacks() {
 	for _, cb := range txn.callbacks {
 		cb()
 	}
-	txn.callbacks = nil
+	txn.callbacks = txn.callbacks[:0]
 }
 
 // Discard discards a created transaction. This method is very important and must be called. Commit
@@ -412,10 +444,12 @@ func (txn *Txn) Discard() {
 	if txn.discarded { // Avoid a re-run.
 		return
 	}
+	if atomic.LoadInt32(&txn.numIterators) > 0 {
+		panic("Unclosed iterator at time of Txn.Discard.")
+	}
 	txn.discarded = true
 	txn.db.orc.readMark.Done(txn.readTs)
 	txn.runCallbacks()
-
 	if txn.update {
 		txn.db.orc.decrRef()
 	}

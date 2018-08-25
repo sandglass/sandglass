@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dgraph-io/badger/options"
@@ -140,42 +141,55 @@ func (item *Item) DiscardEarlierVersions() bool {
 }
 
 func (item *Item) yieldItemValue() ([]byte, func(), error) {
-	if !item.hasValue() {
-		return nil, nil, nil
-	}
+	key := item.Key() // No need to copy.
+	for {
+		if !item.hasValue() {
+			return nil, nil, nil
+		}
 
-	if item.slice == nil {
-		item.slice = new(y.Slice)
-	}
+		if item.slice == nil {
+			item.slice = new(y.Slice)
+		}
 
-	if (item.meta & bitValuePointer) == 0 {
-		val := item.slice.Resize(len(item.vptr))
-		copy(val, item.vptr)
-		return val, nil, nil
-	}
+		if (item.meta & bitValuePointer) == 0 {
+			val := item.slice.Resize(len(item.vptr))
+			copy(val, item.vptr)
+			return val, nil, nil
+		}
 
-	var vp valuePointer
-	vp.Decode(item.vptr)
-	result, cb, err := item.db.vlog.Read(vp, item.slice)
-	if err != ErrRetry {
-		return result, cb, err
-	}
+		var vp valuePointer
+		vp.Decode(item.vptr)
+		result, cb, err := item.db.vlog.Read(vp, item.slice)
+		if err != ErrRetry || bytes.HasPrefix(key, badgerMove) {
+			// The error is not retry, or we have already searched the move keyspace.
+			return result, cb, err
+		}
 
-	// The value pointer is pointing to a deleted value log. Look for the move key and read that
-	// instead.
-	runCallback(cb)
-	key := y.KeyWithTs(item.Key(), item.Version())
-	moveKey := append(badgerMove, key...)
-	vs, err := item.db.get(moveKey)
-	if err != nil {
-		return nil, nil, err
+		// The value pointer is pointing to a deleted value log. Look for the
+		// move key and read that instead.
+		runCallback(cb)
+		// Do not put badgerMove on the left in append. It seems to cause some sort of manipulation.
+		key = append([]byte{}, badgerMove...)
+		key = append(key, y.KeyWithTs(item.Key(), item.Version())...)
+		// Note that we can't set item.key to move key, because that would
+		// change the key user sees before and after this call. Also, this move
+		// logic is internal logic and should not impact the external behavior
+		// of the retrieval.
+		vs, err := item.db.get(key)
+		if err != nil {
+			return nil, nil, err
+		}
+		if vs.Version != item.Version() {
+			return nil, nil, nil
+		}
+		// Bug fix: Always copy the vs.Value into vptr here. Otherwise, when item is reused this
+		// slice gets overwritten.
+		item.vptr = y.SafeCopy(item.vptr, vs.Value)
+		item.meta &^= bitValuePointer // Clear the value pointer bit.
+		if vs.Meta&bitValuePointer > 0 {
+			item.meta |= bitValuePointer // This meta would only be about value pointer.
+		}
 	}
-	if vs.Version != item.Version() {
-		return nil, nil, nil
-	}
-	item.vptr = vs.Value
-	item.meta |= vs.Meta // This meta would only be about value pointer.
-	return item.yieldItemValue()
 }
 
 func runCallback(cb func()) {
@@ -307,6 +321,10 @@ type Iterator struct {
 // Using prefetch is highly recommended if you're doing a long running iteration.
 // Avoid long running iterations in update transactions.
 func (txn *Txn) NewIterator(opt IteratorOptions) *Iterator {
+	if atomic.AddInt32(&txn.numIterators, 1) > 1 {
+		panic("Only one iterator can be active at one time.")
+	}
+
 	tables, decr := txn.db.getMemTables()
 	defer decr()
 	txn.db.vlog.incrIteratorCount()
@@ -373,6 +391,7 @@ func (it *Iterator) Close() {
 
 	// TODO: We could handle this error.
 	_ = it.txn.db.vlog.decrIteratorCount()
+	atomic.AddInt32(&it.txn.numIterators, -1)
 }
 
 // Next would advance the iterator by one. Always check it.Valid() after a Next()

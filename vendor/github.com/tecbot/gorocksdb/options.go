@@ -20,6 +20,8 @@ const (
 	Bz2Compression    = CompressionType(C.rocksdb_bz2_compression)
 	LZ4Compression    = CompressionType(C.rocksdb_lz4_compression)
 	LZ4HCCompression  = CompressionType(C.rocksdb_lz4hc_compression)
+	XpressCompression = CompressionType(C.rocksdb_xpress_compression)
+	ZSTDCompression   = CompressionType(C.rocksdb_zstd_compression)
 )
 
 // CompactionStyle specifies the compaction style.

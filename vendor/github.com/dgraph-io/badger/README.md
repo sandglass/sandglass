@@ -415,7 +415,22 @@ the following methods, which can be invoked at an appropriate time:
   LSM-tree compactions to pick files that are likely to lead to maximum space
   reclamation.
 
-  It is recommended that this method be called regularly.
+It is recommended that this method be called during periods of low activity in
+your system, or periodically. One call would only result in removal of at max
+one log file. As an optimization, you could also immediately re-run it whenever
+it returns nil error (indicating a successful value log GC).
+
+```go
+ticker := time.NewTicker(5 * time.Minute)
+defer ticker.Stop()
+for range ticker.C {
+again:
+  err := db.RunValueLogGC(0.7)
+  if err == nil {
+    goto again
+  }
+}
+```
 
 ### Database backup
 There are two public API methods `DB.Backup()` and `DB.Load()` which can be
@@ -541,6 +556,7 @@ Below is a list of known projects that use Badger:
 * [Usenet Express](https://usenetexpress.com/) - Serving over 300TB of data with Badger.
 * [go-ipfs](https://github.com/ipfs/go-ipfs) - Go client for the InterPlanetary File System (IPFS), a new hypermedia distribution protocol.
 * [gorush](https://github.com/appleboy/gorush) - A push notification server written in Go.
+* [emitter](https://github.com/emitter-io/emitter) - Scalable, low latency, distributed pub/sub broker with message storage, uses MQTT, gossip and badger.
 
 If you are using Badger in a project please send a pull request to add it to the list.
 
@@ -567,11 +583,53 @@ There are multiple workarounds during iteration:
 
 - **My writes are really slow. Why?**
 
-Are you creating a new transaction for every single key update? This will lead
-to very low throughput. To get best write performance, batch up multiple writes
-inside a transaction using single `DB.Update()` call. You could also have
-multiple such `DB.Update()` calls being made concurrently from multiple
-goroutines.
+Are you creating a new transaction for every single key update, and waiting for
+it to `Commit` fully before creating a new one? This will lead to very low
+throughput. To get best write performance, batch up multiple writes inside a
+transaction using single `DB.Update()` call. You could also have multiple such
+`DB.Update()` calls being made concurrently from multiple goroutines.
+
+The way to achieve the highest write throughput via Badger, is to do serial
+writes and use callbacks in `txn.Commit`, like so:
+
+```go
+che := make(chan error, 1)
+storeErr := func(err error) {
+  if err == nil {
+    return
+  }
+  select {
+    case che <- err:
+    default:
+  }
+}
+
+getErr := func() error {
+  select {
+    case err := <-che:
+      return err
+    default:
+      return nil
+  }
+}
+
+var wg sync.WaitGroup
+for _, kv := range kvs {
+  wg.Add(1)
+  txn := db.NewTransaction(true)
+  handle(txn.Set(kv.Key, kv.Value))
+  handle(txn.Commit(func(err error) {
+    storeErr(err)
+    wg.Done()
+  }))
+}
+wg.Wait()
+return getErr()
+```
+
+In this code, we passed a callback function to `txn.Commit`, which can pick up
+and return the first error encountered, if any. Callbacks can be made to do more
+things, like retrying commits etc.
 
 - **I don't see any disk write. Why?**
 
@@ -583,7 +641,7 @@ the database, you'll see these writes on disk.
 
 - **Reverse iteration doesn't give me the right results.**
 
-Just like forward iteration goes to the first key which is equal or greater than the SEEK key, reverse iteration goes to the first key which is equal or lesser than the SEEK key. Therefore, SEEK key would not be part of the results. You can typically add a tilde (~) as a suffix to the SEEK key to include it in the results. See the following issues: [#436](https://github.com/dgraph-io/badger/issues/436) and [#347](https://github.com/dgraph-io/badger/issues/347).
+Just like forward iteration goes to the first key which is equal or greater than the SEEK key, reverse iteration goes to the first key which is equal or lesser than the SEEK key. Therefore, SEEK key would not be part of the results. You can typically add a `0xff` byte as a suffix to the SEEK key to include it in the results. See the following issues: [#436](https://github.com/dgraph-io/badger/issues/436) and [#347](https://github.com/dgraph-io/badger/issues/347).
 
 - **Which instances should I use for Badger?**
 
