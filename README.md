@@ -7,10 +7,10 @@ Sandglass is a distributed, horizontally scalable, persistent, time ordered mess
 
 <p align="center">
     <a href="https://github.com/sandglass/sandglass/releases/latest">
-        <img alt="Release" src="https://img.shields.io/github/release/celrenheit/sandglass.svg?style=flat-square">
+        <img alt="Release" src="https://img.shields.io/github/release/sandglass/sandglass.svg?style=flat-square">
     </a>
-    <a href="https://travis-ci.org/celrenheit/sandglass">
-        <img alt="Build Status" src="https://img.shields.io/travis/celrenheit/sandglass.svg?style=flat-square">
+    <a href="https://travis-ci.org/sandglass/sandglass">
+        <img alt="Build Status" src="https://img.shields.io/travis/sandglass/sandglass.svg?style=flat-square">
     </a>
     <a href="LICENSE">
         <img alt="License" src="https://img.shields.io/badge/license-apache-blue.svg?style=flat-square">
@@ -74,7 +74,7 @@ For other platforms, you can grab binaries [here](https://github.com/sandglass/s
 First, let's launch sandglass server:
 
 ```shell
-sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node1.yaml --offset_replication_factor 1
+sandglass --config https://raw.githubusercontent.com/sandglass/sandglass/master/demo/node1.yaml --offset_replication_factor 1
 ```
 
 In a second terminal window, create a _emails_ topic:
@@ -101,7 +101,7 @@ sandctl consume emails
 
 Add a second node to the cluster:
 ```shell
-sandglass --config https://raw.githubusercontent.com/celrenheit/sandglass/master/demo/node2.yaml
+sandglass --config https://raw.githubusercontent.com/sandglass/sandglass/master/demo/node2.yaml
 ```
 
 and repeat the same steps described above for another topic and increasing the replication factor to 2.
